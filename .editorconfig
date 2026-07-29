@@ -10,13 +10,31 @@ end_of_line = lf
 
 [*.{cs,vb}]
 indent_size = 4
+dotnet_style_parentheses_in_arithmetic_binary_operators = never_for_clarity:suggestion
+dotnet_style_parentheses_in_other_binary_operators = never_for_clarity:suggestion
+dotnet_style_parentheses_in_other_operators = never_for_clarity:suggestion
+dotnet_style_require_braces = always:suggestion
+dotnet_style_require_braces_in_foreaches = true:suggestion
+dotnet_style_require_braces_in_fixed_statements = true:suggestion
+dotnet_style_require_braces_in_using_statements = true:suggestion
+dotnet_style_require_braces_in_whiles = true:suggestion
+csharp_new_line_before_open_brace = all:suggestion
+csharp_new_line_before_else = true:suggestion
+csharp_new_line_before_catch = true:suggestion
+csharp_new_line_before_finally = true:suggestion
+csharp_new_line_before_members_in_object_initializers = true:suggestion
+csharp_new_line_before_members_in_anonymous_types = true:suggestion
+csharp_new_line_between_query_expression_clauses = true:suggestion
 
 [*.{cshtml,razor}]
 indent_size = 2
 indent_style = space
 
-[*.{json,xml,yml,yaml}]
+[*.{csproj,sln,props,targets,xml}]
 indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+[*.{json,yml,yaml}]
+indent_size = 2

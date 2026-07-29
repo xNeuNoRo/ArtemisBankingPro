@@ -9,8 +9,7 @@ Log.Logger = new LoggerConfiguration()
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
-    .ConfigureServices(services =>
-    {
+    .ConfigureServices(services => {
         services.AddApplicationInsightsTelemetryWorkerService();
     })
     .UseSerilog()
