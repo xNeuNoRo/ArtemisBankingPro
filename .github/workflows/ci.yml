@@ -17,10 +17,10 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Setup .NET
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v6
               with:
                   dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -35,7 +35,7 @@ jobs:
 
             - name: Upload Unit Test Results
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: unit-test-results
                   path: "**/*.trx"
@@ -62,10 +62,10 @@ jobs:
                     --health-start-period=60s
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Setup .NET
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v6
               with:
                   dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -82,7 +82,7 @@ jobs:
 
             - name: Upload Integration Test Results
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: integration-test-results
                   path: "**/*.trx"
