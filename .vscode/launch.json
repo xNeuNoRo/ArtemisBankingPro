@@ -1,0 +1,98 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🚀 WebApp (MVC)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Presentation/ArtemisBankingPro.WebApp/bin/Debug/net9.0/ArtemisBankingPro.WebApp.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/Presentation/ArtemisBankingPro.WebApp",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "sourceFileMap": {
+        "/Views": "${workspaceFolder}/src/Presentation/ArtemisBankingPro.WebApp/Views"
+      }
+    },
+    {
+      "name": "🚀 API (Scalar)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Presentation/ArtemisBankingPro.Api/bin/Debug/net9.0/ArtemisBankingPro.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/Presentation/ArtemisBankingPro.Api",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/docs"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "🚀 Functions (Timer Trigger)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/Presentation/ArtemisBankingPro.Functions/bin/Debug/net9.0/ArtemisBankingPro.Functions.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/Presentation/ArtemisBankingPro.Functions",
+      "stopAtEntry": false,
+      "env": {
+        "AZURE_FUNCTIONS_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "🧪 Unit Tests",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "dotnet",
+      "args": [
+        "test",
+        "tests/ArtemisBankingPro.UnitTests/",
+        "--no-build",
+        "--logger",
+        "trx;LogFileName=unit-tests.trx"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
+    },
+    {
+      "name": "🧪 Integration Tests",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "dotnet",
+      "args": [
+        "test",
+        "tests/ArtemisBankingPro.IntegrationTests/",
+        "--no-build",
+        "--logger",
+        "trx;LogFileName=integration-tests.trx"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🚀 Full Stack (WebApp + API)",
+      "configurations": [
+        "🚀 WebApp (MVC)",
+        "🚀 API (Scalar)"
+      ]
+    }
+  ]
+}

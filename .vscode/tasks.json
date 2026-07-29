@@ -1,0 +1,355 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "migrationName",
+      "type": "promptString",
+      "description": "Migration name (PascalCase, e.g. InitialCreate, AddLoanTable, AddInterestRateConfig)",
+      "default": "InitialCreate"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "ArtemisBankingPro.sln", "--no-restore"],
+      "group": { "kind": "build", "isDefault": true },
+      "detail": "Compila toda la solución sin restore",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "restore",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["restore", "ArtemisBankingPro.sln"],
+      "detail": "Restaura todos los paquetes NuGet",
+      "problemMatcher": []
+    },
+    {
+      "label": "clean",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["clean", "ArtemisBankingPro.sln"],
+      "detail": "Elimina artefactos de compilación (bin/obj)",
+      "problemMatcher": []
+    },
+    {
+      "label": "rebuild",
+      "dependsOn": ["clean", "build"],
+      "dependsOrder": "sequence",
+      "detail": "Limpia y compila desde cero"
+    },
+    {
+      "label": "run:webapp",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["run", "--project", "src/Presentation/ArtemisBankingPro.WebApp", "--no-build"],
+      "detail": "Ejecuta WebApp (MVC) — http://localhost:5241",
+      "problemMatcher": []
+    },
+    {
+      "label": "run:api",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["run", "--project", "src/Presentation/ArtemisBankingPro.Api", "--no-build"],
+      "detail": "Ejecuta API (Scalar) — http://localhost:5240/docs",
+      "problemMatcher": []
+    },
+    {
+      "label": "run:functions",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["run", "--project", "src/Presentation/ArtemisBankingPro.Functions", "--no-build"],
+      "detail": "Ejecuta Azure Functions (TimerTrigger local)",
+      "problemMatcher": []
+    },
+    {
+      "label": "test:unit",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["test", "tests/ArtemisBankingPro.UnitTests/", "--no-build", "--logger", "trx;LogFileName=unit-tests.trx"],
+      "group": { "kind": "test", "isDefault": true },
+      "detail": "Ejecuta unit tests con reporte TRX",
+      "problemMatcher": []
+    },
+    {
+      "label": "test:integration",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["test", "tests/ArtemisBankingPro.IntegrationTests/", "--no-build", "--logger", "trx;LogFileName=integration-tests.trx"],
+      "group": "test",
+      "detail": "Ejecuta integration tests (requiere SQL Server — docker:up)",
+      "problemMatcher": []
+    },
+    {
+      "label": "test:all",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["test", "ArtemisBankingPro.sln", "--no-build", "--logger", "trx;LogFileName=all-tests.trx"],
+      "group": "test",
+      "detail": "Ejecuta todos los tests de la solución",
+      "problemMatcher": []
+    },
+    {
+      "label": "test:watch",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["watch", "test", "tests/ArtemisBankingPro.UnitTests/"],
+      "detail": "Modo watch: re-ejecuta tests automáticamente al guardar cambios (TDD)",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:pg:add",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "add", "${input:migrationName}",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Persistence",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "BankingDbContext",
+        "--output-dir", "Migrations/Banking"
+      ],
+      "detail": "[Persistence] Crea migration en Migrations/Banking/",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:pg:remove",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "remove",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Persistence",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "BankingDbContext"
+      ],
+      "detail": "[Persistence] Elimina la última migration",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:pg:list",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "list",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Persistence",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "BankingDbContext"
+      ],
+      "detail": "[Persistence] Lista migrations aplicadas/pendientes",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:pg:script",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "script",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Persistence",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "BankingDbContext",
+        "--output", "scripts/banking-migrations.sql",
+        "--idempotent"
+      ],
+      "detail": "[Persistence] Genera script SQL idempotente",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:pg:migrate",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "database", "update",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Persistence",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "BankingDbContext"
+      ],
+      "detail": "[Persistence] Aplica migrations a la base de datos",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:id:add",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "add", "${input:migrationName}",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Identity",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "AppIdentityDbContext",
+        "--output-dir", "Migrations/Identity"
+      ],
+      "detail": "[Identity] Crea migration en Migrations/Identity/",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:id:remove",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "remove",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Identity",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "AppIdentityDbContext"
+      ],
+      "detail": "[Identity] Elimina la última migration",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:id:list",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "list",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Identity",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "AppIdentityDbContext"
+      ],
+      "detail": "[Identity] Lista migrations aplicadas/pendientes",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:id:script",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "migrations", "script",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Identity",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "AppIdentityDbContext",
+        "--output", "scripts/identity-migrations.sql",
+        "--idempotent"
+      ],
+      "detail": "[Identity] Genera script SQL idempotente",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:id:migrate",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "ef", "database", "update",
+        "--project", "src/Infrastructure/ArtemisBankingPro.Infrastructure.Identity",
+        "--startup-project", "src/Presentation/ArtemisBankingPro.Api",
+        "--context", "AppIdentityDbContext"
+      ],
+      "detail": "[Identity] Aplica migrations a la base de datos",
+      "problemMatcher": []
+    },
+    {
+      "label": "db:both:add",
+      "dependsOn": ["db:id:add", "db:pg:add"],
+      "dependsOrder": "sequence",
+      "detail": "Crea migration en ambos contextos: Identity → Persistence"
+    },
+    {
+      "label": "db:both:migrate",
+      "dependsOn": ["db:id:migrate", "db:pg:migrate"],
+      "dependsOrder": "sequence",
+      "detail": "Aplica migrations en orden: Identity → Persistence (respeta FKs cross-schema)"
+    },
+    {
+      "label": "format:check",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["format", "ArtemisBankingPro.sln", "--verify-no-changes", "--verbosity", "quiet"],
+      "detail": "Verifica formato (exit 1 si hay violaciones — CI gate)",
+      "problemMatcher": []
+    },
+    {
+      "label": "format:fix",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["format", "ArtemisBankingPro.sln", "--verbosity", "normal"],
+      "detail": "Auto-corrige formato de todo el código fuente",
+      "problemMatcher": []
+    },
+    {
+      "label": "analyze",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "ArtemisBankingPro.sln", "/p:RunAnalyzers=true", "/p:TreatAnalyzerWarningsAsErrors=true"],
+      "detail": "Compila con Roslyn analyzers + warnings como errores",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "nuget:audit",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["list", "ArtemisBankingPro.sln", "package", "--vulnerable", "--include-transitive"],
+      "detail": "Audita vulnerabilidades de seguridad en paquetes NuGet",
+      "problemMatcher": []
+    },
+    {
+      "label": "nuget:outdated",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["list", "ArtemisBankingPro.sln", "package", "--outdated"],
+      "detail": "Lista paquetes con versiones más recientes disponibles",
+      "problemMatcher": []
+    },
+    {
+      "label": "sln:list",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["sln", "ArtemisBankingPro.sln", "list"],
+      "detail": "Lista todos los proyectos en la solución",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker:up",
+      "command": "docker",
+      "type": "process",
+      "args": ["compose", "-f", "docker-compose.yml", "up", "-d", "--remove-orphans"],
+      "detail": "Levanta SQL Server + Seq + Azurite en background",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker:down",
+      "command": "docker",
+      "type": "process",
+      "args": ["compose", "-f", "docker-compose.yml", "down"],
+      "detail": "Detiene contenedores (volúmenes persistentes)",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker:down:clean",
+      "command": "docker",
+      "type": "process",
+      "args": ["compose", "-f", "docker-compose.yml", "down", "-v"],
+      "detail": "Detiene contenedores + elimina volúmenes (BD desde cero)",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker:logs",
+      "command": "docker",
+      "type": "process",
+      "args": ["compose", "-f", "docker-compose.yml", "logs", "-f"],
+      "detail": "Sigue logs de todos los servicios en tiempo real",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker:logs:sql",
+      "command": "docker",
+      "type": "process",
+      "args": ["compose", "-f", "docker-compose.yml", "logs", "-f", "sqlserver"],
+      "detail": "Sigue logs de SQL Server únicamente",
+      "problemMatcher": []
+    },
+    {
+      "label": "gen:entity",
+      "command": "bash",
+      "type": "process",
+      "args": [".vscode/scripts/gen-entity.sh"],
+      "detail": "Genera entidad Domain en Entities/ (pide nombre PascalCase)",
+      "problemMatcher": []
+    },
+    {
+      "label": "gen:controller",
+      "command": "bash",
+      "type": "process",
+      "args": [".vscode/scripts/gen-controller.sh"],
+      "detail": "Genera controlador API CRUD en Controllers/ (pide nombre PascalCase, opcional Api|WebApp)",
+      "problemMatcher": []
+    }
+  ]
+}

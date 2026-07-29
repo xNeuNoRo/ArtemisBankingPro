@@ -1,0 +1,40 @@
+{
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.fixAll": "explicit"
+  },
+  "editor.defaultFormatter": "ms-dotnettools.csharp",
+  "editor.rulers": [120],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "dotnet.defaultSolution": "ArtemisBankingPro.sln",
+  "dotnet.buildOnSave": true,
+  "omnisharp.enableEditorConfigSupport": true,
+  "omnisharp.useModernNet": true,
+  "csharp.semanticHighlighting.enabled": true,
+  "csharp.semanticHighlighting.strings.enabled": true,
+  "csharp.inlayHints.options.enableForParameters": true,
+  "csharp.inlayHints.parameters.names.enabled": "all",
+  "csharp.inlayHints.types.enabled": true,
+  "files.autoSave": "onFocusChange",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/*.min.js": true,
+    "**/*.map": true
+  },
+  "terminal.integrated.defaultProfile.linux": "zsh",
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

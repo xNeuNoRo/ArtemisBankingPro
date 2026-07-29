@@ -358,7 +358,6 @@ opencode.json
 .cursor/
 .gemini/
 .tabnine/
-.vscode/
 
 # Telerik's JustMock configuration file
 *.jmconfig
@@ -511,4 +510,4 @@ Logs/
 *.log
 secrets.json
 
-appsettings.Development.json 
+appsettings.Development.json
