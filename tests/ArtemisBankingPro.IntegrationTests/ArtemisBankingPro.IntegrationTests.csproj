@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Infrastructure\ArtemisBankingPro.Infrastructure.Persistence\ArtemisBankingPro.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\ArtemisBankingPro.Infrastructure.Identity\ArtemisBankingPro.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Presentation\ArtemisBankingPro.Api\ArtemisBankingPro.Api.csproj" />
+  </ItemGroup>
+
+</Project>

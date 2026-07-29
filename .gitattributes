@@ -1,0 +1,15 @@
+* text=auto
+
+*.cs text diff=csharp
+*.csproj text merge=union
+*.sln text merge=union
+*.json text
+*.xml text
+*.md text
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.dll binary
+*.exe binary
+*.pdb binary

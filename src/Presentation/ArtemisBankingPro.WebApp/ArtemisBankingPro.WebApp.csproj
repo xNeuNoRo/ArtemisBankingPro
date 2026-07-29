@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\ArtemisBankingPro.Application\ArtemisBankingPro.Application.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ArtemisBankingPro.Infrastructure.Persistence\ArtemisBankingPro.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ArtemisBankingPro.Infrastructure.Identity\ArtemisBankingPro.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ArtemisBankingPro.Infrastructure.Shared\ArtemisBankingPro.Infrastructure.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

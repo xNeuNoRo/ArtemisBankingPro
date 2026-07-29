@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" OutputItemType="Analyzer" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.ApplicationInsights" />
+    <PackageReference Include="Microsoft.ApplicationInsights.WorkerService" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\ArtemisBankingPro.Application\ArtemisBankingPro.Application.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ArtemisBankingPro.Infrastructure.Persistence\ArtemisBankingPro.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ArtemisBankingPro.Infrastructure.Identity\ArtemisBankingPro.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ArtemisBankingPro.Infrastructure.Shared\ArtemisBankingPro.Infrastructure.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="host.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="local.settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
