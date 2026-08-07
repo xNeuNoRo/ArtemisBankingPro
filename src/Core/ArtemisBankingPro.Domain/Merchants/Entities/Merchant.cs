@@ -1,12 +1,16 @@
 using System.Net.Mail;
-using ArtemisBankingPro.Domain.Merchants.Enums;
-using ArtemisBankingPro.Domain.Merchants.Errors;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Merchants.Enums;
+using ArtemisBankingPro.Domain.Merchants.Errors;
+using ArtemisBankingPro.Domain.Merchants.Events;
 
 namespace ArtemisBankingPro.Domain.Merchants.Entities;
 
-public sealed class Merchant : Entity<int> {
+/// <summary>
+/// Representa un comerciante registrado en el sistema, con su información de contacto, RNC, estado y usuario asociado (si aplica).
+/// </summary>
+public sealed class Merchant : AggregateRoot<int> {
     private Merchant() { }
 
     private Merchant(
@@ -116,6 +120,7 @@ public sealed class Merchant : Entity<int> {
 
         AssociatedUserId = userId;
         UpdatedAt = updatedAt;
+        RaiseDomainEvent(new MerchantUserAssociatedEvent(Id, userId));
         return Result.Success();
     }
 
