@@ -17,8 +17,7 @@
   "csharp.semanticHighlighting.enabled": true,
   "csharp.semanticHighlighting.strings.enabled": true,
   "csharp.inlayHints.options.enableForParameters": true,
-  "csharp.inlayHints.parameters.names.enabled": "all",
-  "csharp.inlayHints.types.enabled": true,
+"csharp.inlayHints.parameters.names.enabled": "all",
   "files.autoSave": "onFocusChange",
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
@@ -36,5 +35,6 @@
     "**/*.map": true
   },
   "terminal.integrated.defaultProfile.linux": "zsh",
-  "terminal.integrated.defaultProfile.windows": "PowerShell"
+"terminal.integrated.defaultProfile.windows": "PowerShell",
+"csharp.inlayHints.enableInlayHintsForTypes": true
 }
