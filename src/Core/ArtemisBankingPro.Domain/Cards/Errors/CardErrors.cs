@@ -30,6 +30,18 @@ public static class CardErrors {
             "Se requiere el código de seguridad CVC en formato SHA-256."
         );
 
+    public static DomainError InvalidLastFour { get; } =
+        DomainError.Validation(
+            "Card.InvalidLastFour",
+            "Los últimos cuatro dígitos de la tarjeta no son válidos."
+        );
+
+    public static DomainError InvalidPanFingerprint { get; } =
+        DomainError.Validation(
+            "Card.InvalidPanFingerprint",
+            "La huella de la tarjeta no es válida."
+        );
+
     public static DomainError InconsistentIssueDate { get; } =
         DomainError.Validation(
             "Card.InconsistentIssueDate",
