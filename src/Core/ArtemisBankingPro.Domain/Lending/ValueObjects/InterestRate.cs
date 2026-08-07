@@ -1,8 +1,11 @@
-using ArtemisBankingPro.Domain.Lending.Errors;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Lending.Errors;
 
 namespace ArtemisBankingPro.Domain.Lending.ValueObjects;
 
+/// <summary>
+/// Representa una tasa de interés anual para un préstamo, con validación de no negatividad y cálculo de la tasa mensual.
+/// </summary>
 public sealed record InterestRate {
     private InterestRate(decimal annualPercentage) {
         AnnualPercentage = annualPercentage;
