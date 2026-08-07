@@ -1,0 +1,10 @@
+@model ArtemisBankingPro.Application.Models.Emails.CashAdvanceCompletedModel
+Hola @Model.CustomerName,
+
+Se ha realizado un avance de efectivo desde su tarjeta terminada en @Model.CardLastFour.
+Monto depositado: @Model.DepositedAmountText
+Interés aplicado: @Model.InterestText
+Total cargado a la tarjeta: @Model.TotalChargedText
+Cuenta destino terminada en: @Model.AccountLastFour
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.

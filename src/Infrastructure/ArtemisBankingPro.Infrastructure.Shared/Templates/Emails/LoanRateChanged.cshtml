@@ -1,0 +1,8 @@
+@model ArtemisBankingPro.Application.Models.Emails.LoanRateChangedModel
+Hola @Model.CustomerName,
+
+La tasa de interés de su préstamo @Model.LoanNumber ha sido actualizada.
+Nueva tasa de interés anual: @Model.NewAnnualRateText%
+Nuevo valor de la próxima cuota: @Model.NextInstallmentAmountText
+Fecha de vencimiento de la próxima cuota: @Model.NextInstallmentDueDateText
+Esta modificación aplica únicamente a las cuotas futuras pendientes.

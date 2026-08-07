@@ -1,0 +1,10 @@
+@model ArtemisBankingPro.Application.Models.Emails.LoanApprovedModel
+Hola @Model.CustomerName,
+
+Su préstamo ha sido aprobado correctamente.
+Número de préstamo: @Model.LoanNumber
+Monto aprobado: @Model.ApprovedAmountText
+Plazo: @Model.TermMonths meses
+Tasa de interés anual: @Model.AnnualRateText%
+Cuota mensual: @Model.MonthlyPaymentText
+El monto aprobado ha sido depositado en su cuenta de ahorro principal.

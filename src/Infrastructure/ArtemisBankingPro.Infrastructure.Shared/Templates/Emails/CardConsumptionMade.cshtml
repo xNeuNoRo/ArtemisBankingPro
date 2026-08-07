@@ -1,0 +1,8 @@
+@model ArtemisBankingPro.Application.Models.Emails.CardConsumptionMadeModel
+Hola @Model.CustomerName,
+
+Se ha realizado un consumo con su tarjeta terminada en @Model.CardLastFour.
+Comercio: @Model.MerchantName
+Monto: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.

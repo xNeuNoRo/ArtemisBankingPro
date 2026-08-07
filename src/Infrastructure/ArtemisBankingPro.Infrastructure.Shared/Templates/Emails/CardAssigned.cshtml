@@ -1,0 +1,8 @@
+@model ArtemisBankingPro.Application.Models.Emails.CardAssignedModel
+Hola @Model.CustomerName,
+
+Se ha asignado una nueva tarjeta de crédito a su cuenta.
+Tarjeta terminada en: @Model.LastFour
+Límite aprobado: @Model.CreditLimitText
+Fecha de expiración: @Model.Expiration
+Por seguridad, no comparta la información de su tarjeta con terceros.
