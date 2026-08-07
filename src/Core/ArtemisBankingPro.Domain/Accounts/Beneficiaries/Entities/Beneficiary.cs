@@ -4,6 +4,9 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Domain.Accounts.Beneficiaries.Entities;
 
+/// <summary>
+/// Representa un beneficiario de transferencias de fondos de un usuario a una cuenta destino.
+/// </summary>
 public sealed class Beneficiary : Entity<int> {
     private Beneficiary() { }
 
