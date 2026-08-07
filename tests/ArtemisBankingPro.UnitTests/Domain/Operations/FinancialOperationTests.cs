@@ -8,6 +8,7 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Errors;
+using ArtemisBankingPro.Domain.Operations.Events;
 
 namespace ArtemisBankingPro.UnitTests.Domain.Operations;
 
@@ -159,6 +160,64 @@ public sealed class FinancialOperationTests {
             merchantId: 3);
 
         Assert.Equal(OperationErrors.InvalidProductReference, result.Error);
+    }
+
+    [Fact]
+    public void Approve_RaisesApprovedEvent_WithOperationIdAndKind() {
+        Guid id = Guid.NewGuid();
+        Money amount = Money.Create(100m).Value;
+
+        FinancialOperation operation = FinancialOperation.Approve(
+            id,
+            FinancialOperationKind.ExpressTransfer,
+            amount,
+            amount,
+            Money.Zero,
+            "client",
+            Now,
+            [Debit(Source, amount), Credit(Destination, amount)]).Value;
+
+        operation.DomainEvents.Should().ContainSingle();
+        FinancialOperationApprovedEvent? domainEvent = Assert.IsType<FinancialOperationApprovedEvent>(
+            operation.DomainEvents.Single()
+        );
+        domainEvent.OperationId.Should().Be(id);
+        domainEvent.Kind.Should().Be(FinancialOperationKind.ExpressTransfer);
+    }
+
+    [Fact]
+    public void Reject_DoesNotRaiseApprovedEvent() {
+        Money amount = Money.Create(500m).Value;
+
+        FinancialOperation operation = FinancialOperation.Reject(
+            Guid.NewGuid(),
+            FinancialOperationKind.ExpressTransfer,
+            amount,
+            Money.Zero,
+            "client",
+            Now,
+            AccountErrors.InsufficientFunds.Code,
+            [Debit(Source, amount)]).Value;
+
+        operation.DomainEvents.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Approve_InvalidOperation_DoesNotRaiseEvent() {
+        Money amount = Money.Create(100m).Value;
+
+        Result<FinancialOperation> result = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.OwnAccountTransfer,
+            amount,
+            amount,
+            Money.Zero,
+            "client",
+            Now,
+            [Debit(Source, amount), Credit(Source, amount)]);
+
+        result.IsSuccess.Should().BeFalse();
+        Assert.Equal(OperationErrors.UnbalancedTransfer, result.Error);
     }
 
     private static AccountTransactionDetails Debit(AccountNumber account, Money amount) =>
