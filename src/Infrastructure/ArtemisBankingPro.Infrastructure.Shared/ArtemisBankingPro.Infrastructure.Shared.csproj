@@ -9,11 +9,27 @@
   <ItemGroup>
     <PackageReference Include="MailKit" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="RazorLight" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Settings.Configuration" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\ArtemisBankingPro.Application\ArtemisBankingPro.Application.csproj" />
     <ProjectReference Include="..\..\Core\ArtemisBankingPro.Domain\ArtemisBankingPro.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ArtemisBankingPro.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Templates\Emails\**\*.cshtml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
