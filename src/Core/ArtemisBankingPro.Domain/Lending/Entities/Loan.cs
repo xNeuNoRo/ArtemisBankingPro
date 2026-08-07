@@ -1,14 +1,18 @@
+using ArtemisBankingPro.Domain.Common.Entities;
+using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Lending.Details;
 using ArtemisBankingPro.Domain.Lending.Enums;
 using ArtemisBankingPro.Domain.Lending.Errors;
+using ArtemisBankingPro.Domain.Lending.Events;
 using ArtemisBankingPro.Domain.Lending.Policies;
 using ArtemisBankingPro.Domain.Lending.ValueObjects;
-using ArtemisBankingPro.Domain.Common.Entities;
-using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Domain.Lending.Entities;
 
-public sealed class Loan : Entity<int> {
+/// <summary>
+/// Representa un préstamo emitido a un cliente, con su número, monto aprobado, plazo, tasa de interés, estado y cuotas.
+/// </summary>
+public sealed class Loan : AggregateRoot<int> {
     private readonly List<Installment> _installments = [];
 
     private Loan() { }
@@ -99,18 +103,29 @@ public sealed class Loan : Entity<int> {
             return Result.Failure<Loan>(schedule.Error!);
         }
 
-        return Result.Success(
-            new Loan(
-                customerUserId,
-                number,
-                approvedPrincipal,
-                termMonths,
-                annualInterestRate,
-                assignedByUserId,
-                issuedAt,
-                schedule.Value
+        var loan = new Loan(
+            customerUserId,
+            number,
+            approvedPrincipal,
+            termMonths,
+            annualInterestRate,
+            assignedByUserId,
+            issuedAt,
+            schedule.Value
+        );
+
+        loan.RaiseDomainEvent(
+            new LoanIssuedEvent(
+                loan.CustomerUserId,
+                loan.Number,
+                loan.ApprovedPrincipal.Amount,
+                loan.TermMonths,
+                loan.AnnualInterestRate.AnnualPercentage,
+                loan.Installments.First().ScheduledAmount.Amount
             )
         );
+
+        return Result.Success(loan);
     }
 
     public Result<Money> ApplyPayment(Money requestedAmount, DateTimeOffset paidAt) {
@@ -194,6 +209,16 @@ public sealed class Loan : Entity<int> {
         }
 
         AnnualInterestRate = newRate;
+        Installment nextInstallment = eligibleInstallments[0];
+        RaiseDomainEvent(
+            new LoanRateChangedEvent(
+                CustomerUserId,
+                Number,
+                newRate.AnnualPercentage,
+                nextInstallment.ScheduledAmount.Amount,
+                nextInstallment.DueDate
+            )
+        );
         return Result.Success();
     }
 
