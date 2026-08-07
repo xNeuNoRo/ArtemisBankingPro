@@ -1,9 +1,14 @@
 namespace ArtemisBankingPro.Domain.Common.ValueObjects;
 
+/// <summary>
+/// Representa el resultado de una operación, que puede ser exitosa o fallida, y puede contener un valor o un error de dominio.
+/// </summary>
 public sealed class Result {
     private Result(bool isSuccess, DomainError? error) {
         if (isSuccess == (error is not null)) {
-            throw new ArgumentException("A result must contain either success or an error.");
+            throw new ArgumentException(
+                "Un resultado debe contener éxito o un error, pero no ambos."
+            );
         }
 
         IsSuccess = isSuccess;
@@ -18,24 +23,30 @@ public sealed class Result {
 
     public static Result Success() => new(true, null);
 
+    public static Result<T> Success<T>(T value) => new Result<T>(true, value, null);
+
     public static Result Failure(DomainError error) =>
         new(false, error ?? throw new ArgumentNullException(nameof(error)));
 
-    public static Result<T> Success<T>(T value) => Result<T>.Success(value);
-
-    public static Result<T> Failure<T>(DomainError error) => Result<T>.Failure(error);
+    public static Result<T> Failure<T>(DomainError error) =>
+        new Result<T>(false, default, error ?? throw new ArgumentNullException(nameof(error)));
 }
 
 public sealed class Result<T> {
     private readonly T? _value;
 
-    private Result(bool isSuccess, T? value, DomainError? error) {
+    internal Result(bool isSuccess, T? value, DomainError? error) {
         if (isSuccess == (error is not null)) {
-            throw new ArgumentException("A result must contain either success or an error.");
+            throw new ArgumentException(
+                "Un resultado debe contener éxito o un error, pero no ambos."
+            );
         }
 
         if (isSuccess && value is null) {
-            throw new ArgumentNullException(nameof(value), "A successful result requires a value.");
+            throw new ArgumentNullException(
+                nameof(value),
+                "Un resultado exitoso requiere un valor."
+            );
         }
 
         IsSuccess = isSuccess;
@@ -49,13 +60,8 @@ public sealed class Result<T> {
 
     public DomainError? Error { get; }
 
-    public T Value => IsSuccess
-        ? _value!
-        : throw new InvalidOperationException("A failed result has no value.");
-
-    public static Result<T> Success(T value) => new(true, value, null);
-
-    public static Result<T> Failure(DomainError error) =>
-        new(false, default, error ?? throw new ArgumentNullException(nameof(error)));
-
+    public T Value =>
+        IsSuccess
+            ? _value!
+            : throw new InvalidOperationException("Un resultado fallido no tiene valor.");
 }
