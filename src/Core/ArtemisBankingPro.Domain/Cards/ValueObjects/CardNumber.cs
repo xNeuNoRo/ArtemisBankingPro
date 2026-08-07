@@ -22,7 +22,5 @@ public sealed record CardNumber {
         return Result.Success(new CardNumber(value));
     }
 
-    internal string GetUnmaskedValue() => Value;
-
     public override string ToString() => Masked;
 }
