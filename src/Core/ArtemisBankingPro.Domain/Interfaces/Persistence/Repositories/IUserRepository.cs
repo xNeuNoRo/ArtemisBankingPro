@@ -8,6 +8,18 @@ namespace ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 public interface IUserRepository {
     Task<UserListDto?> GetByUserNameAsync(string userName, CancellationToken ct = default);
 
+    Task<UserListDto?> GetByIdAsync(string userId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<UserListDto>> GetByIdsAsync(
+        IReadOnlyCollection<string> userIds,
+        CancellationToken ct = default
+    );
+
+    Task<UserListDto?> GetByIdentityDocumentAsync(
+        string document,
+        CancellationToken ct = default
+    );
+
     Task<bool> ExistsByUserNameAsync(string userName, CancellationToken ct = default);
 
     Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default);
@@ -28,4 +40,7 @@ public interface IUserRepository {
     );
 
     Task<IReadOnlyList<string>> GetRolesAsync(string userId, CancellationToken ct = default);
+
+    /// <summary>Cantidad de usuarios con rol Cliente y estado activo.</summary>
+    Task<int> CountActiveClientsAsync(CancellationToken ct = default);
 }

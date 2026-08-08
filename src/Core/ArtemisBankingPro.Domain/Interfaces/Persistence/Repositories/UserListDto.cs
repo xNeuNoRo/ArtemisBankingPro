@@ -11,5 +11,6 @@ public sealed record UserListDto(
     string LastName,
     string Email,
     string Role,
-    bool IsActive
+    bool IsActive,
+    DateTimeOffset CreatedAt
 );
