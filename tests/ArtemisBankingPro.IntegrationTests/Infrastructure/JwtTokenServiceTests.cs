@@ -1,6 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
+using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Infrastructure.Identity.Services;
 using Microsoft.IdentityModel.Tokens;
 
@@ -18,7 +18,7 @@ public sealed class JwtTokenServiceTests(SqlServerFixture fixture) : SqlServerTe
 
         string token = service.GenerateToken(
             new JwtTokenRequest("user-1", "admin", "Administrador", null, issuedAt)
-        );
+        ).Token;
 
         JwtSecurityToken decoded = new JwtSecurityTokenHandler().ReadJwtToken(token);
         decoded.Subject.Should().Be("user-1");
@@ -36,7 +36,7 @@ public sealed class JwtTokenServiceTests(SqlServerFixture fixture) : SqlServerTe
 
         string token = service.GenerateToken(
             new JwtTokenRequest("user-2", "comercio", "Comercio", 7, NowUtc)
-        );
+        ).Token;
 
         JwtSecurityToken decoded = new JwtSecurityTokenHandler().ReadJwtToken(token);
         decoded.Claims.First(claim => claim.Type == CurrentUserService.CommerceIdClaim).Value
@@ -51,7 +51,7 @@ public sealed class JwtTokenServiceTests(SqlServerFixture fixture) : SqlServerTe
 
         string token = service.GenerateToken(
             new JwtTokenRequest("user-1", "admin", "Administrador", null, issuedAt)
-        );
+        ).Token;
 
         JwtSecurityToken decoded = new JwtSecurityTokenHandler().ReadJwtToken(token);
         decoded.ValidFrom.Should().BeCloseTo(issuedAt.UtcDateTime, TimeSpan.FromSeconds(1));
@@ -65,7 +65,7 @@ public sealed class JwtTokenServiceTests(SqlServerFixture fixture) : SqlServerTe
 
         string token = service.GenerateToken(
             new JwtTokenRequest("user-1", "admin", "Administrador", null, NowUtc)
-        );
+        ).Token;
 
         var handler = new JwtSecurityTokenHandler();
         var parameters = new TokenValidationParameters {
@@ -93,7 +93,7 @@ public sealed class JwtTokenServiceTests(SqlServerFixture fixture) : SqlServerTe
 
         string token = service.GenerateToken(
             new JwtTokenRequest("user-1", "admin", "Administrador", null, NowUtc)
-        );
+        ).Token;
 
         string tampered = token[..^4] + "AAAA";
         var handler = new JwtSecurityTokenHandler();
