@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Globalization;
+using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,7 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Services;
 /// Las cuentas y préstamos comparten el espacio de 9 dígitos; las tarjetas usan
 /// el mismo contador con BIN propio y dígito verificador Luhn.
 /// </summary>
-public sealed class NumberGenerator
+public sealed class NumberGenerator : INumberGenerator
 {
     private const string NextSequenceValueSql = "SELECT NEXT VALUE FOR dbo.BankingNumberSequence";
     private const string CardBin = "900000";
