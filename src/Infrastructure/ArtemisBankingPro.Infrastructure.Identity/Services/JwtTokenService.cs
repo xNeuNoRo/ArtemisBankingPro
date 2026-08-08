@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Settings;
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -40,7 +40,7 @@ public sealed class JwtTokenService : IJwtTokenService
         }
     }
 
-    public string GenerateToken(JwtTokenRequest request)
+    public JwtTokenResult GenerateToken(JwtTokenRequest request)
     {
         DateTimeOffset expiresAtUtc = request.IssuedAtUtc.AddMinutes(_settings.ExpirationMinutes);
 
@@ -78,7 +78,10 @@ public sealed class JwtTokenService : IJwtTokenService
             signingCredentials: credentials
         );
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return new JwtTokenResult(
+            new JwtSecurityTokenHandler().WriteToken(token),
+            expiresAtUtc
+        );
     }
 
     private byte[] GetKey()
