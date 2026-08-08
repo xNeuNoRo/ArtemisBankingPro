@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
 using ArtemisBankingPro.Infrastructure.Identity.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -102,6 +102,50 @@ public sealed class AccountTokenService : IAccountTokenService
         );
 
         if (match is null)
+        {
+            return AccountTokenVerificationResult.Invalid;
+        }
+
+        return await ConsumeIfValidAsync(match, tokenHash, nowUtc, ct);
+    }
+
+    public async Task<TokenVerification> VerifyAndConsumeByTokenAsync(
+        AccountTokenType type,
+        string token,
+        CancellationToken ct = default
+    )
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return new TokenVerification(AccountTokenVerificationResult.Invalid, null);
+        }
+
+        string tokenHash = ComputeHash(token);
+        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
+
+        AccountToken? match = await _context
+            .AccountTokens.FirstOrDefaultAsync(
+                item => item.Type == type && item.TokenHash == tokenHash,
+                ct
+            );
+
+        if (match is null)
+        {
+            return new TokenVerification(AccountTokenVerificationResult.Invalid, null);
+        }
+
+        AccountTokenVerificationResult result = await ConsumeIfValidAsync(match, tokenHash, nowUtc, ct);
+        return new TokenVerification(result, result == AccountTokenVerificationResult.Valid ? match.UserId : null);
+    }
+
+    private async Task<AccountTokenVerificationResult> ConsumeIfValidAsync(
+        AccountToken match,
+        string tokenHash,
+        DateTimeOffset nowUtc,
+        CancellationToken ct
+    )
+    {
+        if (!HashesMatch(match.TokenHash, tokenHash))
         {
             return AccountTokenVerificationResult.Invalid;
         }
