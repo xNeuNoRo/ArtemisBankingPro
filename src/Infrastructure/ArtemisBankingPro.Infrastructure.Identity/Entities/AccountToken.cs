@@ -1,4 +1,4 @@
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
+using ArtemisBankingPro.Application.Interfaces.Identity;
 
 namespace ArtemisBankingPro.Infrastructure.Identity.Entities;
 
