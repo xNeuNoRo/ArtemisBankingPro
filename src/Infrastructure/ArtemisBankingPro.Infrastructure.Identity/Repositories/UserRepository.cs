@@ -49,7 +49,8 @@ public sealed class UserRepository : IUserRepository
                     )
                     .FirstOrDefault()
                     ?? string.Empty,
-                user.Active
+                user.Active,
+                user.CreatedAt
             ))
             .FirstOrDefaultAsync(ct);
     }
@@ -59,6 +60,116 @@ public sealed class UserRepository : IUserRepository
             user => user.NormalizedUserName == _userManager.NormalizeName(userName),
             ct
         );
+
+    public async Task<IReadOnlyList<UserListDto>> GetByIdsAsync(
+        IReadOnlyCollection<string> userIds,
+        CancellationToken ct = default
+    )
+    {
+        if (userIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await _context
+            .Users.Where(user => userIds.Contains(user.Id))
+            .Select(user => new UserListDto(
+                user.Id,
+                user.UserName!,
+                user.IdentityDocument,
+                user.FirstName,
+                user.LastName,
+                user.Email!,
+                _context
+                    .UserRoles.Where(userRole => userRole.UserId == user.Id)
+                    .Join(
+                        _context.Roles,
+                        userRole => userRole.RoleId,
+                        role => role.Id,
+                        (_, role) => role.Name!
+                    )
+                    .FirstOrDefault()
+                    ?? string.Empty,
+                user.Active,
+                user.CreatedAt
+            ))
+            .ToListAsync(ct);
+    }
+
+    public Task<UserListDto?> GetByIdentityDocumentAsync(
+        string document,
+        CancellationToken ct = default
+    ) =>
+        _context
+            .Users.Where(user => user.IdentityDocument == document)
+            .Select(user => new UserListDto(
+                user.Id,
+                user.UserName!,
+                user.IdentityDocument,
+                user.FirstName,
+                user.LastName,
+                user.Email!,
+                _context
+                    .UserRoles.Where(userRole => userRole.UserId == user.Id)
+                    .Join(
+                        _context.Roles,
+                        userRole => userRole.RoleId,
+                        role => role.Id,
+                        (_, role) => role.Name!
+                    )
+                    .FirstOrDefault()
+                    ?? string.Empty,
+                user.Active,
+                user.CreatedAt
+            ))
+            .FirstOrDefaultAsync(ct);
+
+    public async Task<int> CountActiveClientsAsync(CancellationToken ct = default)
+    {
+        var clientRoleId = await _context
+            .Roles.Where(role => role.Name == nameof(Roles.Cliente))
+            .Select(role => role.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (clientRoleId is null)
+        {
+            return 0;
+        }
+
+        return await _context
+            .Users.CountAsync(
+                user => user.Active
+                    && _context.UserRoles.Any(userRole =>
+                        userRole.UserId == user.Id && userRole.RoleId == clientRoleId
+                    ),
+                ct
+            );
+    }
+
+    public Task<UserListDto?> GetByIdAsync(string userId, CancellationToken ct = default) =>
+        _context
+            .Users.Where(user => user.Id == userId)
+            .Select(user => new UserListDto(
+                user.Id,
+                user.UserName!,
+                user.IdentityDocument,
+                user.FirstName,
+                user.LastName,
+                user.Email!,
+                _context
+                    .UserRoles.Where(userRole => userRole.UserId == user.Id)
+                    .Join(
+                        _context.Roles,
+                        userRole => userRole.RoleId,
+                        role => role.Id,
+                        (_, role) => role.Name!
+                    )
+                    .FirstOrDefault()
+                    ?? string.Empty,
+                user.Active,
+                user.CreatedAt
+            ))
+            .FirstOrDefaultAsync(ct);
 
     public Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default) =>
         _context.Users.AnyAsync(
@@ -169,7 +280,8 @@ public sealed class UserRepository : IUserRepository
                     )
                     .FirstOrDefault()
                     ?? string.Empty,
-                user.Active
+                user.Active,
+                user.CreatedAt
             ))
             .ToListAsync(ct);
 
