@@ -37,4 +37,7 @@ public sealed class IdempotencyRecordRepository : IIdempotencyRecordRepository
 
     public void Update(IdempotencyRecord record) =>
         _context.Set<IdempotencyRecord>().Update(record);
+
+    public void Delete(IdempotencyRecord record) =>
+        _context.Set<IdempotencyRecord>().Remove(record);
 }
