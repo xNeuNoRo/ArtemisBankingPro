@@ -11,16 +11,14 @@ namespace ArtemisBankingPro.Application.Features.Loans.Handlers;
 /// Detalle de un préstamo con su tabla de amortización completa.
 /// </summary>
 public sealed class GetLoanDetailQueryHandler
-    : IRequestHandler<GetLoanDetailQuery, Result<LoanDetailDto>>
-{
+    : IRequestHandler<GetLoanDetailQuery, Result<LoanDetailDto>> {
     private readonly ILoanRepository _loanRepository;
     private readonly IUserRepository _userRepository;
 
     public GetLoanDetailQueryHandler(
         ILoanRepository loanRepository,
         IUserRepository userRepository
-    )
-    {
+    ) {
         _loanRepository = loanRepository;
         _userRepository = userRepository;
     }
@@ -28,14 +26,12 @@ public sealed class GetLoanDetailQueryHandler
     public async ValueTask<Result<LoanDetailDto>> Handle(
         GetLoanDetailQuery message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var loan = await _loanRepository.GetWithInstallmentsByIdAsync(
             message.LoanId,
             cancellationToken
         );
-        if (loan is null)
-        {
+        if (loan is null) {
             return Result.Failure<LoanDetailDto>(
                 DomainError.NotFound(
                     "Loan.NotFound",

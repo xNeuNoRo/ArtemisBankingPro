@@ -1,7 +1,6 @@
 namespace ArtemisBankingPro.Application.Interfaces.Persistence;
 
-public enum IdempotencyStatus
-{
+public enum IdempotencyStatus {
     InProgress = 1,
     Completed = 2,
 }
@@ -10,8 +9,7 @@ public enum IdempotencyStatus
 /// Registro de idempotencia para operaciones externamente repetibles
 /// (Hermes Pay, transferencias con confirmación, avances de efectivo).
 /// </summary>
-public sealed class IdempotencyRecord
-{
+public sealed class IdempotencyRecord {
     private IdempotencyRecord() { }
 
     public IdempotencyRecord(
@@ -20,8 +18,7 @@ public sealed class IdempotencyRecord
         string operationType,
         string requestFingerprint,
         DateTimeOffset createdAt
-    )
-    {
+    ) {
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationType);
@@ -54,8 +51,7 @@ public sealed class IdempotencyRecord
 
     public DateTimeOffset? CompletedAt { get; private set; }
 
-    public void Complete(string resultReference, DateTimeOffset completedAt)
-    {
+    public void Complete(string resultReference, DateTimeOffset completedAt) {
         ArgumentException.ThrowIfNullOrWhiteSpace(resultReference);
         Status = IdempotencyStatus.Completed;
         ResultReference = resultReference;

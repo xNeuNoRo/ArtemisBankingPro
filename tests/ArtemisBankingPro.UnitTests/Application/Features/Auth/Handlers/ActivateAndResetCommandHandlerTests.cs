@@ -7,10 +7,8 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Auth.Handlers;
 
-public sealed class ActivateAccountCommandHandlerTests
-{
-    private static Mock<IAccountTokenService> TokenService(TokenVerification verification)
-    {
+public sealed class ActivateAccountCommandHandlerTests {
+    private static Mock<IAccountTokenService> TokenService(TokenVerification verification) {
         var service = new Mock<IAccountTokenService>();
         service
             .Setup(s => s.VerifyAndConsumeByTokenAsync(AccountTokenType.Activation, It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -19,8 +17,7 @@ public sealed class ActivateAccountCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidToken_ActivatesUser()
-    {
+    public async Task Handle_ValidToken_ActivatesUser() {
         var tokenService = TokenService(
             new TokenVerification(AccountTokenVerificationResult.Valid, "user-1")
         );
@@ -44,8 +41,7 @@ public sealed class ActivateAccountCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_InvalidToken_ReturnsValidationErrorAndDoesNotActivate()
-    {
+    public async Task Handle_InvalidToken_ReturnsValidationErrorAndDoesNotActivate() {
         var tokenService = TokenService(
             new TokenVerification(AccountTokenVerificationResult.Invalid, null)
         );
@@ -68,8 +64,7 @@ public sealed class ActivateAccountCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ExpiredToken_ReturnsExpirationMessage()
-    {
+    public async Task Handle_ExpiredToken_ReturnsExpirationMessage() {
         var handler = new ActivateAccountCommandHandler(
             TokenService(new TokenVerification(AccountTokenVerificationResult.Expired, null)).Object,
             new Mock<IUserAccountService>().Object
@@ -85,8 +80,7 @@ public sealed class ActivateAccountCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AlreadyUsedToken_ReturnsUsedMessage()
-    {
+    public async Task Handle_AlreadyUsedToken_ReturnsUsedMessage() {
         var handler = new ActivateAccountCommandHandler(
             TokenService(new TokenVerification(AccountTokenVerificationResult.AlreadyUsed, null)).Object,
             new Mock<IUserAccountService>().Object
@@ -102,10 +96,8 @@ public sealed class ActivateAccountCommandHandlerTests
     }
 }
 
-public sealed class ResetPasswordCommandHandlerTests
-{
-    private static Mock<IAccountTokenService> TokenService(AccountTokenVerificationResult result)
-    {
+public sealed class ResetPasswordCommandHandlerTests {
+    private static Mock<IAccountTokenService> TokenService(AccountTokenVerificationResult result) {
         var service = new Mock<IAccountTokenService>();
         service
             .Setup(s => s.VerifyAndConsumeAsync(
@@ -119,8 +111,7 @@ public sealed class ResetPasswordCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidToken_ChangesPasswordAndReactivates()
-    {
+    public async Task Handle_ValidToken_ChangesPasswordAndReactivates() {
         var tokenService = TokenService(AccountTokenVerificationResult.Valid);
         var userService = new Mock<IUserAccountService>();
         userService
@@ -149,8 +140,7 @@ public sealed class ResetPasswordCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ExpiredToken_ReturnsExpirationMessage()
-    {
+    public async Task Handle_ExpiredToken_ReturnsExpirationMessage() {
         var handler = new ResetPasswordCommandHandler(
             TokenService(AccountTokenVerificationResult.Expired).Object,
             new Mock<IUserAccountService>().Object
@@ -166,8 +156,7 @@ public sealed class ResetPasswordCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AlreadyUsedToken_ReturnsUsedMessage()
-    {
+    public async Task Handle_AlreadyUsedToken_ReturnsUsedMessage() {
         var handler = new ResetPasswordCommandHandler(
             TokenService(AccountTokenVerificationResult.AlreadyUsed).Object,
             new Mock<IUserAccountService>().Object
@@ -183,8 +172,7 @@ public sealed class ResetPasswordCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_InvalidToken_ReturnsInvalidMessage()
-    {
+    public async Task Handle_InvalidToken_ReturnsInvalidMessage() {
         var handler = new ResetPasswordCommandHandler(
             TokenService(AccountTokenVerificationResult.Invalid).Object,
             new Mock<IUserAccountService>().Object
@@ -200,8 +188,7 @@ public sealed class ResetPasswordCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_PasswordChangeFailure_PropagatesError()
-    {
+    public async Task Handle_PasswordChangeFailure_PropagatesError() {
         var tokenService = TokenService(AccountTokenVerificationResult.Valid);
         var userService = new Mock<IUserAccountService>();
         userService

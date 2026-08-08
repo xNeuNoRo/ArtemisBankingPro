@@ -15,8 +15,7 @@ namespace ArtemisBankingPro.Application.Common.Behaviors;
 /// </summary>
 public sealed class IdempotencyBehavior<TRequest, TResponse>
     : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : IRequest<TResponse>, IIdempotentCommand
-{
+    where TRequest : IRequest<TResponse>, IIdempotentCommand {
     private readonly IIdempotencyRecordRepository _repository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
@@ -27,8 +26,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         IBusinessClock clock
-    )
-    {
+    ) {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
@@ -39,8 +37,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         TRequest message,
         MessageHandlerDelegate<TRequest, TResponse> next,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         string actorId =
             _currentUser.UserId
             ?? throw new UnauthenticatedException(
@@ -53,17 +50,14 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
             cancellationToken
         );
 
-        if (existing is not null)
-        {
-            if (existing.RequestFingerprint != message.RequestFingerprint)
-            {
+        if (existing is not null) {
+            if (existing.RequestFingerprint != message.RequestFingerprint) {
                 throw new IdempotencyConflictException(
                     "La clave de idempotencia fue reutilizada con un payload distinto."
                 );
             }
 
-            if (existing.Status == IdempotencyStatus.InProgress)
-            {
+            if (existing.Status == IdempotencyStatus.InProgress) {
                 throw new IdempotencyConflictException(
                     "La operación ya está en proceso con la misma clave de idempotencia."
                 );
@@ -84,18 +78,15 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         await _repository.AddAsync(record, cancellationToken);
 
         TResponse response;
-        try
-        {
+        try {
             response = await next(message, cancellationToken);
         }
-        catch
-        {
+        catch {
             await DeleteRecordAsync(record, cancellationToken);
             throw;
         }
 
-        if (IsBusinessFailure(response))
-        {
+        if (IsBusinessFailure(response)) {
             await DeleteRecordAsync(record, cancellationToken);
             return response;
         }
@@ -109,11 +100,9 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
     private async Task DeleteRecordAsync(
         IdempotencyRecord record,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         await _unitOfWork.ExecuteInTransactionAsync(
-            _ =>
-            {
+            _ => {
                 _repository.Delete(record);
                 return Task.FromResult(Result.Success());
             },
@@ -124,11 +113,9 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
     private async Task SaveRecordAsync(
         IdempotencyRecord record,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         await _unitOfWork.ExecuteInTransactionAsync(
-            _ =>
-            {
+            _ => {
                 _repository.Update(record);
                 return Task.FromResult(Result.Success());
             },
@@ -136,10 +123,8 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         );
     }
 
-    private static bool IsBusinessFailure(TResponse response)
-    {
-        if (response is Result result)
-        {
+    private static bool IsBusinessFailure(TResponse response) {
+        if (response is Result result) {
             return !result.IsSuccess;
         }
 
@@ -147,8 +132,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         if (
             responseType.IsGenericType
             && responseType.GetGenericTypeDefinition() == typeof(Result<>)
-        )
-        {
+        ) {
             return responseType.GetProperty(nameof(Result.IsSuccess)) is { } isSuccessProperty
                 && isSuccessProperty.GetValue(response) is false;
         }

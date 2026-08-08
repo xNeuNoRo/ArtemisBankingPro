@@ -3,10 +3,8 @@ using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Auth.Validators;
 
-public sealed class LoginCommandValidator : AbstractValidator<LoginCommand>
-{
-    public LoginCommandValidator()
-    {
+public sealed class LoginCommandValidator : AbstractValidator<LoginCommand> {
+    public LoginCommandValidator() {
         RuleFor(x => x.UserName)
             .NotEmpty()
             .WithMessage("El nombre de usuario es requerido.")

@@ -12,16 +12,14 @@ namespace ArtemisBankingPro.Application.Features.Users.Handlers;
 /// Detalle de un usuario con su cuenta de ahorro principal (si existe).
 /// </summary>
 public sealed class GetUserByIdQueryHandler
-    : IRequestHandler<GetUserByIdQuery, Result<UserDetailResponse>>
-{
+    : IRequestHandler<GetUserByIdQuery, Result<UserDetailResponse>> {
     private readonly IUserRepository _userRepository;
     private readonly ISavingsAccountRepository _savingsAccountRepository;
 
     public GetUserByIdQueryHandler(
         IUserRepository userRepository,
         ISavingsAccountRepository savingsAccountRepository
-    )
-    {
+    ) {
         _userRepository = userRepository;
         _savingsAccountRepository = savingsAccountRepository;
     }
@@ -29,11 +27,9 @@ public sealed class GetUserByIdQueryHandler
     public async ValueTask<Result<UserDetailResponse>> Handle(
         GetUserByIdQuery message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var user = await _userRepository.GetByIdAsync(message.UserId, cancellationToken);
-        if (user is null)
-        {
+        if (user is null) {
             return Result.Failure<UserDetailResponse>(
                 DomainError.NotFound(
                     "User.NotFound",

@@ -12,13 +12,11 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Repositories;
 /// Repositorio de usuarios de la aplicación. Implementa <see cref="IUserRepository"/> y utiliza
 /// <see cref="IdentityContext"/> para acceder a la base de datos.
 /// </summary>
-public sealed class UserRepository : IUserRepository
-{
+public sealed class UserRepository : IUserRepository {
     private readonly IdentityContext _context;
     private readonly UserManager<AppUser> _userManager;
 
-    public UserRepository(IdentityContext context, UserManager<AppUser> userManager)
-    {
+    public UserRepository(IdentityContext context, UserManager<AppUser> userManager) {
         _context = context;
         _userManager = userManager;
     }
@@ -26,8 +24,7 @@ public sealed class UserRepository : IUserRepository
     public async Task<UserListDto?> GetByUserNameAsync(
         string userName,
         CancellationToken ct = default
-    )
-    {
+    ) {
         string normalized = _userManager.NormalizeName(userName);
 
         return await _context
@@ -64,10 +61,8 @@ public sealed class UserRepository : IUserRepository
     public async Task<IReadOnlyList<UserListDto>> GetByIdsAsync(
         IReadOnlyCollection<string> userIds,
         CancellationToken ct = default
-    )
-    {
-        if (userIds.Count == 0)
-        {
+    ) {
+        if (userIds.Count == 0) {
             return [];
         }
 
@@ -124,15 +119,13 @@ public sealed class UserRepository : IUserRepository
             ))
             .FirstOrDefaultAsync(ct);
 
-    public async Task<int> CountActiveClientsAsync(CancellationToken ct = default)
-    {
+    public async Task<int> CountActiveClientsAsync(CancellationToken ct = default) {
         var clientRoleId = await _context
             .Roles.Where(role => role.Name == nameof(Roles.Cliente))
             .Select(role => role.Id)
             .FirstOrDefaultAsync(ct);
 
-        if (clientRoleId is null)
-        {
+        if (clientRoleId is null) {
             return 0;
         }
 
@@ -186,8 +179,7 @@ public sealed class UserRepository : IUserRepository
         string? role,
         PageRequest page,
         CancellationToken ct = default
-    )
-    {
+    ) {
         IQueryable<AppUser> query = _context.Users.Where(user =>
             !_context
                 .UserRoles.Where(userRole => userRole.UserId == user.Id)
@@ -200,8 +192,7 @@ public sealed class UserRepository : IUserRepository
                 .Contains(nameof(Roles.Comercio))
         );
 
-        if (!string.IsNullOrWhiteSpace(role))
-        {
+        if (!string.IsNullOrWhiteSpace(role)) {
             query = query.Where(user =>
                 _context
                     .UserRoles.Where(userRole => userRole.UserId == user.Id)
@@ -256,8 +247,7 @@ public sealed class UserRepository : IUserRepository
         IQueryable<AppUser> query,
         PageRequest page,
         CancellationToken ct
-    )
-    {
+    ) {
         int totalCount = await query.CountAsync(ct);
         List<UserListDto> items = await query
             .OrderByDescending(user => user.CreatedAt)

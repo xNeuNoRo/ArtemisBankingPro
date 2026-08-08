@@ -12,8 +12,7 @@ namespace ArtemisBankingPro.Application.Features.Loans.Commands;
 public sealed record UpdateLoanRateCommand(
     int LoanId,
     decimal AnnualInterestRate
-) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand
-{
+) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey => $"update-loan-rate-{LoanId}";

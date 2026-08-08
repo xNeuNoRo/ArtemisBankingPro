@@ -3,8 +3,7 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
-public interface ICreditCardRepository : IGenericRepository<CreditCard>
-{
+public interface ICreditCardRepository : IGenericRepository<CreditCard> {
     Task<CreditCard?> GetByPanFingerprintAsync(
         string panFingerprint,
         CancellationToken ct = default

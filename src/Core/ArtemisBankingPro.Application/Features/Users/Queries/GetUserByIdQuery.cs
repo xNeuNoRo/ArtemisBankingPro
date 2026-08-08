@@ -9,7 +9,6 @@ namespace ArtemisBankingPro.Application.Features.Users.Queries;
 /// Detalle de un usuario con su cuenta de ahorro principal (si existe).
 /// </summary>
 public sealed record GetUserByIdQuery(string UserId)
-    : IRequest<Result<UserDetailResponse>>, IAuthorize
-{
+    : IRequest<Result<UserDetailResponse>>, IAuthorize {
     public string[] RequiredRoles => ["Administrador"];
 }

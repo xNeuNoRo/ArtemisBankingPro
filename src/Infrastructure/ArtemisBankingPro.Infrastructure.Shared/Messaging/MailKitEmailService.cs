@@ -12,8 +12,7 @@ namespace ArtemisBankingPro.Infrastructure.Shared.Messaging;
 /// <summary>
 /// Envío de correo con MailKit y plantillas Razor.
 /// </summary>
-public sealed class MailKitEmailService : IEmailService
-{
+public sealed class MailKitEmailService : IEmailService {
     private static readonly SemaphoreSlim SmtpSemaphore = new(1, 1);
 
     private readonly EmailSettings _options;
@@ -26,21 +25,18 @@ public sealed class MailKitEmailService : IEmailService
         IOptions<EmailSettings> options,
         IRazorRenderer renderer,
         ILogger<MailKitEmailService> logger
-    )
-    {
+    ) {
         _options = options.Value;
         _renderer = renderer;
         _logger = logger;
 
-        if (string.IsNullOrWhiteSpace(_options.Host))
-        {
+        if (string.IsNullOrWhiteSpace(_options.Host)) {
             throw new InvalidOperationException(
                 "Email:Smtp:Host no está configurada. El envío de correo no está disponible."
             );
         }
 
-        if (string.IsNullOrWhiteSpace(_options.FromAddress))
-        {
+        if (string.IsNullOrWhiteSpace(_options.FromAddress)) {
             throw new InvalidOperationException(
                 "Email:Smtp:FromAddress no está configurada. El envío de correo no está disponible."
             );
@@ -51,8 +47,7 @@ public sealed class MailKitEmailService : IEmailService
     }
 
     public async Task SendAsync<T>(string recipient, T model, CancellationToken ct = default)
-        where T : IEmailModel
-    {
+        where T : IEmailModel {
         ArgumentException.ThrowIfNullOrWhiteSpace(recipient);
         ArgumentNullException.ThrowIfNull(model);
 
@@ -63,8 +58,7 @@ public sealed class MailKitEmailService : IEmailService
             TimeSpan.FromSeconds(_options.TimeoutSeconds),
             ct
         );
-        if (!acquired)
-        {
+        if (!acquired) {
             throw new EmailSendException(
                 model.Subject,
                 new TimeoutException(
@@ -73,12 +67,10 @@ public sealed class MailKitEmailService : IEmailService
             );
         }
 
-        try
-        {
+        try {
             await SendCoreAsync(mailMessage, ct);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
+        catch (Exception ex) when (ex is not OperationCanceledException) {
             _logger.LogError(
                 ex,
                 "No fue posible enviar el correo con asunto {Subject} a {Recipient}. "
@@ -88,8 +80,7 @@ public sealed class MailKitEmailService : IEmailService
             );
             throw new EmailSendException(model.Subject, ex);
         }
-        finally
-        {
+        finally {
             SmtpSemaphore.Release();
         }
 
@@ -104,8 +95,7 @@ public sealed class MailKitEmailService : IEmailService
     /// Construye el mensaje MIME: remitente configurado, destinatario, asunto
     /// y cuerpo en texto plano (los templates del spec son texto plano).
     /// </summary>
-    internal MimeMessage BuildMailMessage(string to, string subject, string body)
-    {
+    internal MimeMessage BuildMailMessage(string to, string subject, string body) {
         var mailMessage = new MimeMessage();
         mailMessage.From.Add(
             new MailboxAddress(
@@ -115,16 +105,14 @@ public sealed class MailKitEmailService : IEmailService
         );
         mailMessage.To.Add(MailboxAddress.Parse(to));
         mailMessage.Subject = subject;
-        mailMessage.Body = new TextPart("plain")
-        {
+        mailMessage.Body = new TextPart("plain") {
             Text = body,
             ContentTransferEncoding = ContentEncoding.QuotedPrintable,
         };
         return mailMessage;
     }
 
-    private async Task SendCoreAsync(MimeMessage mailMessage, CancellationToken ct)
-    {
+    private async Task SendCoreAsync(MimeMessage mailMessage, CancellationToken ct) {
         using var client = new SmtpClient { Timeout = _options.TimeoutSeconds * 1000 };
 
         await client.ConnectAsync(
@@ -136,8 +124,7 @@ public sealed class MailKitEmailService : IEmailService
             ct
         );
 
-        if (!string.IsNullOrWhiteSpace(_options.UserName))
-        {
+        if (!string.IsNullOrWhiteSpace(_options.UserName)) {
             await client.AuthenticateAsync(
                 _options.UserName,
                 _options.Password ?? string.Empty,

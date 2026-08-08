@@ -4,8 +4,7 @@ namespace ArtemisBankingPro.Application.Interfaces.Services;
 /// Genera identificadores numéricos compartidos (cuentas y préstamos usan el
 /// mismo espacio de 9 dígitos; las tarjetas usan el contador con BIN propio).
 /// </summary>
-public interface INumberGenerator
-{
+public interface INumberGenerator {
     Task<string> NextAccountNumberAsync(CancellationToken ct = default);
 
     Task<string> NextLoanNumberAsync(CancellationToken ct = default);

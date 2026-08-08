@@ -15,8 +15,7 @@ namespace ArtemisBankingPro.Application.Features.Auth.Handlers;
 /// correo contiene un enlace (flujo MVC); si no, el token directo (flujo API).
 /// </summary>
 public sealed class RequestPasswordResetCommandHandler
-    : IRequestHandler<RequestPasswordResetCommand, Result<Unit>>
-{
+    : IRequestHandler<RequestPasswordResetCommand, Result<Unit>> {
     /// <summary>Ruta MVC de la pantalla de nueva contraseña (contrato con la WebApp).</summary>
     public const string ResetPasswordRoute = "/Auth/ResetPassword";
 
@@ -30,8 +29,7 @@ public sealed class RequestPasswordResetCommandHandler
         IAccountTokenService tokenService,
         IEmailService emailService,
         ILogger<RequestPasswordResetCommandHandler> logger
-    )
-    {
+    ) {
         _userAccountService = userAccountService;
         _tokenService = tokenService;
         _emailService = emailService;
@@ -41,16 +39,14 @@ public sealed class RequestPasswordResetCommandHandler
     public async ValueTask<Result<Unit>> Handle(
         RequestPasswordResetCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var userInfo = await _userAccountService.FindForPasswordResetAsync(
             message.UserName,
             message.AllowedRoles,
             cancellationToken
         );
 
-        if (userInfo is null)
-        {
+        if (userInfo is null) {
             return Result.Failure<Unit>(
                 DomainError.NotFound(
                     "Auth.UserNotFound",
@@ -59,8 +55,7 @@ public sealed class RequestPasswordResetCommandHandler
             );
         }
 
-        if (string.IsNullOrWhiteSpace(userInfo.Email))
-        {
+        if (string.IsNullOrWhiteSpace(userInfo.Email)) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.NoEmail",
@@ -77,8 +72,7 @@ public sealed class RequestPasswordResetCommandHandler
             isActive: false,
             cancellationToken
         );
-        if (deactivateResult.IsFailure)
-        {
+        if (deactivateResult.IsFailure) {
             return Result.Failure<Unit>(deactivateResult.Error!);
         }
 
@@ -88,18 +82,15 @@ public sealed class RequestPasswordResetCommandHandler
             cancellationToken
         );
 
-        try
-        {
-            if (message.CallbackUrl is null)
-            {
+        try {
+            if (message.CallbackUrl is null) {
                 await _emailService.SendAsync(
                     userInfo.Email,
                     new PasswordResetTokenModel(userInfo.FullName, rawToken),
                     cancellationToken
                 );
             }
-            else
-            {
+            else {
                 string resetLink = BuildResetLink(message.CallbackUrl, userInfo.UserId, rawToken);
                 await _emailService.SendAsync(
                     userInfo.Email,
@@ -108,8 +99,7 @@ public sealed class RequestPasswordResetCommandHandler
                 );
             }
         }
-        catch (EmailSendException ex)
-        {
+        catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
                 "No se pudo enviar el correo de restablecimiento para el usuario {UserId}.",
@@ -126,8 +116,7 @@ public sealed class RequestPasswordResetCommandHandler
         return Result.Success(Unit.Value);
     }
 
-    private static string BuildResetLink(string callbackUrl, string userId, string rawToken)
-    {
+    private static string BuildResetLink(string callbackUrl, string userId, string rawToken) {
         string baseUrl = callbackUrl.TrimEnd('/');
         string token = Uri.EscapeDataString(rawToken);
         string id = Uri.EscapeDataString(userId);

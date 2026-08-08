@@ -5,14 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class CreditCardConfiguration : IEntityTypeConfiguration<CreditCard>
-{
-    public void Configure(EntityTypeBuilder<CreditCard> builder)
-    {
+public sealed class CreditCardConfiguration : IEntityTypeConfiguration<CreditCard> {
+    public void Configure(EntityTypeBuilder<CreditCard> builder) {
         builder.ToTable(
             "CreditCards",
-            table =>
-            {
+            table => {
                 table.HasCheckConstraint(
                     "CK_CreditCards_LastFour_Digits",
                     "[LastFour] LIKE '[0-9][0-9][0-9][0-9]'"
@@ -57,8 +54,7 @@ public sealed class CreditCardConfiguration : IEntityTypeConfiguration<CreditCar
 
         builder.OwnsOne(
             card => card.Expiration,
-            expiration =>
-            {
+            expiration => {
                 expiration
                     .Property(expirationValue => expirationValue.Month)
                     .HasColumnName("ExpirationMonth")

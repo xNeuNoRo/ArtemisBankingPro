@@ -6,10 +6,8 @@ using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Loans.Validators;
 
-public sealed class CreateLoanCommandValidator : AbstractValidator<CreateLoanCommand>
-{
-    public CreateLoanCommandValidator()
-    {
+public sealed class CreateLoanCommandValidator : AbstractValidator<CreateLoanCommand> {
+    public CreateLoanCommandValidator() {
         RuleFor(x => x.CustomerUserId)
             .NotEmpty()
             .WithMessage("El cliente es requerido.")
@@ -31,10 +29,8 @@ public sealed class CreateLoanCommandValidator : AbstractValidator<CreateLoanCom
     }
 }
 
-public sealed class UpdateLoanRateCommandValidator : AbstractValidator<UpdateLoanRateCommand>
-{
-    public UpdateLoanRateCommandValidator()
-    {
+public sealed class UpdateLoanRateCommandValidator : AbstractValidator<UpdateLoanRateCommand> {
+    public UpdateLoanRateCommandValidator() {
         RuleFor(x => x.LoanId)
             .GreaterThan(0)
             .WithMessage("El préstamo es requerido.");
@@ -45,12 +41,10 @@ public sealed class UpdateLoanRateCommandValidator : AbstractValidator<UpdateLoa
     }
 }
 
-public sealed class GetLoansPagedQueryValidator : AbstractValidator<GetLoansPagedQuery>
-{
+public sealed class GetLoansPagedQueryValidator : AbstractValidator<GetLoansPagedQuery> {
     private static readonly string[] AllowedStatuses = ["activos", "completados", "todos"];
 
-    public GetLoansPagedQueryValidator()
-    {
+    public GetLoansPagedQueryValidator() {
         RuleFor(x => x.Page)
             .GreaterThanOrEqualTo(PageRequest.DefaultPage)
             .WithMessage("La página debe ser mayor o igual a 1.");
@@ -59,15 +53,13 @@ public sealed class GetLoansPagedQueryValidator : AbstractValidator<GetLoansPage
             .InclusiveBetween(1, PageRequest.MaxPageSize)
             .WithMessage($"El tamaño de página debe estar entre 1 y {PageRequest.MaxPageSize}.");
 
-        When(x => x.Status is not null, () =>
-        {
+        When(x => x.Status is not null, () => {
             RuleFor(x => x.Status)
                 .Must(status => AllowedStatuses.Contains(status!))
                 .WithMessage("El estado debe ser activos, completados o todos.");
         });
 
-        When(x => x.Identification is not null, () =>
-        {
+        When(x => x.Identification is not null, () => {
             RuleFor(x => x.Identification)
                 .MaximumLength(20)
                 .WithMessage("La cédula no debe exceder 20 caracteres.");
@@ -75,10 +67,8 @@ public sealed class GetLoansPagedQueryValidator : AbstractValidator<GetLoansPage
     }
 }
 
-public sealed class GetLoanDetailQueryValidator : AbstractValidator<GetLoanDetailQuery>
-{
-    public GetLoanDetailQueryValidator()
-    {
+public sealed class GetLoanDetailQueryValidator : AbstractValidator<GetLoanDetailQuery> {
+    public GetLoanDetailQueryValidator() {
         RuleFor(x => x.LoanId)
             .GreaterThan(0)
             .WithMessage("El préstamo es requerido.");

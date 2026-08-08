@@ -16,8 +16,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Users.Handlers;
 
-public sealed class CreateUserCommandHandlerTests
-{
+public sealed class CreateUserCommandHandlerTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
 
     private static CreateUserCommand ValidClientCommand() =>
@@ -33,8 +32,7 @@ public sealed class CreateUserCommandHandlerTests
             InitialAmount: 1000m
         );
 
-    private static Mock<IUserAccountService> UserService()
-    {
+    private static Mock<IUserAccountService> UserService() {
         var service = new Mock<IUserAccountService>();
         service
             .Setup(s => s.CreateUserAsync(
@@ -62,8 +60,7 @@ public sealed class CreateUserCommandHandlerTests
         return service;
     }
 
-    private static Mock<IUserRepository> UserRepository(bool anyExists = false)
-    {
+    private static Mock<IUserRepository> UserRepository(bool anyExists = false) {
         var repository = new Mock<IUserRepository>();
         repository
             .Setup(r => r.ExistsByUserNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -77,8 +74,7 @@ public sealed class CreateUserCommandHandlerTests
         return repository;
     }
 
-    private static Mock<IUnitOfWork> UnitOfWork()
-    {
+    private static Mock<IUnitOfWork> UnitOfWork() {
         var uow = new Mock<IUnitOfWork>();
         uow
             .Setup(u => u.ExecuteInTransactionAsync(
@@ -94,8 +90,7 @@ public sealed class CreateUserCommandHandlerTests
         return uow;
     }
 
-    private static Mock<IAccountTokenService> TokenService()
-    {
+    private static Mock<IAccountTokenService> TokenService() {
         var service = new Mock<IAccountTokenService>();
         service
             .Setup(s => s.GenerateAsync(It.IsAny<string>(), AccountTokenType.Activation, It.IsAny<CancellationToken>()))
@@ -103,16 +98,14 @@ public sealed class CreateUserCommandHandlerTests
         return service;
     }
 
-    private static Mock<IBusinessClock> Clock()
-    {
+    private static Mock<IBusinessClock> Clock() {
         var clock = new Mock<IBusinessClock>();
         clock.SetupGet(c => c.Now).Returns(FixedNow);
         clock.SetupGet(c => c.NowUtc).Returns(FixedNow);
         return clock;
     }
 
-    private static Mock<ICurrentUserService> CurrentUser()
-    {
+    private static Mock<ICurrentUserService> CurrentUser() {
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(u => u.UserId).Returns("admin-1");
         user.SetupGet(u => u.IsAuthenticated).Returns(true);
@@ -123,8 +116,7 @@ public sealed class CreateUserCommandHandlerTests
         Mock<IUserRepository>? userRepository = null,
         Mock<IEmailService>? emailService = null,
         Mock<ISavingsAccountRepository>? accountRepository = null
-    )
-    {
+    ) {
         var numberGenerator = new Mock<INumberGenerator>();
         numberGenerator
             .Setup(n => n.NextAccountNumberAsync(It.IsAny<CancellationToken>()))
@@ -151,8 +143,7 @@ public sealed class CreateUserCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_DuplicateUserName_ReturnsConflict()
-    {
+    public async Task Handle_DuplicateUserName_ReturnsConflict() {
         var handler = CreateHandler(userRepository: UserRepository(anyExists: true));
 
         var result = await handler.Handle(ValidClientCommand(), CancellationToken.None);
@@ -162,8 +153,7 @@ public sealed class CreateUserCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ClientRole_CreatesPrincipalAccountAndSendsActivationEmail()
-    {
+    public async Task Handle_ClientRole_CreatesPrincipalAccountAndSendsActivationEmail() {
         var emailService = new Mock<IEmailService>();
         var accountRepository = new Mock<ISavingsAccountRepository>();
         var handler = CreateHandler(emailService: emailService, accountRepository: accountRepository);
@@ -187,8 +177,7 @@ public sealed class CreateUserCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ClientRoleWithCallbackUrl_SendsActivationLink()
-    {
+    public async Task Handle_ClientRoleWithCallbackUrl_SendsActivationLink() {
         var emailService = new Mock<IEmailService>();
         var handler = CreateHandler(emailService: emailService);
 
@@ -211,8 +200,7 @@ public sealed class CreateUserCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AdminRole_DoesNotCreatePrincipalAccount()
-    {
+    public async Task Handle_AdminRole_DoesNotCreatePrincipalAccount() {
         var accountRepository = new Mock<ISavingsAccountRepository>();
         var handler = CreateHandler(accountRepository: accountRepository);
 

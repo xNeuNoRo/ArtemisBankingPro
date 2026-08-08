@@ -3,10 +3,8 @@ using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Users.Validators;
 
-public sealed class CreateCommerceUserCommandValidator : AbstractValidator<CreateCommerceUserCommand>
-{
-    public CreateCommerceUserCommandValidator()
-    {
+public sealed class CreateCommerceUserCommandValidator : AbstractValidator<CreateCommerceUserCommand> {
+    public CreateCommerceUserCommandValidator() {
         RuleFor(x => x.CommerceId)
             .GreaterThan(0).WithMessage("El comercio es requerido.");
 
@@ -45,8 +43,7 @@ public sealed class CreateCommerceUserCommandValidator : AbstractValidator<Creat
             .GreaterThanOrEqualTo(0)
             .WithMessage("El balance inicial no puede ser negativo.");
 
-        When(x => x.CallbackUrl is not null, () =>
-        {
+        When(x => x.CallbackUrl is not null, () => {
             RuleFor(x => x.CallbackUrl)
                 .Must(uri => Uri.TryCreate(uri, UriKind.Absolute, out _))
                 .WithMessage("La URL de retorno debe ser una URL absoluta válida.");

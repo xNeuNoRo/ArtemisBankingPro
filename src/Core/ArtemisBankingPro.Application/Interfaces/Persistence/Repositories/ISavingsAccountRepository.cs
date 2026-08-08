@@ -3,8 +3,7 @@ using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 
 namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
-public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount>
-{
+public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount> {
     Task<SavingsAccount?> GetByNumberAsync(AccountNumber number, CancellationToken ct = default);
 
     Task<SavingsAccount?> GetPrincipalByOwnerAsync(

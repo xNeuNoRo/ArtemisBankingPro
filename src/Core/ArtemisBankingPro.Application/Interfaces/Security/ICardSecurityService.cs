@@ -3,8 +3,7 @@ namespace ArtemisBankingPro.Application.Interfaces.Security;
 /// <summary>
 /// Servicio de seguridad para tarjetas de crédito y débito.
 /// </summary>
-public interface ICardSecurityService
-{
+public interface ICardSecurityService {
     /// <summary>
     /// Huella HMAC-SHA256 en hexadecimal (64 caracteres) del número de tarjeta
     /// normalizado. Es la clave de búsqueda única de una tarjeta.

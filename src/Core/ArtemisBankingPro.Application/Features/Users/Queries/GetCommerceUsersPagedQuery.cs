@@ -12,7 +12,6 @@ namespace ArtemisBankingPro.Application.Features.Users.Queries;
 public sealed record GetCommerceUsersPagedQuery(
     int Page = PageRequest.DefaultPage,
     int PageSize = PageRequest.DefaultPageSize
-) : IRequest<Result<PageResult<UserListDto>>>, IAuthorize
-{
+) : IRequest<Result<PageResult<UserListDto>>>, IAuthorize {
     public string[] RequiredRoles => ["Administrador"];
 }

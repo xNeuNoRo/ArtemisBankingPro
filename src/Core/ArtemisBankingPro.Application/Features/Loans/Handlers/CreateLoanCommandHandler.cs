@@ -26,8 +26,7 @@ namespace ArtemisBankingPro.Application.Features.Loans.Handlers;
 /// cuenta principal del cliente (transacción atómica).
 /// </summary>
 public sealed class CreateLoanCommandHandler
-    : IRequestHandler<CreateLoanCommand, Result<CreateLoanResponse>>
-{
+    : IRequestHandler<CreateLoanCommand, Result<CreateLoanResponse>> {
     private readonly IUserRepository _userRepository;
     private readonly ILoanRepository _loanRepository;
     private readonly ICreditCardRepository _creditCardRepository;
@@ -48,8 +47,7 @@ public sealed class CreateLoanCommandHandler
         IUnitOfWork unitOfWork,
         IBusinessClock clock,
         ICurrentUserService currentUser
-    )
-    {
+    ) {
         _userRepository = userRepository;
         _loanRepository = loanRepository;
         _creditCardRepository = creditCardRepository;
@@ -64,15 +62,13 @@ public sealed class CreateLoanCommandHandler
     public async ValueTask<Result<CreateLoanResponse>> Handle(
         CreateLoanCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         // 1. El cliente debe existir y estar activo.
         var customer = await _userRepository.GetByIdAsync(
             message.CustomerUserId,
             cancellationToken
         );
-        if (customer is null || !customer.IsActive)
-        {
+        if (customer is null || !customer.IsActive) {
             return Result.Failure<CreateLoanResponse>(
                 DomainError.NotFound(
                     "Loan.CustomerNotFound",
@@ -86,8 +82,7 @@ public sealed class CreateLoanCommandHandler
             message.CustomerUserId,
             cancellationToken
         );
-        if (activeLoan is not null)
-        {
+        if (activeLoan is not null) {
             return Result.Failure<CreateLoanResponse>(
                 DomainError.Conflict(
                     "Loan.ActiveLoanExists",
@@ -101,8 +96,7 @@ public sealed class CreateLoanCommandHandler
             message.CustomerUserId,
             cancellationToken
         );
-        if (principalAccount is null || principalAccount.Status != AccountStatus.Active)
-        {
+        if (principalAccount is null || principalAccount.Status != AccountStatus.Active) {
             return Result.Failure<CreateLoanResponse>(
                 DomainError.PreconditionFailed(
                     "Loan.NoPrincipalAccount",
@@ -114,20 +108,17 @@ public sealed class CreateLoanCommandHandler
         // 4. Generar número único de 9 dígitos.
         string rawNumber = await _numberGenerator.NextLoanNumberAsync(cancellationToken);
         var numberResult = LoanNumber.Create(rawNumber);
-        if (numberResult.IsFailure)
-        {
+        if (numberResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(numberResult.Error!);
         }
 
         var principalResult = Money.Create(message.CapitalAmount);
-        if (principalResult.IsFailure)
-        {
+        if (principalResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(principalResult.Error!);
         }
 
         var rateResult = InterestRate.Create(message.AnnualInterestRate);
-        if (rateResult.IsFailure)
-        {
+        if (rateResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(rateResult.Error!);
         }
 
@@ -145,8 +136,7 @@ public sealed class CreateLoanCommandHandler
             issuedAt,
             businessDate
         );
-        if (loanResult.IsFailure)
-        {
+        if (loanResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(loanResult.Error!);
         }
 
@@ -158,14 +148,12 @@ public sealed class CreateLoanCommandHandler
             loan,
             cancellationToken
         );
-        if (riskResult.IsFailure)
-        {
+        if (riskResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(riskResult.Error!);
         }
 
         var risk = riskResult.Value;
-        if (risk.IsHighRisk && !message.ConfirmHighRisk)
-        {
+        if (risk.IsHighRisk && !message.ConfirmHighRisk) {
             return Result.Failure<CreateLoanResponse>(
                 new DomainError(
                     "Loan.HighRisk",
@@ -188,8 +176,7 @@ public sealed class CreateLoanCommandHandler
             issuedAt,
             cancellationToken
         );
-        if (persistResult.IsFailure)
-        {
+        if (persistResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(persistResult.Error!);
         }
 
@@ -214,8 +201,7 @@ public sealed class CreateLoanCommandHandler
         string customerUserId,
         Loan loan,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         // Deuda actual del cliente: préstamos activos + tarjetas activas.
         var customerLoanDebt = await _loanRepository.GetClientActiveDebtAsync(
             customerUserId,
@@ -252,15 +238,12 @@ public sealed class CreateLoanCommandHandler
         Money principal,
         DateTimeOffset issuedAt,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct =>
-            {
+            async ct => {
                 // Crédito del desembolso en la cuenta principal.
                 var creditResult = principalAccount.Credit(principal);
-                if (creditResult.IsFailure)
-                {
+                if (creditResult.IsFailure) {
                     return creditResult;
                 }
 
@@ -286,8 +269,7 @@ public sealed class CreateLoanCommandHandler
                     ],
                     loanNumber: loan.Number
                 );
-                if (operationResult.IsFailure)
-                {
+                if (operationResult.IsFailure) {
                     return Result.Failure(operationResult.Error!);
                 }
 

@@ -15,7 +15,6 @@ public sealed record GetLoansPagedQuery(
     int PageSize = PageRequest.DefaultPageSize,
     string? Status = null,
     string? Identification = null
-) : IRequest<Result<PageResult<LoanListDto>>>, IAuthorize
-{
+) : IRequest<Result<PageResult<LoanListDto>>>, IAuthorize {
     public string[] RequiredRoles => ["Administrador"];
 }

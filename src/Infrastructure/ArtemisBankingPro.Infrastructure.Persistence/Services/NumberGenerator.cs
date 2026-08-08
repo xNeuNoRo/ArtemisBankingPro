@@ -12,15 +12,13 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Services;
 /// Las cuentas y préstamos comparten el espacio de 9 dígitos; las tarjetas usan
 /// el mismo contador con BIN propio y dígito verificador Luhn.
 /// </summary>
-public sealed class NumberGenerator : INumberGenerator
-{
+public sealed class NumberGenerator : INumberGenerator {
     private const string NextSequenceValueSql = "SELECT NEXT VALUE FOR dbo.BankingNumberSequence";
     private const string CardBin = "900000";
 
     private readonly BankingDbContext _context;
 
-    public NumberGenerator(BankingDbContext context)
-    {
+    public NumberGenerator(BankingDbContext context) {
         _context = context;
     }
 
@@ -30,50 +28,41 @@ public sealed class NumberGenerator : INumberGenerator
     public Task<string> NextLoanNumberAsync(CancellationToken ct = default) =>
         NextNineDigitAsync(ct);
 
-    public async Task<string> NextCardNumberAsync(CancellationToken ct = default)
-    {
+    public async Task<string> NextCardNumberAsync(CancellationToken ct = default) {
         long next = await NextRawAsync(ct);
         string body = CardBin + next.ToString("D9", CultureInfo.InvariantCulture);
         return body + LuhnCheckDigit(body);
     }
 
-    private async Task<string> NextNineDigitAsync(CancellationToken ct)
-    {
+    private async Task<string> NextNineDigitAsync(CancellationToken ct) {
         long next = await NextRawAsync(ct);
         return next.ToString("D9", CultureInfo.InvariantCulture);
     }
 
-    private async Task<long> NextRawAsync(CancellationToken ct)
-    {
+    private async Task<long> NextRawAsync(CancellationToken ct) {
         // ADO.NET directo ya que EF Core compone SqlQuery en subconsultas y
         // NEXT VALUE FOR no se permite en subconsultas/derived tables.
         await _context.Database.OpenConnectionAsync(ct);
-        try
-        {
+        try {
             await using DbCommand command = _context.Database.GetDbConnection().CreateCommand();
             command.CommandText = NextSequenceValueSql;
             object? value = await command.ExecuteScalarAsync(ct);
             return Convert.ToInt64(value, CultureInfo.InvariantCulture);
         }
-        finally
-        {
+        finally {
             await _context.Database.CloseConnectionAsync();
         }
     }
 
-    private static char LuhnCheckDigit(string number)
-    {
+    private static char LuhnCheckDigit(string number) {
         int sum = 0;
         bool doubleDigit = true;
 
-        for (int index = number.Length - 1; index >= 0; index--)
-        {
+        for (int index = number.Length - 1; index >= 0; index--) {
             int digit = number[index] - '0';
-            if (doubleDigit)
-            {
+            if (doubleDigit) {
                 digit *= 2;
-                if (digit > 9)
-                {
+                if (digit > 9) {
                     digit -= 9;
                 }
             }

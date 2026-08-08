@@ -11,8 +11,7 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 /// base de datos), no aquí.
 /// </summary>
 public sealed class AppUserClaimsPrincipalFactory
-    : UserClaimsPrincipalFactory<AppUser, IdentityRole>
-{
+    : UserClaimsPrincipalFactory<AppUser, IdentityRole> {
     public AppUserClaimsPrincipalFactory(
         UserManager<AppUser> userManager,
         RoleManager<IdentityRole> roleManager,
@@ -20,13 +19,11 @@ public sealed class AppUserClaimsPrincipalFactory
     )
         : base(userManager, roleManager, options) { }
 
-    protected override async Task<ClaimsIdentity> GenerateClaimsAsync(AppUser user)
-    {
+    protected override async Task<ClaimsIdentity> GenerateClaimsAsync(AppUser user) {
         ClaimsIdentity identity = await base.GenerateClaimsAsync(user);
 
         // La cédula como claim de identificación, sin exponer datos sensibles en logs.
-        if (!string.IsNullOrWhiteSpace(user.IdentityDocument))
-        {
+        if (!string.IsNullOrWhiteSpace(user.IdentityDocument)) {
             identity.AddClaim(new Claim("identification", user.IdentityDocument));
         }
 

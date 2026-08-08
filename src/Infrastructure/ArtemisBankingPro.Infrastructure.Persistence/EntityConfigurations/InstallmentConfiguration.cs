@@ -5,14 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class InstallmentConfiguration : IEntityTypeConfiguration<Installment>
-{
-    public void Configure(EntityTypeBuilder<Installment> builder)
-    {
+public sealed class InstallmentConfiguration : IEntityTypeConfiguration<Installment> {
+    public void Configure(EntityTypeBuilder<Installment> builder) {
         builder.ToTable(
             "Installments",
-            table =>
-            {
+            table => {
                 table.HasCheckConstraint(
                     "CK_Installments_Scheduled_NonNegative",
                     "[ScheduledAmount] >= 0"

@@ -3,12 +3,10 @@ using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Users.Validators;
 
-public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCommand>
-{
+public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCommand> {
     private static readonly string[] AllowedRoles = ["Administrador", "Cajero", "Cliente"];
 
-    public CreateUserCommandValidator()
-    {
+    public CreateUserCommandValidator() {
         RuleFor(x => x.FirstName)
             .NotEmpty().WithMessage("El nombre es requerido.")
             .MaximumLength(100).WithMessage("El nombre no debe exceder 100 caracteres.");
@@ -44,22 +42,19 @@ public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCom
             .Must(role => AllowedRoles.Contains(role))
             .WithMessage("El tipo de usuario debe ser Administrador, Cajero o Cliente.");
 
-        When(x => x.Role == "Cliente", () =>
-        {
+        When(x => x.Role == "Cliente", () => {
             RuleFor(x => x.InitialAmount)
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("El monto inicial no puede ser negativo.");
         });
 
-        When(x => x.Role != "Cliente", () =>
-        {
+        When(x => x.Role != "Cliente", () => {
             RuleFor(x => x.InitialAmount)
                 .Null()
                 .WithMessage("El monto inicial solo aplica para usuarios con rol Cliente.");
         });
 
-        When(x => x.CallbackUrl is not null, () =>
-        {
+        When(x => x.CallbackUrl is not null, () => {
             RuleFor(x => x.CallbackUrl)
                 .Must(uri => Uri.TryCreate(uri, UriKind.Absolute, out _))
                 .WithMessage("La URL de retorno debe ser una URL absoluta válida.");

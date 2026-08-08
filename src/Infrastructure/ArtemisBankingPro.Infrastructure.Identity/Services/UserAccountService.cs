@@ -10,12 +10,10 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 /// activación y restablecimiento de contraseña. Implementa
 /// <see cref="IUserAccountService"/> y utiliza <see cref="UserManager{TUser}"/> de ASP.NET Identity.
 /// </summary>
-public sealed class UserAccountService : IUserAccountService
-{
+public sealed class UserAccountService : IUserAccountService {
     private readonly UserManager<AppUser> _userManager;
 
-    public UserAccountService(UserManager<AppUser> userManager)
-    {
+    public UserAccountService(UserManager<AppUser> userManager) {
         _userManager = userManager;
     }
 
@@ -24,25 +22,21 @@ public sealed class UserAccountService : IUserAccountService
         string password,
         IReadOnlyCollection<string> allowedRoles,
         CancellationToken ct = default
-    )
-    {
+    ) {
         AppUser? user = await _userManager.FindByNameAsync(userName);
 
-        if (user is null || !await _userManager.CheckPasswordAsync(user, password))
-        {
+        if (user is null || !await _userManager.CheckPasswordAsync(user, password)) {
             return new LoginResult(LoginStatus.InvalidCredentials, null, null, null);
         }
 
-        if (!user.Active)
-        {
+        if (!user.Active) {
             return new LoginResult(LoginStatus.Inactive, user.Id, user.UserName, null);
         }
 
         IList<string> roles = await _userManager.GetRolesAsync(user);
         string? role = roles.FirstOrDefault(allowedRoles.Contains);
 
-        if (role is null)
-        {
+        if (role is null) {
             return new LoginResult(LoginStatus.RoleNotAllowed, user.Id, user.UserName, null);
         }
 
@@ -53,17 +47,14 @@ public sealed class UserAccountService : IUserAccountService
         string userName,
         IReadOnlyCollection<string> allowedRoles,
         CancellationToken ct = default
-    )
-    {
+    ) {
         AppUser? user = await _userManager.FindByNameAsync(userName);
-        if (user is null)
-        {
+        if (user is null) {
             return null;
         }
 
         IList<string> roles = await _userManager.GetRolesAsync(user);
-        if (!roles.Any(allowedRoles.Contains))
-        {
+        if (!roles.Any(allowedRoles.Contains)) {
             return null;
         }
 
@@ -74,11 +65,9 @@ public sealed class UserAccountService : IUserAccountService
         string userId,
         bool isActive,
         CancellationToken ct = default
-    )
-    {
+    ) {
         AppUser? user = await _userManager.FindByIdAsync(userId);
-        if (user is null)
-        {
+        if (user is null) {
             return Result.Failure(DomainError.NotFound("User.NotFound", "El usuario no existe."));
         }
 
@@ -99,11 +88,9 @@ public sealed class UserAccountService : IUserAccountService
         string userId,
         string newPassword,
         CancellationToken ct = default
-    )
-    {
+    ) {
         AppUser? user = await _userManager.FindByIdAsync(userId);
-        if (user is null)
-        {
+        if (user is null) {
             return Result.Failure(DomainError.NotFound("User.NotFound", "El usuario no existe."));
         }
 
@@ -112,8 +99,7 @@ public sealed class UserAccountService : IUserAccountService
         // para un cambio de contraseña administrativo tras validar el token
         // de restablecimiento del sistema.
         IdentityResult removeResult = await _userManager.RemovePasswordAsync(user);
-        if (!removeResult.Succeeded)
-        {
+        if (!removeResult.Succeeded) {
             return Result.Failure(
                 DomainError.Conflict(
                     "User.PasswordChangeFailed",
@@ -143,10 +129,8 @@ public sealed class UserAccountService : IUserAccountService
         string password,
         string role,
         CancellationToken ct = default
-    )
-    {
-        var user = new AppUser
-        {
+    ) {
+        var user = new AppUser {
             UserName = userName,
             Email = email,
             FirstName = firstName,
@@ -157,14 +141,12 @@ public sealed class UserAccountService : IUserAccountService
         };
 
         IdentityResult createResult = await _userManager.CreateAsync(user, password);
-        if (!createResult.Succeeded)
-        {
+        if (!createResult.Succeeded) {
             return Result.Failure<CreatedUserInfo>(ToDomainError(createResult));
         }
 
         IdentityResult roleResult = await _userManager.AddToRoleAsync(user, role);
-        if (!roleResult.Succeeded)
-        {
+        if (!roleResult.Succeeded) {
             // El usuario no debe quedar creado sin rol.
             await _userManager.DeleteAsync(user);
             return Result.Failure<CreatedUserInfo>(
@@ -195,11 +177,9 @@ public sealed class UserAccountService : IUserAccountService
         string email,
         string userName,
         CancellationToken ct = default
-    )
-    {
+    ) {
         AppUser? user = await _userManager.FindByIdAsync(userId);
-        if (user is null)
-        {
+        if (user is null) {
             return Result.Failure(DomainError.NotFound("User.NotFound", "El usuario no existe."));
         }
 
@@ -208,14 +188,12 @@ public sealed class UserAccountService : IUserAccountService
         user.IdentityDocument = identityDocument;
 
         IdentityResult userNameResult = await _userManager.SetUserNameAsync(user, userName);
-        if (!userNameResult.Succeeded)
-        {
+        if (!userNameResult.Succeeded) {
             return Result.Failure(ToDomainError(userNameResult));
         }
 
         IdentityResult emailResult = await _userManager.SetEmailAsync(user, email);
-        if (!emailResult.Succeeded)
-        {
+        if (!emailResult.Succeeded) {
             return Result.Failure(ToDomainError(emailResult));
         }
 
@@ -226,11 +204,9 @@ public sealed class UserAccountService : IUserAccountService
             : Result.Failure(ToDomainError(updateResult));
     }
 
-    public async Task<Result> DeleteUserAsync(string userId, CancellationToken ct = default)
-    {
+    public async Task<Result> DeleteUserAsync(string userId, CancellationToken ct = default) {
         AppUser? user = await _userManager.FindByIdAsync(userId);
-        if (user is null)
-        {
+        if (user is null) {
             return Result.Failure(DomainError.NotFound("User.NotFound", "El usuario no existe."));
         }
 
@@ -243,8 +219,7 @@ public sealed class UserAccountService : IUserAccountService
             );
     }
 
-    private static DomainError ToDomainError(IdentityResult result)
-    {
+    private static DomainError ToDomainError(IdentityResult result) {
         string code = result.Errors.FirstOrDefault()?.Code ?? "Unknown";
         string description = result.Errors.FirstOrDefault()?.Description ?? "Operación fallida.";
 

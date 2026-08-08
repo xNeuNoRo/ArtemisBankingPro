@@ -9,7 +9,6 @@ namespace ArtemisBankingPro.Application.Features.Loans.Queries;
 /// Detalle de un préstamo con su tabla de amortización completa.
 /// </summary>
 public sealed record GetLoanDetailQuery(int LoanId)
-    : IRequest<Result<LoanDetailDto>>, IAuthorize
-{
+    : IRequest<Result<LoanDetailDto>>, IAuthorize {
     public string[] RequiredRoles => ["Administrador"];
 }

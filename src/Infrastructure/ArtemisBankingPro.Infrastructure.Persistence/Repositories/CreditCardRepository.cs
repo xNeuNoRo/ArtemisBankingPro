@@ -7,8 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
-public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICreditCardRepository
-{
+public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICreditCardRepository {
     public CreditCardRepository(BankingDbContext context)
         : base(context) { }
 
@@ -27,8 +26,7 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
             .OrderByDescending(card => card.Id)
             .ToListAsync(ct);
 
-    public async Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default)
-    {
+    public async Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default) {
         // El converter de Money impide navegar .Amount dentro de Sum en SQL
         // materializar solo las columnas necesarias y sumar en memoria es
         // correcto para el volumen de tarjetas activas.
@@ -44,8 +42,7 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
     public async Task<Money> GetClientActiveDebtAsync(
         string customerUserId,
         CancellationToken ct = default
-    )
-    {
+    ) {
         decimal[] debts = await DbSet
             .AsNoTracking()
             .Where(card =>

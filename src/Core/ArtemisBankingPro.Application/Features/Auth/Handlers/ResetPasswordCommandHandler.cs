@@ -11,16 +11,14 @@ namespace ArtemisBankingPro.Application.Features.Auth.Handlers;
 /// contrato del documento funcional.
 /// </summary>
 public sealed class ResetPasswordCommandHandler
-    : IRequestHandler<ResetPasswordCommand, Result<Unit>>
-{
+    : IRequestHandler<ResetPasswordCommand, Result<Unit>> {
     private readonly IAccountTokenService _tokenService;
     private readonly IUserAccountService _userAccountService;
 
     public ResetPasswordCommandHandler(
         IAccountTokenService tokenService,
         IUserAccountService userAccountService
-    )
-    {
+    ) {
         _tokenService = tokenService;
         _userAccountService = userAccountService;
     }
@@ -28,8 +26,7 @@ public sealed class ResetPasswordCommandHandler
     public async ValueTask<Result<Unit>> Handle(
         ResetPasswordCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var verification = await _tokenService.VerifyAndConsumeAsync(
             message.UserId,
             AccountTokenType.PasswordReset,
@@ -37,8 +34,7 @@ public sealed class ResetPasswordCommandHandler
             cancellationToken
         );
 
-        if (verification == AccountTokenVerificationResult.Expired)
-        {
+        if (verification == AccountTokenVerificationResult.Expired) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ResetExpired",
@@ -48,8 +44,7 @@ public sealed class ResetPasswordCommandHandler
             );
         }
 
-        if (verification == AccountTokenVerificationResult.AlreadyUsed)
-        {
+        if (verification == AccountTokenVerificationResult.AlreadyUsed) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ResetAlreadyUsed",
@@ -58,8 +53,7 @@ public sealed class ResetPasswordCommandHandler
             );
         }
 
-        if (verification == AccountTokenVerificationResult.Invalid)
-        {
+        if (verification == AccountTokenVerificationResult.Invalid) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ResetInvalid",
@@ -73,8 +67,7 @@ public sealed class ResetPasswordCommandHandler
             message.Password,
             cancellationToken
         );
-        if (passwordResult.IsFailure)
-        {
+        if (passwordResult.IsFailure) {
             return Result.Failure<Unit>(passwordResult.Error!);
         }
 
@@ -84,8 +77,7 @@ public sealed class ResetPasswordCommandHandler
             cancellationToken
         );
 
-        if (reactivateResult.IsFailure)
-        {
+        if (reactivateResult.IsFailure) {
             return Result.Failure<Unit>(reactivateResult.Error!);
         }
 

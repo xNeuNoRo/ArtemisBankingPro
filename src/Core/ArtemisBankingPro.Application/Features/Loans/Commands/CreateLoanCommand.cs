@@ -18,8 +18,7 @@ public sealed record CreateLoanCommand(
     int TermMonths,
     decimal AnnualInterestRate,
     bool ConfirmHighRisk = false
-) : IRequest<Result<CreateLoanResponse>>, IAuthorize, IIdempotentCommand
-{
+) : IRequest<Result<CreateLoanResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey => $"create-loan-{CustomerUserId}";

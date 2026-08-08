@@ -2,16 +2,14 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Application.Interfaces.Identity;
 
-public enum LoginStatus
-{
+public enum LoginStatus {
     Success = 1,
     InvalidCredentials = 2,
     Inactive = 3,
     RoleNotAllowed = 4,
 }
 
-public sealed record LoginResult(LoginStatus Status, string? UserId, string? UserName, string? Role)
-{
+public sealed record LoginResult(LoginStatus Status, string? UserId, string? UserName, string? Role) {
     public bool IsSuccess => Status == LoginStatus.Success;
 }
 
@@ -38,8 +36,7 @@ public sealed record CreatedUserInfo(
 /// <summary>
 /// Verificación de credenciales y operaciones de cuenta del usuario.
 /// </summary>
-public interface IUserAccountService
-{
+public interface IUserAccountService {
     /// <summary>
     /// Valida usuario, contraseña, estado activo y rol permitido.
     /// Devuelve información mínima para emitir el token.

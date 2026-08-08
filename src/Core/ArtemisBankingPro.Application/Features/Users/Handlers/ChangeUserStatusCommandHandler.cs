@@ -12,20 +12,17 @@ namespace ArtemisBankingPro.Application.Features.Users.Handlers;
 /// vía IOwnershipCheck.
 /// </summary>
 public sealed class ChangeUserStatusCommandHandler
-    : IRequestHandler<ChangeUserStatusCommand, Result<Unit>>
-{
+    : IRequestHandler<ChangeUserStatusCommand, Result<Unit>> {
     private readonly IUserAccountService _userAccountService;
 
-    public ChangeUserStatusCommandHandler(IUserAccountService userAccountService)
-    {
+    public ChangeUserStatusCommandHandler(IUserAccountService userAccountService) {
         _userAccountService = userAccountService;
     }
 
     public async ValueTask<Result<Unit>> Handle(
         ChangeUserStatusCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var result = await _userAccountService.SetActiveAsync(
             message.UserId,
             message.IsActive,

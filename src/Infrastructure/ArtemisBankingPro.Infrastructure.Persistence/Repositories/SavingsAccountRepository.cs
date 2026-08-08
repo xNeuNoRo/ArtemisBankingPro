@@ -9,8 +9,7 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
 public sealed class SavingsAccountRepository
     : GenericRepository<SavingsAccount>,
-        ISavingsAccountRepository
-{
+        ISavingsAccountRepository {
     public SavingsAccountRepository(BankingDbContext context)
         : base(context) { }
 

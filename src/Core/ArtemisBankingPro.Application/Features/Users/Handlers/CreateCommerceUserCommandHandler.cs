@@ -28,8 +28,7 @@ namespace ArtemisBankingPro.Application.Features.Users.Handlers;
 /// inicial indicado. El usuario inicia inactivo y recibe el correo de activación.
 /// </summary>
 public sealed class CreateCommerceUserCommandHandler
-    : IRequestHandler<CreateCommerceUserCommand, Result<CreateCommerceUserResponse>>
-{
+    : IRequestHandler<CreateCommerceUserCommand, Result<CreateCommerceUserResponse>> {
     private readonly IUserAccountService _userAccountService;
     private readonly IUserRepository _userRepository;
     private readonly IMerchantRepository _merchantRepository;
@@ -56,8 +55,7 @@ public sealed class CreateCommerceUserCommandHandler
         IBusinessClock clock,
         ICurrentUserService currentUser,
         ILogger<CreateCommerceUserCommandHandler> logger
-    )
-    {
+    ) {
         _userAccountService = userAccountService;
         _userRepository = userRepository;
         _merchantRepository = merchantRepository;
@@ -75,12 +73,10 @@ public sealed class CreateCommerceUserCommandHandler
     public async ValueTask<Result<CreateCommerceUserResponse>> Handle(
         CreateCommerceUserCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         // 1. El comercio debe existir.
         var merchant = await _merchantRepository.GetByIdAsync(message.CommerceId, cancellationToken);
-        if (merchant is null)
-        {
+        if (merchant is null) {
             return Result.Failure<CreateCommerceUserResponse>(
                 DomainError.NotFound(
                     "Commerce.NotFound",
@@ -90,8 +86,7 @@ public sealed class CreateCommerceUserCommandHandler
         }
 
         // 2. El comercio no debe tener otro usuario asociado.
-        if (merchant.AssociatedUserId is not null)
-        {
+        if (merchant.AssociatedUserId is not null) {
             return Result.Failure<CreateCommerceUserResponse>(
                 DomainError.Conflict(
                     "Commerce.UserAlreadyAssociated",
@@ -101,8 +96,7 @@ public sealed class CreateCommerceUserCommandHandler
         }
 
         // 3. Unicidad de identidad (validada aquí y reforzada por constraints).
-        if (await _userRepository.ExistsByUserNameAsync(message.UserName, cancellationToken))
-        {
+        if (await _userRepository.ExistsByUserNameAsync(message.UserName, cancellationToken)) {
             return Result.Failure<CreateCommerceUserResponse>(
                 DomainError.Conflict(
                     "User.UserNameExists",
@@ -111,8 +105,7 @@ public sealed class CreateCommerceUserCommandHandler
             );
         }
 
-        if (await _userRepository.ExistsByEmailAsync(message.Email, cancellationToken))
-        {
+        if (await _userRepository.ExistsByEmailAsync(message.Email, cancellationToken)) {
             return Result.Failure<CreateCommerceUserResponse>(
                 DomainError.Conflict(
                     "User.EmailExists",
@@ -126,8 +119,7 @@ public sealed class CreateCommerceUserCommandHandler
                 message.Identification,
                 cancellationToken
             )
-        )
-        {
+        ) {
             return Result.Failure<CreateCommerceUserResponse>(
                 DomainError.Conflict(
                     "User.IdentificationExists",
@@ -147,8 +139,7 @@ public sealed class CreateCommerceUserCommandHandler
             nameof(Roles.Comercio),
             cancellationToken
         );
-        if (createdUser.IsFailure)
-        {
+        if (createdUser.IsFailure) {
             return Result.Failure<CreateCommerceUserResponse>(createdUser.Error!);
         }
 
@@ -161,8 +152,7 @@ public sealed class CreateCommerceUserCommandHandler
             message.InitialAmount,
             cancellationToken
         );
-        if (accountResult.IsFailure)
-        {
+        if (accountResult.IsFailure) {
             await _userAccountService.DeleteUserAsync(user.UserId, cancellationToken);
             return Result.Failure<CreateCommerceUserResponse>(accountResult.Error!);
         }
@@ -188,18 +178,15 @@ public sealed class CreateCommerceUserCommandHandler
         string ownerUserId,
         decimal initialAmount,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var accountNumber = await _numberGenerator.NextAccountNumberAsync(cancellationToken);
         var numberResult = AccountNumber.Create(accountNumber);
-        if (numberResult.IsFailure)
-        {
+        if (numberResult.IsFailure) {
             return Result.Failure<string>(numberResult.Error!);
         }
 
         var balanceResult = Money.Create(initialAmount);
-        if (balanceResult.IsFailure)
-        {
+        if (balanceResult.IsFailure) {
             return Result.Failure<string>(balanceResult.Error!);
         }
 
@@ -212,27 +199,23 @@ public sealed class CreateCommerceUserCommandHandler
             _currentUser.UserId!,
             openedAt
         );
-        if (openResult.IsFailure)
-        {
+        if (openResult.IsFailure) {
             return Result.Failure<string>(openResult.Error!);
         }
 
         var account = openResult.Value;
 
         return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct =>
-            {
+            async ct => {
                 var associateResult = merchant.AssociateUser(ownerUserId, _clock.Now);
-                if (associateResult.IsFailure)
-                {
+                if (associateResult.IsFailure) {
                     return Result.Failure<string>(associateResult.Error!);
                 }
 
                 _merchantRepository.Update(merchant);
                 await _savingsAccountRepository.AddAsync(account, ct);
 
-                if (initialAmount > 0m)
-                {
+                if (initialAmount > 0m) {
                     var operationResult = FinancialOperation.Approve(
                         Guid.NewGuid(),
                         FinancialOperationKind.InitialFunding,
@@ -251,8 +234,7 @@ public sealed class CreateCommerceUserCommandHandler
                             ),
                         ]
                     );
-                    if (operationResult.IsFailure)
-                    {
+                    if (operationResult.IsFailure) {
                         return Result.Failure<string>(operationResult.Error!);
                     }
 
@@ -269,26 +251,22 @@ public sealed class CreateCommerceUserCommandHandler
         CreatedUserInfo user,
         string? callbackUrl,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         string rawToken = await _tokenService.GenerateAsync(
             user.UserId,
             AccountTokenType.Activation,
             cancellationToken
         );
 
-        try
-        {
-            if (callbackUrl is null)
-            {
+        try {
+            if (callbackUrl is null) {
                 await _emailService.SendAsync(
                     user.Email,
                     new AccountActivationTokenModel(user.FullName, rawToken),
                     cancellationToken
                 );
             }
-            else
-            {
+            else {
                 string activationLink =
                     $"{callbackUrl.TrimEnd('/')}/Auth/Activate?token={Uri.EscapeDataString(rawToken)}";
                 await _emailService.SendAsync(
@@ -298,8 +276,7 @@ public sealed class CreateCommerceUserCommandHandler
                 );
             }
         }
-        catch (EmailSendException ex)
-        {
+        catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
                 "No se pudo enviar el correo de activación para el usuario {UserId}.",

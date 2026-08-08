@@ -5,12 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
-public sealed class IdempotencyRecordRepository : IIdempotencyRecordRepository
-{
+public sealed class IdempotencyRecordRepository : IIdempotencyRecordRepository {
     private readonly BankingDbContext _context;
 
-    public IdempotencyRecordRepository(BankingDbContext context)
-    {
+    public IdempotencyRecordRepository(BankingDbContext context) {
         _context = context;
     }
 
@@ -29,8 +27,7 @@ public sealed class IdempotencyRecordRepository : IIdempotencyRecordRepository
     public async Task<IdempotencyRecord> AddAsync(
         IdempotencyRecord record,
         CancellationToken ct = default
-    )
-    {
+    ) {
         await _context.Set<IdempotencyRecord>().AddAsync(record, ct);
         return record;
     }

@@ -15,8 +15,7 @@ namespace ArtemisBankingPro.Application.Features.Auth.Handlers;
 /// Comercio) y emite un JWT. Para rol Comercio resuelve el comercio asociado
 /// para incluirlo en el token.
 /// </summary>
-public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginResponse>>
-{
+public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginResponse>> {
     private readonly IUserAccountService _userAccountService;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IMerchantRepository _merchantRepository;
@@ -27,8 +26,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<L
         IJwtTokenService jwtTokenService,
         IMerchantRepository merchantRepository,
         IBusinessClock clock
-    )
-    {
+    ) {
         _userAccountService = userAccountService;
         _jwtTokenService = jwtTokenService;
         _merchantRepository = merchantRepository;
@@ -38,8 +36,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<L
     public async ValueTask<Result<LoginResponse>> Handle(
         LoginCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var loginResult = await _userAccountService.ValidateCredentialsAsync(
             message.UserName,
             message.Password,
@@ -47,8 +44,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<L
             cancellationToken
         );
 
-        if (loginResult.Status == LoginStatus.InvalidCredentials)
-        {
+        if (loginResult.Status == LoginStatus.InvalidCredentials) {
             return Result.Failure<LoginResponse>(
                 DomainError.Unauthorized(
                     "Auth.InvalidCredentials",
@@ -57,8 +53,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<L
             );
         }
 
-        if (loginResult.Status == LoginStatus.Inactive)
-        {
+        if (loginResult.Status == LoginStatus.Inactive) {
             return Result.Failure<LoginResponse>(
                 DomainError.Unauthorized(
                     "Auth.Inactive",
@@ -67,8 +62,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<L
             );
         }
 
-        if (loginResult.Status == LoginStatus.RoleNotAllowed)
-        {
+        if (loginResult.Status == LoginStatus.RoleNotAllowed) {
             return Result.Failure<LoginResponse>(
                 DomainError.Forbidden(
                     "Auth.RoleNotAllowed",
@@ -78,8 +72,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<L
         }
 
         int? commerceId = null;
-        if (loginResult.Role == "Comercio")
-        {
+        if (loginResult.Role == "Comercio") {
             var merchant = await _merchantRepository.GetByAssociatedUserIdAsync(
                 loginResult.UserId!,
                 cancellationToken

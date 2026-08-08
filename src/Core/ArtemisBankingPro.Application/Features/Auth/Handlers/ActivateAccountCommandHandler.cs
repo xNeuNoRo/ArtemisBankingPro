@@ -10,16 +10,14 @@ namespace ArtemisBankingPro.Application.Features.Auth.Handlers;
 /// solo uso. Los mensajes siguen el contrato del documento funcional.
 /// </summary>
 public sealed class ActivateAccountCommandHandler
-    : IRequestHandler<ActivateAccountCommand, Result<Unit>>
-{
+    : IRequestHandler<ActivateAccountCommand, Result<Unit>> {
     private readonly IAccountTokenService _tokenService;
     private readonly IUserAccountService _userAccountService;
 
     public ActivateAccountCommandHandler(
         IAccountTokenService tokenService,
         IUserAccountService userAccountService
-    )
-    {
+    ) {
         _tokenService = tokenService;
         _userAccountService = userAccountService;
     }
@@ -27,16 +25,14 @@ public sealed class ActivateAccountCommandHandler
     public async ValueTask<Result<Unit>> Handle(
         ActivateAccountCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var verification = await _tokenService.VerifyAndConsumeByTokenAsync(
             AccountTokenType.Activation,
             message.Token,
             cancellationToken
         );
 
-        if (verification.Result == AccountTokenVerificationResult.Expired)
-        {
+        if (verification.Result == AccountTokenVerificationResult.Expired) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ActivationExpired",
@@ -45,8 +41,7 @@ public sealed class ActivateAccountCommandHandler
             );
         }
 
-        if (verification.Result == AccountTokenVerificationResult.AlreadyUsed)
-        {
+        if (verification.Result == AccountTokenVerificationResult.AlreadyUsed) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ActivationAlreadyUsed",
@@ -55,8 +50,7 @@ public sealed class ActivateAccountCommandHandler
             );
         }
 
-        if (verification.Result == AccountTokenVerificationResult.Invalid)
-        {
+        if (verification.Result == AccountTokenVerificationResult.Invalid) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ActivationInvalid",
@@ -71,8 +65,7 @@ public sealed class ActivateAccountCommandHandler
             cancellationToken
         );
 
-        if (activationResult.IsFailure)
-        {
+        if (activationResult.IsFailure) {
             return Result.Failure<Unit>(activationResult.Error!);
         }
 

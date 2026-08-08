@@ -13,16 +13,13 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 /// identificador, nombre de usuario, rol, emisión y expiración, más un jti
 /// único. El comercio asociado se incluye solo para roles Comercio.
 /// </summary>
-public sealed class JwtTokenService : IJwtTokenService
-{
+public sealed class JwtTokenService : IJwtTokenService {
     private readonly JwtSettings _settings;
 
-    public JwtTokenService(IOptions<JwtSettings> settings)
-    {
+    public JwtTokenService(IOptions<JwtSettings> settings) {
         _settings = settings.Value;
 
-        if (string.IsNullOrWhiteSpace(_settings.SecretKey))
-        {
+        if (string.IsNullOrWhiteSpace(_settings.SecretKey)) {
             throw new InvalidOperationException(
                 "Security:Jwt:SecretKey no está configurada. "
                     + "Provea una clave HMAC de al menos 32 bytes en base64."
@@ -32,16 +29,14 @@ public sealed class JwtTokenService : IJwtTokenService
         if (
             string.IsNullOrWhiteSpace(_settings.Issuer)
             || string.IsNullOrWhiteSpace(_settings.Audience)
-        )
-        {
+        ) {
             throw new InvalidOperationException(
                 "Security:Jwt:Issuer y Security:Jwt:Audience son obligatorias."
             );
         }
     }
 
-    public JwtTokenResult GenerateToken(JwtTokenRequest request)
-    {
+    public JwtTokenResult GenerateToken(JwtTokenRequest request) {
         DateTimeOffset expiresAtUtc = request.IssuedAtUtc.AddMinutes(_settings.ExpirationMinutes);
 
         var claims = new List<Claim>
@@ -54,8 +49,7 @@ public sealed class JwtTokenService : IJwtTokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
         };
 
-        if (request.CommerceId is not null)
-        {
+        if (request.CommerceId is not null) {
             claims.Add(
                 new Claim(
                     CurrentUserService.CommerceIdClaim,
@@ -84,14 +78,11 @@ public sealed class JwtTokenService : IJwtTokenService
         );
     }
 
-    private byte[] GetKey()
-    {
-        try
-        {
+    private byte[] GetKey() {
+        try {
             return Convert.FromBase64String(_settings.SecretKey!);
         }
-        catch (FormatException ex)
-        {
+        catch (FormatException ex) {
             throw new InvalidOperationException("Security:Jwt:SecretKey debe estar en base64.", ex);
         }
     }

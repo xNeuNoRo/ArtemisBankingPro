@@ -23,8 +23,7 @@ public sealed record UpdateUserCommand(
     string? Password = null,
     string? ConfirmPassword = null,
     decimal? AdditionalAmount = null
-) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand, IOwnershipCheck
-{
+) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand, IOwnershipCheck {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey => $"update-user-{UserId}";
@@ -32,10 +31,8 @@ public sealed record UpdateUserCommand(
     public string RequestFingerprint =>
         $"{FirstName}|{LastName}|{Identification}|{Email}|{UserName}|{AdditionalAmount}";
 
-    public Task VerifyOwnershipAsync(ICurrentUserService currentUser, CancellationToken ct)
-    {
-        if (currentUser.UserId == UserId)
-        {
+    public Task VerifyOwnershipAsync(ICurrentUserService currentUser, CancellationToken ct) {
+        if (currentUser.UserId == UserId) {
             throw new ForbiddenAccessException(
                 "No puede editar su propia cuenta desde este módulo."
             );

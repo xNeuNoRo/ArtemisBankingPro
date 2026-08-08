@@ -14,7 +14,6 @@ public sealed record GetUsersPagedQuery(
     int Page = PageRequest.DefaultPage,
     int PageSize = PageRequest.DefaultPageSize,
     string? Role = null
-) : IRequest<Result<PageResult<UserListDto>>>, IAuthorize
-{
+) : IRequest<Result<PageResult<UserListDto>>>, IAuthorize {
     public string[] RequiredRoles => ["Administrador"];
 }

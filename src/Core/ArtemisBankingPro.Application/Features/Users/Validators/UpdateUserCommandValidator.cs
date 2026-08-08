@@ -3,10 +3,8 @@ using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Users.Validators;
 
-public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCommand>
-{
-    public UpdateUserCommandValidator()
-    {
+public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCommand> {
+    public UpdateUserCommandValidator() {
         RuleFor(x => x.UserId)
             .NotEmpty().WithMessage("El identificador del usuario es requerido.")
             .MaximumLength(450);
@@ -32,8 +30,7 @@ public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCom
             .NotEmpty().WithMessage("El nombre de usuario es requerido.")
             .MaximumLength(50);
 
-        When(x => x.Password is not null and not "", () =>
-        {
+        When(x => x.Password is not null and not "", () => {
             RuleFor(x => x.Password)
                 .MinimumLength(8).WithMessage("La contraseña debe tener al menos 8 caracteres.")
                 .MaximumLength(128);
@@ -44,8 +41,7 @@ public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCom
                 .WithMessage("La contraseña y la confirmación de contraseña deben coincidir.");
         });
 
-        When(x => x.AdditionalAmount is not null, () =>
-        {
+        When(x => x.AdditionalAmount is not null, () => {
             RuleFor(x => x.AdditionalAmount)
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("El monto adicional no puede ser negativo.");

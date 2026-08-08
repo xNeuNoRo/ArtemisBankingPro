@@ -28,8 +28,7 @@ namespace ArtemisBankingPro.Application.Features.Users.Handlers;
 /// (enlace para MVC o token directo para API).
 /// </summary>
 public sealed class CreateUserCommandHandler
-    : IRequestHandler<CreateUserCommand, Result<CreateUserResponse>>
-{
+    : IRequestHandler<CreateUserCommand, Result<CreateUserResponse>> {
     private readonly IUserAccountService _userAccountService;
     private readonly IUserRepository _userRepository;
     private readonly ISavingsAccountRepository _savingsAccountRepository;
@@ -54,8 +53,7 @@ public sealed class CreateUserCommandHandler
         IBusinessClock clock,
         ICurrentUserService currentUser,
         ILogger<CreateUserCommandHandler> logger
-    )
-    {
+    ) {
         _userAccountService = userAccountService;
         _userRepository = userRepository;
         _savingsAccountRepository = savingsAccountRepository;
@@ -72,11 +70,9 @@ public sealed class CreateUserCommandHandler
     public async ValueTask<Result<CreateUserResponse>> Handle(
         CreateUserCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         // 1. Unicidad (validada aquí y reforzada por constraints de BD)
-        if (await _userRepository.ExistsByUserNameAsync(message.UserName, cancellationToken))
-        {
+        if (await _userRepository.ExistsByUserNameAsync(message.UserName, cancellationToken)) {
             return Result.Failure<CreateUserResponse>(
                 DomainError.Conflict(
                     "User.UserNameExists",
@@ -85,8 +81,7 @@ public sealed class CreateUserCommandHandler
             );
         }
 
-        if (await _userRepository.ExistsByEmailAsync(message.Email, cancellationToken))
-        {
+        if (await _userRepository.ExistsByEmailAsync(message.Email, cancellationToken)) {
             return Result.Failure<CreateUserResponse>(
                 DomainError.Conflict(
                     "User.EmailExists",
@@ -100,8 +95,7 @@ public sealed class CreateUserCommandHandler
                 message.Identification,
                 cancellationToken
             )
-        )
-        {
+        ) {
             return Result.Failure<CreateUserResponse>(
                 DomainError.Conflict(
                     "User.IdentificationExists",
@@ -121,8 +115,7 @@ public sealed class CreateUserCommandHandler
             message.Role,
             cancellationToken
         );
-        if (createdUser.IsFailure)
-        {
+        if (createdUser.IsFailure) {
             return Result.Failure<CreateUserResponse>(createdUser.Error!);
         }
 
@@ -131,8 +124,7 @@ public sealed class CreateUserCommandHandler
         string? mainAccountNumber = null;
 
         // 3. Cuenta principal + financiamiento inicial (solo Cliente).
-        if (message.Role == nameof(Roles.Cliente))
-        {
+        if (message.Role == nameof(Roles.Cliente)) {
             var accountResult = await CreatePrincipalAccountAsync(
                 user.UserId,
                 message.InitialAmount ?? 0m,
@@ -140,8 +132,7 @@ public sealed class CreateUserCommandHandler
                 cancellationToken
             );
 
-            if (accountResult.IsFailure)
-            {
+            if (accountResult.IsFailure) {
                 // Compensación: el usuario no debe quedar creado sin su cuenta.
                 await _userAccountService.DeleteUserAsync(user.UserId, cancellationToken);
                 return Result.Failure<CreateUserResponse>(accountResult.Error!);
@@ -170,18 +161,15 @@ public sealed class CreateUserCommandHandler
         decimal initialAmount,
         string role,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var accountNumber = await _numberGenerator.NextAccountNumberAsync(cancellationToken);
         var numberResult = AccountNumber.Create(accountNumber);
-        if (numberResult.IsFailure)
-        {
+        if (numberResult.IsFailure) {
             return Result.Failure<string>(numberResult.Error!);
         }
 
         var balanceResult = Money.Create(initialAmount);
-        if (balanceResult.IsFailure)
-        {
+        if (balanceResult.IsFailure) {
             return Result.Failure<string>(balanceResult.Error!);
         }
 
@@ -194,20 +182,17 @@ public sealed class CreateUserCommandHandler
             _currentUser.UserId!,
             openedAt
         );
-        if (openResult.IsFailure)
-        {
+        if (openResult.IsFailure) {
             return Result.Failure<string>(openResult.Error!);
         }
 
         var account = openResult.Value;
 
         return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct =>
-            {
+            async ct => {
                 await _savingsAccountRepository.AddAsync(account, ct);
 
-                if (initialAmount > 0m)
-                {
+                if (initialAmount > 0m) {
                     var operationResult = FinancialOperation.Approve(
                         Guid.NewGuid(),
                         FinancialOperationKind.InitialFunding,
@@ -226,8 +211,7 @@ public sealed class CreateUserCommandHandler
                             ),
                         ]
                     );
-                    if (operationResult.IsFailure)
-                    {
+                    if (operationResult.IsFailure) {
                         return Result.Failure<string>(operationResult.Error!);
                     }
 
@@ -244,26 +228,22 @@ public sealed class CreateUserCommandHandler
         CreatedUserInfo user,
         string? callbackUrl,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         string rawToken = await _tokenService.GenerateAsync(
             user.UserId,
             AccountTokenType.Activation,
             cancellationToken
         );
 
-        try
-        {
-            if (callbackUrl is null)
-            {
+        try {
+            if (callbackUrl is null) {
                 await _emailService.SendAsync(
                     user.Email,
                     new AccountActivationTokenModel(user.FullName, rawToken),
                     cancellationToken
                 );
             }
-            else
-            {
+            else {
                 string activationLink =
                     $"{callbackUrl.TrimEnd('/')}/Auth/Activate?token={Uri.EscapeDataString(rawToken)}";
                 await _emailService.SendAsync(
@@ -273,8 +253,7 @@ public sealed class CreateUserCommandHandler
                 );
             }
         }
-        catch (EmailSendException ex)
-        {
+        catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
                 "No se pudo enviar el correo de activación para el usuario {UserId}.",

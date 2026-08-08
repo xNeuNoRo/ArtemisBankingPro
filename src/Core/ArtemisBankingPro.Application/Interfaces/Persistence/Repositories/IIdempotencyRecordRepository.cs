@@ -1,7 +1,6 @@
 namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
-public interface IIdempotencyRecordRepository
-{
+public interface IIdempotencyRecordRepository {
     Task<IdempotencyRecord?> GetAsync(
         string idempotencyKey,
         string actorId,

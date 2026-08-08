@@ -19,7 +19,6 @@ public sealed record JwtTokenResult(string Token, DateTimeOffset ExpiresAtUtc);
 /// <summary>
 /// Servicio de emisión de tokens JWT.
 /// </summary>
-public interface IJwtTokenService
-{
+public interface IJwtTokenService {
     JwtTokenResult GenerateToken(JwtTokenRequest request);
 }

@@ -17,13 +17,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Loans.Handlers;
 
-public sealed class UpdateLoanRateCommandHandlerTests
-{
+public sealed class UpdateLoanRateCommandHandlerTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly FixedToday = new(2026, 8, 7);
 
-    private static Loan SeedLoanWithInstallments()
-    {
+    private static Loan SeedLoanWithInstallments() {
         var number = LoanNumber.Create("111111111").Value;
         var loan = Loan.Issue(
             "client-1",
@@ -38,8 +36,7 @@ public sealed class UpdateLoanRateCommandHandlerTests
         return loan;
     }
 
-    private static Mock<IUnitOfWork> UnitOfWork()
-    {
+    private static Mock<IUnitOfWork> UnitOfWork() {
         var uow = new Mock<IUnitOfWork>();
         uow
             .Setup(u => u.ExecuteInTransactionAsync(
@@ -55,15 +52,13 @@ public sealed class UpdateLoanRateCommandHandlerTests
         return uow;
     }
 
-    private static Mock<IBusinessClock> Clock()
-    {
+    private static Mock<IBusinessClock> Clock() {
         var clock = new Mock<IBusinessClock>();
         clock.SetupGet(c => c.Today).Returns(FixedToday);
         return clock;
     }
 
-    private static Mock<IUserRepository> UserRepository()
-    {
+    private static Mock<IUserRepository> UserRepository() {
         var repository = new Mock<IUserRepository>();
         repository
             .Setup(r => r.GetByIdAsync("client-1", It.IsAny<CancellationToken>()))
@@ -74,8 +69,7 @@ public sealed class UpdateLoanRateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidLoan_UpdatesRateAndSendsEmail()
-    {
+    public async Task Handle_ValidLoan_UpdatesRateAndSendsEmail() {
         var loan = SeedLoanWithInstallments();
         var loanRepository = new Mock<ILoanRepository>();
         loanRepository
@@ -111,8 +105,7 @@ public sealed class UpdateLoanRateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UnknownLoan_ReturnsNotFound()
-    {
+    public async Task Handle_UnknownLoan_ReturnsNotFound() {
         var loanRepository = new Mock<ILoanRepository>();
         loanRepository
             .Setup(r => r.GetWithInstallmentsByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -137,13 +130,11 @@ public sealed class UpdateLoanRateCommandHandlerTests
     }
 }
 
-public sealed class GetLoansPagedQueryHandlerTests
-{
+public sealed class GetLoansPagedQueryHandlerTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly FixedToday = new(2026, 8, 7);
 
-    private static Loan SeedLoan()
-    {
+    private static Loan SeedLoan() {
         var number = LoanNumber.Create("111111111").Value;
         return Loan.Issue(
             "client-1",
@@ -158,8 +149,7 @@ public sealed class GetLoansPagedQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ReturnsPagedLoansWithCustomerNames()
-    {
+    public async Task Handle_ReturnsPagedLoansWithCustomerNames() {
         var loan = SeedLoan();
         var loanRepository = new Mock<ILoanRepository>();
         loanRepository
@@ -194,8 +184,7 @@ public sealed class GetLoansPagedQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UnknownIdentification_ReturnsNotFound()
-    {
+    public async Task Handle_UnknownIdentification_ReturnsNotFound() {
         var loanRepository = new Mock<ILoanRepository>();
         var userRepository = new Mock<IUserRepository>();
         userRepository
@@ -214,13 +203,11 @@ public sealed class GetLoansPagedQueryHandlerTests
     }
 }
 
-public sealed class GetLoanDetailQueryHandlerTests
-{
+public sealed class GetLoanDetailQueryHandlerTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly FixedToday = new(2026, 8, 7);
 
-    private static Loan SeedLoan()
-    {
+    private static Loan SeedLoan() {
         var number = LoanNumber.Create("111111111").Value;
         return Loan.Issue(
             "client-1",
@@ -235,8 +222,7 @@ public sealed class GetLoanDetailQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ReturnsDetailWithAmortization()
-    {
+    public async Task Handle_ReturnsDetailWithAmortization() {
         var loan = SeedLoan();
         var loanRepository = new Mock<ILoanRepository>();
         loanRepository
@@ -262,8 +248,7 @@ public sealed class GetLoanDetailQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UnknownLoan_ReturnsNotFound()
-    {
+    public async Task Handle_UnknownLoan_ReturnsNotFound() {
         var loanRepository = new Mock<ILoanRepository>();
         loanRepository
             .Setup(r => r.GetWithInstallmentsByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))

@@ -14,8 +14,7 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 /// aleatorios) entregados por correo, persistiendo solo su hash HMAC-SHA256
 /// con pepper. Un solo uso, con vencimiento, vinculados a usuario y propósito.
 /// </summary>
-public sealed class AccountTokenService : IAccountTokenService
-{
+public sealed class AccountTokenService : IAccountTokenService {
     private readonly IdentityContext _context;
     private readonly AccountTokenOptions _options;
     private readonly TimeProvider _timeProvider;
@@ -24,14 +23,12 @@ public sealed class AccountTokenService : IAccountTokenService
         IdentityContext context,
         IOptions<AccountTokenOptions> options,
         TimeProvider timeProvider
-    )
-    {
+    ) {
         _context = context;
         _options = options.Value;
         _timeProvider = timeProvider;
 
-        if (string.IsNullOrWhiteSpace(_options.PepperKey))
-        {
+        if (string.IsNullOrWhiteSpace(_options.PepperKey)) {
             throw new InvalidOperationException(
                 "Security:AccountTokens:PepperKey no está configurada. "
                     + "Provea una clave HMAC de 32 bytes en base64."
@@ -43,8 +40,7 @@ public sealed class AccountTokenService : IAccountTokenService
         string userId,
         AccountTokenType type,
         CancellationToken ct = default
-    )
-    {
+    ) {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
         DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
@@ -58,8 +54,7 @@ public sealed class AccountTokenService : IAccountTokenService
             )
             .ToListAsync(ct);
 
-        foreach (AccountToken token in previous)
-        {
+        foreach (AccountToken token in previous) {
             token.MarkUsed(nowUtc);
         }
 
@@ -82,10 +77,8 @@ public sealed class AccountTokenService : IAccountTokenService
         AccountTokenType type,
         string token,
         CancellationToken ct = default
-    )
-    {
-        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
-        {
+    ) {
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token)) {
             return AccountTokenVerificationResult.Invalid;
         }
 
@@ -101,8 +94,7 @@ public sealed class AccountTokenService : IAccountTokenService
             HashesMatch(candidate.TokenHash, tokenHash)
         );
 
-        if (match is null)
-        {
+        if (match is null) {
             return AccountTokenVerificationResult.Invalid;
         }
 
@@ -113,10 +105,8 @@ public sealed class AccountTokenService : IAccountTokenService
         AccountTokenType type,
         string token,
         CancellationToken ct = default
-    )
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
+    ) {
+        if (string.IsNullOrWhiteSpace(token)) {
             return new TokenVerification(AccountTokenVerificationResult.Invalid, null);
         }
 
@@ -129,8 +119,7 @@ public sealed class AccountTokenService : IAccountTokenService
                 ct
             );
 
-        if (match is null)
-        {
+        if (match is null) {
             return new TokenVerification(AccountTokenVerificationResult.Invalid, null);
         }
 
@@ -143,31 +132,25 @@ public sealed class AccountTokenService : IAccountTokenService
         string tokenHash,
         DateTimeOffset nowUtc,
         CancellationToken ct
-    )
-    {
-        if (!HashesMatch(match.TokenHash, tokenHash))
-        {
+    ) {
+        if (!HashesMatch(match.TokenHash, tokenHash)) {
             return AccountTokenVerificationResult.Invalid;
         }
 
-        if (match.IsExpired(nowUtc))
-        {
+        if (match.IsExpired(nowUtc)) {
             return AccountTokenVerificationResult.Expired;
         }
 
-        if (match.IsUsed)
-        {
+        if (match.IsUsed) {
             return AccountTokenVerificationResult.AlreadyUsed;
         }
 
         match.MarkUsed(nowUtc);
 
-        try
-        {
+        try {
             await _context.SaveChangesAsync(ct);
         }
-        catch (DbUpdateConcurrencyException)
-        {
+        catch (DbUpdateConcurrencyException) {
             // Otro request consumió el token primero.
             return AccountTokenVerificationResult.AlreadyUsed;
         }
@@ -180,15 +163,13 @@ public sealed class AccountTokenService : IAccountTokenService
             ? _options.ResetLifetimeMinutes
             : _options.ActivationLifetimeMinutes;
 
-    private static string CreateRawToken()
-    {
+    private static string CreateRawToken() {
         Span<byte> bytes = stackalloc byte[32];
         RandomNumberGenerator.Fill(bytes);
         return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
-    private string ComputeHash(string rawToken)
-    {
+    private string ComputeHash(string rawToken) {
         byte[] key = Convert.FromBase64String(_options.PepperKey!);
         byte[] digest = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(rawToken));
         return Convert.ToHexString(digest).ToLowerInvariant();

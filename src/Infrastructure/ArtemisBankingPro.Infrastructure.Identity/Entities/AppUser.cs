@@ -6,10 +6,8 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Entities;
 /// Usuario de la aplicación. Los roles son exactamente Administrador,
 /// Cajero, Cliente y Comercio.
 /// </summary>
-public sealed class AppUser : IdentityUser
-{
-    public AppUser()
-    {
+public sealed class AppUser : IdentityUser {
+    public AppUser() {
         Id = Guid.NewGuid().ToString("N");
     }
 

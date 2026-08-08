@@ -3,21 +3,18 @@ using ArtemisBankingPro.Application.Features.Auth.Validators;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Auth.Validators;
 
-public sealed class LoginCommandValidatorTests
-{
+public sealed class LoginCommandValidatorTests {
     private readonly LoginCommandValidator _validator = new();
 
     [Fact]
-    public async Task Validate_ValidCommand_Passes()
-    {
+    public async Task Validate_ValidCommand_Passes() {
         var result = await _validator.ValidateAsync(new LoginCommand("admin", "123P@$$word!"));
 
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Validate_EmptyUserName_Fails()
-    {
+    public async Task Validate_EmptyUserName_Fails() {
         var result = await _validator.ValidateAsync(new LoginCommand("", "123P@$$word!"));
 
         result.IsValid.Should().BeFalse();
@@ -25,8 +22,7 @@ public sealed class LoginCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_EmptyPassword_Fails()
-    {
+    public async Task Validate_EmptyPassword_Fails() {
         var result = await _validator.ValidateAsync(new LoginCommand("admin", ""));
 
         result.IsValid.Should().BeFalse();
@@ -34,21 +30,18 @@ public sealed class LoginCommandValidatorTests
     }
 }
 
-public sealed class ActivateAccountCommandValidatorTests
-{
+public sealed class ActivateAccountCommandValidatorTests {
     private readonly ActivateAccountCommandValidator _validator = new();
 
     [Fact]
-    public async Task Validate_ValidToken_Passes()
-    {
+    public async Task Validate_ValidToken_Passes() {
         var result = await _validator.ValidateAsync(new ActivateAccountCommand("token-123"));
 
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Validate_EmptyToken_Fails()
-    {
+    public async Task Validate_EmptyToken_Fails() {
         var result = await _validator.ValidateAsync(new ActivateAccountCommand(""));
 
         result.IsValid.Should().BeFalse();
@@ -56,15 +49,13 @@ public sealed class ActivateAccountCommandValidatorTests
     }
 }
 
-public sealed class RequestPasswordResetCommandValidatorTests
-{
+public sealed class RequestPasswordResetCommandValidatorTests {
     private readonly RequestPasswordResetCommandValidator _validator = new();
 
     private static readonly string[] MvcRoles = ["Administrador", "Cajero", "Cliente"];
 
     [Fact]
-    public async Task Validate_ValidCommand_Passes()
-    {
+    public async Task Validate_ValidCommand_Passes() {
         var result = await _validator.ValidateAsync(
             new RequestPasswordResetCommand("admin", MvcRoles)
         );
@@ -73,8 +64,7 @@ public sealed class RequestPasswordResetCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_EmptyUserName_Fails()
-    {
+    public async Task Validate_EmptyUserName_Fails() {
         var result = await _validator.ValidateAsync(
             new RequestPasswordResetCommand("", MvcRoles)
         );
@@ -84,8 +74,7 @@ public sealed class RequestPasswordResetCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_EmptyAllowedRoles_Fails()
-    {
+    public async Task Validate_EmptyAllowedRoles_Fails() {
         var result = await _validator.ValidateAsync(
             new RequestPasswordResetCommand("admin", [])
         );
@@ -95,8 +84,7 @@ public sealed class RequestPasswordResetCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_InvalidCallbackUrl_Fails()
-    {
+    public async Task Validate_InvalidCallbackUrl_Fails() {
         var result = await _validator.ValidateAsync(
             new RequestPasswordResetCommand("admin", MvcRoles, "not-a-url")
         );
@@ -106,8 +94,7 @@ public sealed class RequestPasswordResetCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_ValidCallbackUrl_Passes()
-    {
+    public async Task Validate_ValidCallbackUrl_Passes() {
         var result = await _validator.ValidateAsync(
             new RequestPasswordResetCommand("admin", MvcRoles, "https://artemis.local")
         );
@@ -116,13 +103,11 @@ public sealed class RequestPasswordResetCommandValidatorTests
     }
 }
 
-public sealed class ResetPasswordCommandValidatorTests
-{
+public sealed class ResetPasswordCommandValidatorTests {
     private readonly ResetPasswordCommandValidator _validator = new();
 
     [Fact]
-    public async Task Validate_ValidCommand_Passes()
-    {
+    public async Task Validate_ValidCommand_Passes() {
         var result = await _validator.ValidateAsync(
             new ResetPasswordCommand("user-1", "token", "123P@$$word!", "123P@$$word!")
         );
@@ -131,8 +116,7 @@ public sealed class ResetPasswordCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_EmptyUserId_Fails()
-    {
+    public async Task Validate_EmptyUserId_Fails() {
         var result = await _validator.ValidateAsync(
             new ResetPasswordCommand("", "token", "123P@$$word!", "123P@$$word!")
         );
@@ -142,8 +126,7 @@ public sealed class ResetPasswordCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_EmptyToken_Fails()
-    {
+    public async Task Validate_EmptyToken_Fails() {
         var result = await _validator.ValidateAsync(
             new ResetPasswordCommand("user-1", "", "123P@$$word!", "123P@$$word!")
         );
@@ -153,8 +136,7 @@ public sealed class ResetPasswordCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_ShortPassword_Fails()
-    {
+    public async Task Validate_ShortPassword_Fails() {
         var result = await _validator.ValidateAsync(
             new ResetPasswordCommand("user-1", "token", "123", "123")
         );
@@ -164,8 +146,7 @@ public sealed class ResetPasswordCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_PasswordMismatch_Fails()
-    {
+    public async Task Validate_PasswordMismatch_Fails() {
         var result = await _validator.ValidateAsync(
             new ResetPasswordCommand("user-1", "token", "123P@$$word!", "different")
         );

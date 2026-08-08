@@ -9,8 +9,7 @@ public sealed record CardAssignedModel(
     string LastFour,
     Money CreditLimit,
     string Expiration
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => "Nueva tarjeta de crédito asignada";
 
     public string TemplateName => "CardAssigned";
@@ -20,8 +19,7 @@ public sealed record CardAssignedModel(
 
 /// <summary>Correo de modificación de límite de tarjeta.</summary>
 public sealed record CardLimitChangedModel(string CustomerName, string LastFour, Money NewLimit)
-    : IEmailModel
-{
+    : IEmailModel {
     public string Subject => "Modificación de límite de tarjeta";
 
     public string TemplateName => "CardLimitChanged";
@@ -39,8 +37,7 @@ public sealed record CashAdvanceCompletedModel(
     string AccountLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Avance de efectivo desde la tarjeta {CardLastFour}";
 
     public string TemplateName => "CashAdvanceCompleted";
@@ -62,8 +59,7 @@ public sealed record CardPaymentCompletedModel(
     string SourceAccountLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Pago realizado a la tarjeta {CardLastFour}";
 
     public string TemplateName => "CardPaymentCompleted";
@@ -81,8 +77,7 @@ public sealed record CardConsumptionMadeModel(
     Money Amount,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Consumo realizado con la tarjeta {CardLastFour}";
 
     public string TemplateName => "CardConsumptionMade";

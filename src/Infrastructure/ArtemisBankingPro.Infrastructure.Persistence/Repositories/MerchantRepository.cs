@@ -5,8 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
-public sealed class MerchantRepository : GenericRepository<Merchant>, IMerchantRepository
-{
+public sealed class MerchantRepository : GenericRepository<Merchant>, IMerchantRepository {
     public MerchantRepository(BankingDbContext context)
         : base(context) { }
 

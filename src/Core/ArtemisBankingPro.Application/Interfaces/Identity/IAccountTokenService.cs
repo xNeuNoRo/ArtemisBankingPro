@@ -1,13 +1,11 @@
 namespace ArtemisBankingPro.Application.Interfaces.Identity;
 
-public enum AccountTokenType
-{
+public enum AccountTokenType {
     Activation = 1,
     PasswordReset = 2,
 }
 
-public enum AccountTokenVerificationResult
-{
+public enum AccountTokenVerificationResult {
     /// <summary>Token válido: pertenece al usuario y propósito, sin expirar y sin usar.</summary>
     Valid = 1,
 
@@ -22,8 +20,7 @@ public enum AccountTokenVerificationResult
 }
 
 /// <summary>Resultado de verificación que incluye el usuario al que pertenece el token.</summary>
-public sealed record TokenVerification(AccountTokenVerificationResult Result, string? UserId)
-{
+public sealed record TokenVerification(AccountTokenVerificationResult Result, string? UserId) {
     public bool IsValid => Result == AccountTokenVerificationResult.Valid;
 }
 
@@ -33,8 +30,7 @@ public sealed record TokenVerification(AccountTokenVerificationResult Result, st
 /// vinculados a usuario y propósito; solo se persiste su hash HMAC con clave.
 /// Implementado por Infrastructure.Identity.
 /// </summary>
-public interface IAccountTokenService
-{
+public interface IAccountTokenService {
     /// <summary>
     /// Genera un token crudo (nunca persistido) e invalida tokens previos
     /// no usados del mismo usuario y propósito.

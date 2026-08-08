@@ -6,14 +6,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class AccountTransactionConfiguration : IEntityTypeConfiguration<AccountTransaction>
-{
-    public void Configure(EntityTypeBuilder<AccountTransaction> builder)
-    {
+public sealed class AccountTransactionConfiguration : IEntityTypeConfiguration<AccountTransaction> {
+    public void Configure(EntityTypeBuilder<AccountTransaction> builder) {
         builder.ToTable(
             "AccountTransactions",
-            table =>
-            {
+            table => {
                 table.HasCheckConstraint("CK_AccountTransactions_Amount_Positive", "[Amount] > 0");
             }
         );

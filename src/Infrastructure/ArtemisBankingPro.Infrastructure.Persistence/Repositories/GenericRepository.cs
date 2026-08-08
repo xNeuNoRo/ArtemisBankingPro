@@ -7,13 +7,11 @@ using Microsoft.EntityFrameworkCore;
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
 public class GenericRepository<T> : IGenericRepository<T>
-    where T : Entity<int>
-{
+    where T : Entity<int> {
     protected readonly BankingDbContext Context;
     protected readonly DbSet<T> DbSet;
 
-    public GenericRepository(BankingDbContext context)
-    {
+    public GenericRepository(BankingDbContext context) {
         Context = context;
         DbSet = context.Set<T>();
     }
@@ -31,8 +29,7 @@ public class GenericRepository<T> : IGenericRepository<T>
         CancellationToken ct = default
     ) => predicate is null ? DbSet.CountAsync(ct) : DbSet.CountAsync(predicate, ct);
 
-    public virtual async Task<T> AddAsync(T entity, CancellationToken ct = default)
-    {
+    public virtual async Task<T> AddAsync(T entity, CancellationToken ct = default) {
         await DbSet.AddAsync(entity, ct);
         return entity;
     }

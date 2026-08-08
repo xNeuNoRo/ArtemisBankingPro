@@ -10,11 +10,9 @@ using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Users.Handlers;
 
-public sealed class ChangeUserStatusCommandHandlerTests
-{
+public sealed class ChangeUserStatusCommandHandlerTests {
     [Fact]
-    public async Task Handle_ActivatesUser_ReturnsSuccess()
-    {
+    public async Task Handle_ActivatesUser_ReturnsSuccess() {
         var userService = new Mock<IUserAccountService>();
         userService
             .Setup(s => s.SetActiveAsync("user-1", true, It.IsAny<CancellationToken>()))
@@ -35,8 +33,7 @@ public sealed class ChangeUserStatusCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UnknownUser_ReturnsNotFound()
-    {
+    public async Task Handle_UnknownUser_ReturnsNotFound() {
         var userService = new Mock<IUserAccountService>();
         userService
             .Setup(s => s.SetActiveAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
@@ -54,11 +51,9 @@ public sealed class ChangeUserStatusCommandHandlerTests
     }
 }
 
-public sealed class GetUsersPagedQueryHandlerTests
-{
+public sealed class GetUsersPagedQueryHandlerTests {
     [Fact]
-    public async Task Handle_ReturnsPagedUsers()
-    {
+    public async Task Handle_ReturnsPagedUsers() {
         var repository = new Mock<IUserRepository>();
         repository
             .Setup(r => r.GetPagedAsync(
@@ -105,11 +100,9 @@ public sealed class GetUsersPagedQueryHandlerTests
     }
 }
 
-public sealed class GetCommerceUsersPagedQueryHandlerTests
-{
+public sealed class GetCommerceUsersPagedQueryHandlerTests {
     [Fact]
-    public async Task Handle_ReturnsCommerceUsers()
-    {
+    public async Task Handle_ReturnsCommerceUsers() {
         var repository = new Mock<IUserRepository>();
         repository
             .Setup(r => r.GetCommerceUsersPagedAsync(
@@ -136,14 +129,12 @@ public sealed class GetCommerceUsersPagedQueryHandlerTests
     }
 }
 
-public sealed class GetUserByIdQueryHandlerTests
-{
+public sealed class GetUserByIdQueryHandlerTests {
     private static readonly DateTimeOffset FixedCreatedAt =
         new(2026, 8, 7, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task Handle_UnknownUser_ReturnsNotFound()
-    {
+    public async Task Handle_UnknownUser_ReturnsNotFound() {
         var userRepository = new Mock<IUserRepository>();
         userRepository
             .Setup(r => r.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -162,8 +153,7 @@ public sealed class GetUserByIdQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ExistingUserWithoutPrincipalAccount_ReturnsDetailWithNullMainAccount()
-    {
+    public async Task Handle_ExistingUserWithoutPrincipalAccount_ReturnsDetailWithNullMainAccount() {
         var userRepository = new Mock<IUserRepository>();
         userRepository
             .Setup(r => r.GetByIdAsync("user-1", It.IsAny<CancellationToken>()))

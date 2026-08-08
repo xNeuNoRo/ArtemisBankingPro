@@ -10,8 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ArtemisBankingPro.Infrastructure.Shared;
 
-public static class ServicesRegistration
-{
+public static class ServicesRegistration {
     /// <summary>
     /// Registra los adaptadores compartidos: seguridad de tarjetas, correo
     /// (MailKit) y reloj de negocio.
@@ -19,8 +18,7 @@ public static class ServicesRegistration
     public static IServiceCollection AddSharedInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration
-    )
-    {
+    ) {
         services.Configure<CardSecurityOptions>(
             configuration.GetSection(CardSecurityOptions.SectionName)
         );

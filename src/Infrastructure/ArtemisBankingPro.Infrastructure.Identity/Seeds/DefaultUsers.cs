@@ -9,16 +9,14 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Seeds;
 /// Crea los usuarios por defecto (Administrador, Cajero, Cliente y Comercio)
 /// en estado activo, con sus roles.
 /// </summary>
-public static class DefaultUsers
-{
+public static class DefaultUsers {
     public static async Task SeedAsync(
         UserManager<AppUser> userManager,
         RoleManager<IdentityRole> roleManager,
         DefaultUsersOptions options,
         TimeProvider timeProvider,
         ILogger? logger = null
-    )
-    {
+    ) {
         await DefaultRoles.SeedAsync(roleManager, logger);
         DateTimeOffset nowUtc = timeProvider.GetUtcNow();
 
@@ -40,10 +38,8 @@ public static class DefaultUsers
         string role,
         DateTimeOffset nowUtc,
         ILogger? logger
-    )
-    {
-        if (seed is null)
-        {
+    ) {
+        if (seed is null) {
             logger?.LogWarning("Seeding de usuarios: sin configuración para el rol {Role}.", role);
             return;
         }
@@ -55,16 +51,14 @@ public static class DefaultUsers
             || string.IsNullOrWhiteSpace(seed.FirstName)
             || string.IsNullOrWhiteSpace(seed.LastName)
             || string.IsNullOrWhiteSpace(seed.IdentityDocument)
-        )
-        {
+        ) {
             throw new InvalidOperationException(
                 $"Security:DefaultUsers:{role} está incompleta. Configure UserName, "
                     + "Password, Email, FirstName, LastName e IdentityDocument."
             );
         }
 
-        if (await userManager.FindByNameAsync(seed.UserName) is not null)
-        {
+        if (await userManager.FindByNameAsync(seed.UserName) is not null) {
             logger?.LogInformation(
                 "Usuario por defecto {UserName} ya existe; se omite.",
                 seed.UserName
@@ -72,8 +66,7 @@ public static class DefaultUsers
             return;
         }
 
-        var user = new AppUser
-        {
+        var user = new AppUser {
             UserName = seed.UserName,
             Email = seed.Email,
             FirstName = seed.FirstName.Trim(),
@@ -85,8 +78,7 @@ public static class DefaultUsers
         };
 
         IdentityResult created = await userManager.CreateAsync(user, seed.Password);
-        if (!created.Succeeded)
-        {
+        if (!created.Succeeded) {
             throw new InvalidOperationException(
                 $"No se pudo crear el usuario por defecto '{seed.UserName}': "
                     + string.Join("; ", created.Errors.Select(error => error.Description))
@@ -94,8 +86,7 @@ public static class DefaultUsers
         }
 
         IdentityResult roleResult = await userManager.AddToRoleAsync(user, role);
-        if (!roleResult.Succeeded)
-        {
+        if (!roleResult.Succeeded) {
             throw new InvalidOperationException(
                 $"No se pudo asignar el rol '{role}' al usuario '{seed.UserName}': "
                     + string.Join("; ", roleResult.Errors.Select(error => error.Description))

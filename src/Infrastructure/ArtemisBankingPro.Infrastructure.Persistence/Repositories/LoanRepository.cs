@@ -9,8 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
-public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository
-{
+public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository {
     public LoanRepository(BankingDbContext context)
         : base(context) { }
 
@@ -46,22 +45,18 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository
         LoanStatus? status,
         PageRequest page,
         CancellationToken ct = default
-    )
-    {
+    ) {
         IQueryable<Loan> query = DbSet.AsNoTracking();
 
-        if (!string.IsNullOrWhiteSpace(customerUserId))
-        {
+        if (!string.IsNullOrWhiteSpace(customerUserId)) {
             query = query.Where(loan => loan.CustomerUserId == customerUserId);
         }
 
-        if (status is null)
-        {
+        if (status is null) {
             query = query.OrderByDescending(loan => loan.Status == LoanStatus.Active)
                 .ThenByDescending(loan => loan.IssuedAt);
         }
-        else
-        {
+        else {
             query = query
                 .Where(loan => loan.Status == status)
                 .OrderByDescending(loan => loan.IssuedAt);
@@ -73,8 +68,7 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository
         return new PageResult<Loan>(items, totalCount, page.Page, page.PageSize);
     }
 
-    public async Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default)
-    {
+    public async Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default) {
         int[] activeLoanIds = await Context
             .Set<Loan>()
             .AsNoTracking()
@@ -82,8 +76,7 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository
             .Select(loan => loan.Id)
             .ToArrayAsync(ct);
 
-        if (activeLoanIds.Length == 0)
-        {
+        if (activeLoanIds.Length == 0) {
             return Money.Zero;
         }
 
@@ -101,8 +94,7 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository
     public async Task<Money> GetClientActiveDebtAsync(
         string customerUserId,
         CancellationToken ct = default
-    )
-    {
+    ) {
         int[] activeLoanIds = await Context
             .Set<Loan>()
             .AsNoTracking()
@@ -112,8 +104,7 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository
             .Select(loan => loan.Id)
             .ToArrayAsync(ct);
 
-        if (activeLoanIds.Length == 0)
-        {
+        if (activeLoanIds.Length == 0) {
             return Money.Zero;
         }
 

@@ -18,8 +18,7 @@ namespace ArtemisBankingPro.Application.Features.Loans.Handlers;
 /// (<see cref="Domain.Lending.Entities.Loan.ChangeInterestRate"/>).
 /// </summary>
 public sealed class UpdateLoanRateCommandHandler
-    : IRequestHandler<UpdateLoanRateCommand, Result<Unit>>
-{
+    : IRequestHandler<UpdateLoanRateCommand, Result<Unit>> {
     private readonly ILoanRepository _loanRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -34,8 +33,7 @@ public sealed class UpdateLoanRateCommandHandler
         IBusinessClock clock,
         IEmailService emailService,
         ILogger<UpdateLoanRateCommandHandler> logger
-    )
-    {
+    ) {
         _loanRepository = loanRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
@@ -47,15 +45,13 @@ public sealed class UpdateLoanRateCommandHandler
     public async ValueTask<Result<Unit>> Handle(
         UpdateLoanRateCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         // 1. El préstamo debe existir con sus cuotas.
         var loan = await _loanRepository.GetWithInstallmentsByIdAsync(
             message.LoanId,
             cancellationToken
         );
-        if (loan is null)
-        {
+        if (loan is null) {
             return Result.Failure<Unit>(
                 DomainError.NotFound(
                     "Loan.NotFound",
@@ -66,29 +62,25 @@ public sealed class UpdateLoanRateCommandHandler
 
         // 2. Nueva tasa válida.
         var rateResult = InterestRate.Create(message.AnnualInterestRate);
-        if (rateResult.IsFailure)
-        {
+        if (rateResult.IsFailure) {
             return Result.Failure<Unit>(rateResult.Error!);
         }
 
         // 3. Aplicar el cambio (dominio valida estado y cuotas elegibles).
         var changeResult = loan.ChangeInterestRate(rateResult.Value, _clock.Today);
-        if (changeResult.IsFailure)
-        {
+        if (changeResult.IsFailure) {
             return Result.Failure<Unit>(changeResult.Error!);
         }
 
         // 4. Persistir.
         var persistResult = await _unitOfWork.ExecuteInTransactionAsync(
-            _ =>
-            {
+            _ => {
                 _loanRepository.Update(loan);
                 return Task.FromResult(Result.Success());
             },
             ct: cancellationToken
         );
-        if (persistResult.IsFailure)
-        {
+        if (persistResult.IsFailure) {
             return Result.Failure<Unit>(persistResult.Error!);
         }
 
@@ -101,14 +93,12 @@ public sealed class UpdateLoanRateCommandHandler
     private async Task SendRateChangedEmailAsync(
         Domain.Lending.Entities.Loan loan,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var customer = await _userRepository.GetByIdAsync(
             loan.CustomerUserId,
             cancellationToken
         );
-        if (customer is null)
-        {
+        if (customer is null) {
             return;
         }
 
@@ -116,8 +106,7 @@ public sealed class UpdateLoanRateCommandHandler
             .OrderBy(i => i.Number)
             .FirstOrDefault(i => i.Status == Domain.Lending.Enums.InstallmentStatus.Pending);
 
-        try
-        {
+        try {
             await _emailService.SendAsync(
                 customer.Email,
                 new LoanRateChangedModel(
@@ -130,8 +119,7 @@ public sealed class UpdateLoanRateCommandHandler
                 cancellationToken
             );
         }
-        catch (EmailSendException ex)
-        {
+        catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
                 "No se pudo enviar el correo de cambio de tasa para el préstamo {LoanNumber}.",

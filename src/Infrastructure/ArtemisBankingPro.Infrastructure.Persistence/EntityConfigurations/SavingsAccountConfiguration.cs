@@ -5,14 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class SavingsAccountConfiguration : IEntityTypeConfiguration<SavingsAccount>
-{
-    public void Configure(EntityTypeBuilder<SavingsAccount> builder)
-    {
+public sealed class SavingsAccountConfiguration : IEntityTypeConfiguration<SavingsAccount> {
+    public void Configure(EntityTypeBuilder<SavingsAccount> builder) {
         builder.ToTable(
             "SavingsAccounts",
-            table =>
-            {
+            table => {
                 table.HasCheckConstraint(
                     "CK_SavingsAccounts_Balance_NonNegative",
                     "[Balance] >= 0"

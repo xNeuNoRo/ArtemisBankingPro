@@ -22,8 +22,7 @@ public sealed record CreateCommerceUserCommand(
     string ConfirmPassword,
     decimal InitialAmount = 0m,
     string? CallbackUrl = null
-) : IRequest<Result<CreateCommerceUserResponse>>, IAuthorize, IIdempotentCommand
-{
+) : IRequest<Result<CreateCommerceUserResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey => $"create-commerce-user-{CommerceId}-{UserName}";

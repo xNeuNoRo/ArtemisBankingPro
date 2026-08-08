@@ -4,13 +4,11 @@ using ArtemisBankingPro.Application.Features.Loans.Validators;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Loans.Validators;
 
-public sealed class CreateLoanCommandValidatorTests
-{
+public sealed class CreateLoanCommandValidatorTests {
     private readonly CreateLoanCommandValidator _validator = new();
 
     [Fact]
-    public async Task Validate_ValidCommand_Passes()
-    {
+    public async Task Validate_ValidCommand_Passes() {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("client-1", 100000m, 12, 12m)
         );
@@ -19,8 +17,7 @@ public sealed class CreateLoanCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_EmptyCustomer_Fails()
-    {
+    public async Task Validate_EmptyCustomer_Fails() {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("", 100000m, 12, 12m)
         );
@@ -30,8 +27,7 @@ public sealed class CreateLoanCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_ZeroCapital_Fails()
-    {
+    public async Task Validate_ZeroCapital_Fails() {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("client-1", 0m, 12, 12m)
         );
@@ -41,8 +37,7 @@ public sealed class CreateLoanCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_NegativeCapital_Fails()
-    {
+    public async Task Validate_NegativeCapital_Fails() {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("client-1", -100m, 12, 12m)
         );
@@ -56,8 +51,7 @@ public sealed class CreateLoanCommandValidatorTests
     [InlineData(12)]
     [InlineData(24)]
     [InlineData(60)]
-    public async Task Validate_ValidTerms_Pass(int term)
-    {
+    public async Task Validate_ValidTerms_Pass(int term) {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("client-1", 100000m, term, 12m)
         );
@@ -71,8 +65,7 @@ public sealed class CreateLoanCommandValidatorTests
     [InlineData(7)]
     [InlineData(13)]
     [InlineData(66)]
-    public async Task Validate_InvalidTerms_Fail(int term)
-    {
+    public async Task Validate_InvalidTerms_Fail(int term) {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("client-1", 100000m, term, 12m)
         );
@@ -82,8 +75,7 @@ public sealed class CreateLoanCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_NegativeRate_Fails()
-    {
+    public async Task Validate_NegativeRate_Fails() {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("client-1", 100000m, 12, -1m)
         );
@@ -93,8 +85,7 @@ public sealed class CreateLoanCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_ZeroRate_Passes()
-    {
+    public async Task Validate_ZeroRate_Passes() {
         var result = await _validator.ValidateAsync(
             new CreateLoanCommand("client-1", 100000m, 12, 0m)
         );
@@ -103,21 +94,18 @@ public sealed class CreateLoanCommandValidatorTests
     }
 }
 
-public sealed class UpdateLoanRateCommandValidatorTests
-{
+public sealed class UpdateLoanRateCommandValidatorTests {
     private readonly UpdateLoanRateCommandValidator _validator = new();
 
     [Fact]
-    public async Task Validate_ValidCommand_Passes()
-    {
+    public async Task Validate_ValidCommand_Passes() {
         var result = await _validator.ValidateAsync(new UpdateLoanRateCommand(1, 10.5m));
 
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Validate_ZeroLoanId_Fails()
-    {
+    public async Task Validate_ZeroLoanId_Fails() {
         var result = await _validator.ValidateAsync(new UpdateLoanRateCommand(0, 10.5m));
 
         result.IsValid.Should().BeFalse();
@@ -125,8 +113,7 @@ public sealed class UpdateLoanRateCommandValidatorTests
     }
 
     [Fact]
-    public async Task Validate_NegativeRate_Fails()
-    {
+    public async Task Validate_NegativeRate_Fails() {
         var result = await _validator.ValidateAsync(new UpdateLoanRateCommand(1, -1m));
 
         result.IsValid.Should().BeFalse();
@@ -134,21 +121,18 @@ public sealed class UpdateLoanRateCommandValidatorTests
     }
 }
 
-public sealed class GetLoansPagedQueryValidatorTests
-{
+public sealed class GetLoansPagedQueryValidatorTests {
     private readonly GetLoansPagedQueryValidator _validator = new();
 
     [Fact]
-    public async Task Validate_Defaults_Pass()
-    {
+    public async Task Validate_Defaults_Pass() {
         var result = await _validator.ValidateAsync(new GetLoansPagedQuery());
 
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Validate_InvalidStatus_Fails()
-    {
+    public async Task Validate_InvalidStatus_Fails() {
         var result = await _validator.ValidateAsync(new GetLoansPagedQuery(Status: "vigentes"));
 
         result.IsValid.Should().BeFalse();
@@ -159,16 +143,14 @@ public sealed class GetLoansPagedQueryValidatorTests
     [InlineData("activos")]
     [InlineData("completados")]
     [InlineData("todos")]
-    public async Task Validate_ValidStatuses_Pass(string status)
-    {
+    public async Task Validate_ValidStatuses_Pass(string status) {
         var result = await _validator.ValidateAsync(new GetLoansPagedQuery(Status: status));
 
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Validate_PageZero_Fails()
-    {
+    public async Task Validate_PageZero_Fails() {
         var result = await _validator.ValidateAsync(new GetLoansPagedQuery(Page: 0));
 
         result.IsValid.Should().BeFalse();
@@ -176,8 +158,7 @@ public sealed class GetLoansPagedQueryValidatorTests
     }
 
     [Fact]
-    public async Task Validate_PageSizeOverMax_Fails()
-    {
+    public async Task Validate_PageSizeOverMax_Fails() {
         var result = await _validator.ValidateAsync(new GetLoansPagedQuery(PageSize: 50));
 
         result.IsValid.Should().BeFalse();
@@ -185,21 +166,18 @@ public sealed class GetLoansPagedQueryValidatorTests
     }
 }
 
-public sealed class GetLoanDetailQueryValidatorTests
-{
+public sealed class GetLoanDetailQueryValidatorTests {
     private readonly GetLoanDetailQueryValidator _validator = new();
 
     [Fact]
-    public async Task Validate_ValidCommand_Passes()
-    {
+    public async Task Validate_ValidCommand_Passes() {
         var result = await _validator.ValidateAsync(new GetLoanDetailQuery(1));
 
         result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Validate_ZeroLoanId_Fails()
-    {
+    public async Task Validate_ZeroLoanId_Fails() {
         var result = await _validator.ValidateAsync(new GetLoanDetailQuery(0));
 
         result.IsValid.Should().BeFalse();

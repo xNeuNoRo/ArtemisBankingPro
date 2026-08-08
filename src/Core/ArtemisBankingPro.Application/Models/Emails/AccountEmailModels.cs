@@ -11,8 +11,7 @@ public sealed record TransferCompletedModel(
     string DestinationLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => "Transferencia entre cuentas realizada";
 
     public string TemplateName => "TransferCompleted";
@@ -29,8 +28,7 @@ public sealed record DepositCompletedModel(
     Money Amount,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Depósito realizado a su cuenta {AccountLastFour}";
 
     public string TemplateName => "DepositCompleted";
@@ -47,8 +45,7 @@ public sealed record WithdrawalCompletedModel(
     Money Amount,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Retiro realizado desde su cuenta {AccountLastFour}";
 
     public string TemplateName => "WithdrawalCompleted";
@@ -69,8 +66,7 @@ public sealed record AccountDebitedForCardPaymentModel(
     string CardLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Pago a tarjeta realizado desde su cuenta {SourceAccountLastFour}";
 
     public string TemplateName => "AccountDebitedForCardPayment";

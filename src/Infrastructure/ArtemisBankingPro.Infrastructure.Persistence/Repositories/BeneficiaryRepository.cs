@@ -5,8 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
-public sealed class BeneficiaryRepository : GenericRepository<Beneficiary>, IBeneficiaryRepository
-{
+public sealed class BeneficiaryRepository : GenericRepository<Beneficiary>, IBeneficiaryRepository {
     public BeneficiaryRepository(BankingDbContext context)
         : base(context) { }
 

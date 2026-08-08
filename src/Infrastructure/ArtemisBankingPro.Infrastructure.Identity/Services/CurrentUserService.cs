@@ -8,14 +8,12 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 /// Actor autenticado leído del ClaimsPrincipal actual. El claim de comercio
 /// solo está presente en tokens JWT de rol Comercio.
 /// </summary>
-public sealed class CurrentUserService : ICurrentUserService
-{
+public sealed class CurrentUserService : ICurrentUserService {
     public const string CommerceIdClaim = "commerce_id";
 
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public CurrentUserService(IHttpContextAccessor httpContextAccessor)
-    {
+    public CurrentUserService(IHttpContextAccessor httpContextAccessor) {
         _httpContextAccessor = httpContextAccessor;
     }
 

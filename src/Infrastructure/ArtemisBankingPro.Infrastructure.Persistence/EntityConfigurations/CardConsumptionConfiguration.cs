@@ -7,14 +7,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class CardConsumptionConfiguration : IEntityTypeConfiguration<CardConsumption>
-{
-    public void Configure(EntityTypeBuilder<CardConsumption> builder)
-    {
+public sealed class CardConsumptionConfiguration : IEntityTypeConfiguration<CardConsumption> {
+    public void Configure(EntityTypeBuilder<CardConsumption> builder) {
         builder.ToTable(
             "CardConsumptions",
-            table =>
-            {
+            table => {
                 table.HasCheckConstraint("CK_CardConsumptions_Amount_Positive", "[Amount] > 0");
             }
         );

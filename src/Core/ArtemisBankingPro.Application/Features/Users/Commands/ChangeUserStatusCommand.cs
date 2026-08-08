@@ -13,18 +13,15 @@ namespace ArtemisBankingPro.Application.Features.Users.Commands;
 public sealed record ChangeUserStatusCommand(
     string UserId,
     bool IsActive
-) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand, IOwnershipCheck
-{
+) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand, IOwnershipCheck {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey => $"change-status-{UserId}-{IsActive}";
 
     public string RequestFingerprint => $"{UserId}|{IsActive}";
 
-    public Task VerifyOwnershipAsync(ICurrentUserService currentUser, CancellationToken ct)
-    {
-        if (currentUser.UserId == UserId)
-        {
+    public Task VerifyOwnershipAsync(ICurrentUserService currentUser, CancellationToken ct) {
+        if (currentUser.UserId == UserId) {
             throw new ForbiddenAccessException(
                 "No puede modificar el estado de su propia cuenta."
             );

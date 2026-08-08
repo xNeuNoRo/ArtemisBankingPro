@@ -8,8 +8,7 @@ namespace ArtemisBankingPro.Application.Common.Interfaces;
 /// Implementado por Commands/Queries cuyos identificadores de recurso deben
 /// pertenecer al actor autenticado.
 /// </summary>
-public interface IOwnershipCheck
-{
+public interface IOwnershipCheck {
     /// <summary>
     /// Lanza <see cref="ForbiddenAccessException"/> si el actor no es dueño
     /// del recurso referenciado por el request.

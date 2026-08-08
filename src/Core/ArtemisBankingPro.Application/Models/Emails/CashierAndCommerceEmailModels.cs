@@ -14,8 +14,7 @@ public sealed record CashierTransferSentModel(
     string DestinationLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Transacción realizada a la cuenta {DestinationLastFour}";
 
     public string TemplateName => "CashierTransferSent";
@@ -36,8 +35,7 @@ public sealed record CashierTransferReceivedModel(
     string DestinationLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Transacción enviada desde la cuenta {SourceLastFour}";
 
     public string TemplateName => "CashierTransferReceived";
@@ -54,8 +52,7 @@ public sealed record PaymentReceivedByCommerceModel(
     Money Amount,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Pago recibido a través de tarjeta {CardLastFour}";
 
     public string TemplateName => "PaymentReceivedByCommerce";

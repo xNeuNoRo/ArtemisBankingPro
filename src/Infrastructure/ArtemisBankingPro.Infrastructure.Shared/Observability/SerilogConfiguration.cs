@@ -7,8 +7,7 @@ namespace ArtemisBankingPro.Infrastructure.Shared.Observability;
 /// Configuración compartida de Serilog: consola + archivo con rotación diaria,
 /// template seguro (sin bodies de requests ni datos sensibles).
 /// </summary>
-public static class SerilogConfiguration
-{
+public static class SerilogConfiguration {
     private const string SafeOutputTemplate =
         "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}";
 

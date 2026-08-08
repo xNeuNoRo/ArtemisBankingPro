@@ -11,8 +11,7 @@ public sealed record LoanApprovedModel(
     int TermMonths,
     decimal AnnualRate,
     Money MonthlyPayment
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => "Préstamo aprobado";
 
     public string TemplateName => "LoanApproved";
@@ -33,8 +32,7 @@ public sealed record LoanRateChangedModel(
     decimal NewAnnualRate,
     Money NextInstallmentAmount,
     DateOnly NextInstallmentDueDate
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => "Actualización de tasa de interés de préstamo";
 
     public string TemplateName => "LoanRateChanged";
@@ -54,8 +52,7 @@ public sealed record LoanPaymentCompletedModel(
     string SourceAccountLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Pago realizado al préstamo {LoanNumber}";
 
     public string TemplateName => "LoanPaymentCompleted";
@@ -76,8 +73,7 @@ public sealed record AccountDebitedForLoanPaymentModel(
     string LoanNumber,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Pago a préstamo realizado desde su cuenta {SourceAccountLastFour}";
 
     public string TemplateName => "AccountDebitedForLoanPayment";

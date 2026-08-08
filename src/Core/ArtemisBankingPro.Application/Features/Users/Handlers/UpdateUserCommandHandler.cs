@@ -19,8 +19,7 @@ namespace ArtemisBankingPro.Application.Features.Users.Handlers;
 /// Cliente o Comercio y se indica un monto adicional mayor que cero, el monto
 /// se acredita a la cuenta de ahorro principal con una transacción CRÉDITO.
 /// </summary>
-public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, Result<Unit>>
-{
+public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, Result<Unit>> {
     private readonly IUserAccountService _userAccountService;
     private readonly IUserRepository _userRepository;
     private readonly ISavingsAccountRepository _savingsAccountRepository;
@@ -37,8 +36,7 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
         IUnitOfWork unitOfWork,
         IBusinessClock clock,
         ICurrentUserService currentUser
-    )
-    {
+    ) {
         _userAccountService = userAccountService;
         _userRepository = userRepository;
         _savingsAccountRepository = savingsAccountRepository;
@@ -51,12 +49,10 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
     public async ValueTask<Result<Unit>> Handle(
         UpdateUserCommand message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         // 1. El usuario debe existir (para conocer su rol y valores actuales).
         var user = await _userRepository.GetByIdAsync(message.UserId, cancellationToken);
-        if (user is null)
-        {
+        if (user is null) {
             return Result.Failure<Unit>(
                 DomainError.NotFound(
                     "User.NotFound",
@@ -69,8 +65,7 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
         if (
             await _userRepository.ExistsByUserNameAsync(message.UserName, cancellationToken)
             && !string.Equals(message.UserName, user.UserName, StringComparison.OrdinalIgnoreCase)
-        )
-        {
+        ) {
             return Result.Failure<Unit>(
                 DomainError.Conflict(
                     "User.UserNameExists",
@@ -82,8 +77,7 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
         if (
             await _userRepository.ExistsByEmailAsync(message.Email, cancellationToken)
             && !string.Equals(message.Email, user.Email, StringComparison.OrdinalIgnoreCase)
-        )
-        {
+        ) {
             return Result.Failure<Unit>(
                 DomainError.Conflict(
                     "User.EmailExists",
@@ -102,8 +96,7 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
                 user.Identification,
                 StringComparison.Ordinal
             )
-        )
-        {
+        ) {
             return Result.Failure<Unit>(
                 DomainError.Conflict(
                     "User.IdentificationExists",
@@ -122,36 +115,31 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
             message.UserName,
             cancellationToken
         );
-        if (updateResult.IsFailure)
-        {
+        if (updateResult.IsFailure) {
             return Result.Failure<Unit>(updateResult.Error!);
         }
 
         // 4. Contraseña opcional: solo se modifica si se envía.
-        if (!string.IsNullOrWhiteSpace(message.Password))
-        {
+        if (!string.IsNullOrWhiteSpace(message.Password)) {
             var passwordResult = await _userAccountService.ChangePasswordAsync(
                 message.UserId,
                 message.Password,
                 cancellationToken
             );
-            if (passwordResult.IsFailure)
-            {
+            if (passwordResult.IsFailure) {
                 return Result.Failure<Unit>(passwordResult.Error!);
             }
         }
 
         // 5. Monto adicional: solo Cliente o Comercio, acredita a la cuenta principal.
         if (message.AdditionalAmount is > 0m
-            && user.Role is nameof(Roles.Cliente) or nameof(Roles.Comercio))
-        {
+            && user.Role is nameof(Roles.Cliente) or nameof(Roles.Comercio)) {
             var fundingResult = await ApplyAdditionalFundingAsync(
                 message.UserId,
                 message.AdditionalAmount.Value,
                 cancellationToken
             );
-            if (fundingResult.IsFailure)
-            {
+            if (fundingResult.IsFailure) {
                 return Result.Failure<Unit>(fundingResult.Error!);
             }
         }
@@ -163,15 +151,13 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
         string ownerUserId,
         decimal additionalAmount,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var principalAccount = await _savingsAccountRepository.GetPrincipalByOwnerAsync(
             ownerUserId,
             cancellationToken
         );
         if (principalAccount is null
-            || principalAccount.Status != Domain.Accounts.Enums.AccountStatus.Active)
-        {
+            || principalAccount.Status != Domain.Accounts.Enums.AccountStatus.Active) {
             return Result.Failure(
                 DomainError.PreconditionFailed(
                     "User.NoPrincipalAccount",
@@ -181,22 +167,19 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
         }
 
         var amount = Money.Create(additionalAmount);
-        if (amount.IsFailure)
-        {
+        if (amount.IsFailure) {
             return Result.Failure(amount.Error!);
         }
 
         var occurredAt = _clock.Now;
 
         var creditResult = principalAccount.Credit(amount.Value);
-        if (creditResult.IsFailure)
-        {
+        if (creditResult.IsFailure) {
             return creditResult;
         }
 
         return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct =>
-            {
+            async ct => {
                 _savingsAccountRepository.Update(principalAccount);
 
                 var operationResult = FinancialOperation.Approve(
@@ -217,8 +200,7 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
                         ),
                     ]
                 );
-                if (operationResult.IsFailure)
-                {
+                if (operationResult.IsFailure) {
                     return Result.Failure(operationResult.Error!);
                 }
 

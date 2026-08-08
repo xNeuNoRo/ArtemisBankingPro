@@ -10,8 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Auth.Handlers;
 
-public sealed class RequestPasswordResetCommandHandlerTests
-{
+public sealed class RequestPasswordResetCommandHandlerTests {
     private static readonly string[] MvcRoles = ["Administrador", "Cajero", "Cliente"];
 
     private static readonly PasswordResetUserInfo UserInfo =
@@ -20,8 +19,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
     private static Mock<IUserAccountService> UserService(
         PasswordResetUserInfo? info = null,
         Result? setActiveResult = null
-    )
-    {
+    ) {
         var service = new Mock<IUserAccountService>();
         service
             .Setup(s => s.FindForPasswordResetAsync(
@@ -36,8 +34,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
         return service;
     }
 
-    private static Mock<IAccountTokenService> TokenService(string rawToken = "raw-token")
-    {
+    private static Mock<IAccountTokenService> TokenService(string rawToken = "raw-token") {
         var service = new Mock<IAccountTokenService>();
         service
             .Setup(s => s.GenerateAsync("user-1", AccountTokenType.PasswordReset, It.IsAny<CancellationToken>()))
@@ -58,8 +55,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
         );
 
     [Fact]
-    public async Task Handle_UnknownUser_ReturnsNotFound()
-    {
+    public async Task Handle_UnknownUser_ReturnsNotFound() {
         var handler = CreateHandler(userService: UserService(info: null));
 
         var result = await handler.Handle(
@@ -73,8 +69,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UserWithoutEmail_ReturnsValidationError()
-    {
+    public async Task Handle_UserWithoutEmail_ReturnsValidationError() {
         var info = UserInfo with { Email = "" };
         var handler = CreateHandler(userService: UserService(info: info));
 
@@ -88,8 +83,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ApiFlow_DeactivatesGeneratesTokenAndSendsRawTokenEmail()
-    {
+    public async Task Handle_ApiFlow_DeactivatesGeneratesTokenAndSendsRawTokenEmail() {
         var userService = UserService(info: UserInfo);
         var tokenService = TokenService("raw-token-123");
         var emailService = new Mock<IEmailService>();
@@ -123,8 +117,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_MvcFlow_SendsResetLinkEmail()
-    {
+    public async Task Handle_MvcFlow_SendsResetLinkEmail() {
         var emailService = new Mock<IEmailService>();
         var handler = CreateHandler(
             userService: UserService(info: UserInfo),
@@ -150,8 +143,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_DeactivationFailure_ReturnsErrorWithoutGeneratingToken()
-    {
+    public async Task Handle_DeactivationFailure_ReturnsErrorWithoutGeneratingToken() {
         var userService = UserService(
             info: UserInfo,
             setActiveResult: Result.Failure(DomainError.Conflict("User.StatusUpdateFailed", "fallo"))
@@ -172,8 +164,7 @@ public sealed class RequestPasswordResetCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_EmailSendFailure_ReturnsConflictButKeepsState()
-    {
+    public async Task Handle_EmailSendFailure_ReturnsConflictButKeepsState() {
         var emailService = new Mock<IEmailService>();
         emailService
             .Setup(s => s.SendAsync(

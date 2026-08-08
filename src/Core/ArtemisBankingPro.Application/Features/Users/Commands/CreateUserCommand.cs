@@ -22,8 +22,7 @@ public sealed record CreateUserCommand(
     string Role,
     decimal? InitialAmount = null,
     string? CallbackUrl = null
-) : IRequest<Result<CreateUserResponse>>, IAuthorize, IIdempotentCommand
-{
+) : IRequest<Result<CreateUserResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey => $"create-user-{UserName}";

@@ -9,12 +9,9 @@ namespace ArtemisBankingPro.Application;
 /// <summary>
 /// Clase de extensión para registrar los servicios de la capa Application en el contenedor de DI.
 /// </summary>
-public static class ServicesRegistration
-{
-    public static IServiceCollection AddApplication(this IServiceCollection services)
-    {
-        services.AddMediator(options =>
-        {
+public static class ServicesRegistration {
+    public static IServiceCollection AddApplication(this IServiceCollection services) {
+        services.AddMediator(options => {
             options.Assemblies = [typeof(ServicesRegistration).Assembly];
             options.PipelineBehaviors =
             [

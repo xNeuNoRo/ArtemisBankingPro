@@ -3,10 +3,8 @@ using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Auth.Validators;
 
-public sealed class ResetPasswordCommandValidator : AbstractValidator<ResetPasswordCommand>
-{
-    public ResetPasswordCommandValidator()
-    {
+public sealed class ResetPasswordCommandValidator : AbstractValidator<ResetPasswordCommand> {
+    public ResetPasswordCommandValidator() {
         RuleFor(x => x.UserId)
             .NotEmpty()
             .WithMessage("El identificador del usuario es requerido.")

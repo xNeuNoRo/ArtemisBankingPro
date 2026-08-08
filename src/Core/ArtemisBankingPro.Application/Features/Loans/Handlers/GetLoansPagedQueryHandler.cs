@@ -15,16 +15,14 @@ namespace ArtemisBankingPro.Application.Features.Loans.Handlers;
 /// cliente. Por defecto los activos aparecen primero.
 /// </summary>
 public sealed class GetLoansPagedQueryHandler
-    : IRequestHandler<GetLoansPagedQuery, Result<PageResult<LoanListDto>>>
-{
+    : IRequestHandler<GetLoansPagedQuery, Result<PageResult<LoanListDto>>> {
     private readonly ILoanRepository _loanRepository;
     private readonly IUserRepository _userRepository;
 
     public GetLoansPagedQueryHandler(
         ILoanRepository loanRepository,
         IUserRepository userRepository
-    )
-    {
+    ) {
         _loanRepository = loanRepository;
         _userRepository = userRepository;
     }
@@ -32,18 +30,15 @@ public sealed class GetLoansPagedQueryHandler
     public async ValueTask<Result<PageResult<LoanListDto>>> Handle(
         GetLoansPagedQuery message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         // 1. Búsqueda por cédula: resolver el usuario cliente.
         string? customerUserId = null;
-        if (!string.IsNullOrWhiteSpace(message.Identification))
-        {
+        if (!string.IsNullOrWhiteSpace(message.Identification)) {
             var customer = await _userRepository.GetByIdentityDocumentAsync(
                 message.Identification,
                 cancellationToken
             );
-            if (customer is null)
-            {
+            if (customer is null) {
                 return Result.Failure<PageResult<LoanListDto>>(
                     DomainError.NotFound(
                         "Loan.CustomerNotFound",
@@ -56,8 +51,7 @@ public sealed class GetLoansPagedQueryHandler
         }
 
         // 2. Resolver el estado del filtro.
-        LoanStatus? status = message.Status?.ToLowerInvariant() switch
-        {
+        LoanStatus? status = message.Status?.ToLowerInvariant() switch {
             "activos" => LoanStatus.Active,
             "completados" => LoanStatus.Completed,
             _ => null,
@@ -85,8 +79,7 @@ public sealed class GetLoansPagedQueryHandler
     private static LoanListDto ToDto(
         Loan loan,
         Dictionary<string, Domain.Interfaces.Persistence.Repositories.UserListDto> customerMap
-    )
-    {
+    ) {
         customerMap.TryGetValue(loan.CustomerUserId, out var customer);
 
         return new LoanListDto(

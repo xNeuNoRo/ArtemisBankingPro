@@ -11,19 +11,16 @@ using ArtemisBankingPro.Domain.Merchants.Entities;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Auth.Handlers;
 
-public sealed class LoginCommandHandlerTests
-{
+public sealed class LoginCommandHandlerTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
 
-    private static Mock<IBusinessClock> Clock()
-    {
+    private static Mock<IBusinessClock> Clock() {
         var clock = new Mock<IBusinessClock>();
         clock.SetupGet(c => c.NowUtc).Returns(FixedNow);
         return clock;
     }
 
-    private static Mock<IJwtTokenService> JwtService(string token = "jwt-token")
-    {
+    private static Mock<IJwtTokenService> JwtService(string token = "jwt-token") {
         var jwt = new Mock<IJwtTokenService>();
         jwt
             .Setup(j => j.GenerateToken(It.IsAny<JwtTokenRequest>()))
@@ -31,8 +28,7 @@ public sealed class LoginCommandHandlerTests
         return jwt;
     }
 
-    private static Mock<IUserAccountService> UserService(LoginResult result)
-    {
+    private static Mock<IUserAccountService> UserService(LoginResult result) {
         var service = new Mock<IUserAccountService>();
         service
             .Setup(s => s.ValidateCredentialsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<CancellationToken>()))
@@ -41,8 +37,7 @@ public sealed class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SuccessfulAdminLogin_ReturnsJwtAndUserInfo()
-    {
+    public async Task Handle_SuccessfulAdminLogin_ReturnsJwtAndUserInfo() {
         var userService = UserService(
             new LoginResult(LoginStatus.Success, "user-1", "admin", "Administrador")
         );
@@ -84,8 +79,7 @@ public sealed class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SuccessfulCommerceLogin_ResolvesCommerceId()
-    {
+    public async Task Handle_SuccessfulCommerceLogin_ResolvesCommerceId() {
         var userService = UserService(
             new LoginResult(LoginStatus.Success, "user-2", "comercio01", "Comercio")
         );
@@ -125,8 +119,7 @@ public sealed class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_InvalidCredentials_ReturnsUnauthorized()
-    {
+    public async Task Handle_InvalidCredentials_ReturnsUnauthorized() {
         var handler = new LoginCommandHandler(
             UserService(new LoginResult(LoginStatus.InvalidCredentials, null, null, null)).Object,
             JwtService().Object,
@@ -145,8 +138,7 @@ public sealed class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_InactiveUser_ReturnsUnauthorizedWithActivationMessage()
-    {
+    public async Task Handle_InactiveUser_ReturnsUnauthorizedWithActivationMessage() {
         var handler = new LoginCommandHandler(
             UserService(new LoginResult(LoginStatus.Inactive, "user-1", "admin", null)).Object,
             JwtService().Object,
@@ -165,8 +157,7 @@ public sealed class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_RoleNotAllowed_ReturnsForbidden()
-    {
+    public async Task Handle_RoleNotAllowed_ReturnsForbidden() {
         var handler = new LoginCommandHandler(
             UserService(new LoginResult(LoginStatus.RoleNotAllowed, "user-3", "cliente01", null)).Object,
             JwtService().Object,

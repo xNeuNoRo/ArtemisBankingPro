@@ -17,16 +17,14 @@ using FinancialOperationEntity = ArtemisBankingPro.Domain.Operations.Entities.Fi
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Loans.Handlers;
 
-public sealed class CreateLoanCommandHandlerTests
-{
+public sealed class CreateLoanCommandHandlerTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly FixedToday = new(2026, 8, 7);
 
     private static readonly UserListDto ActiveClient =
         new("client-1", "cliente01", "00187654321", "María", "Gómez", "maria@artemis.com", "Cliente", true, FixedNow);
 
-    private static Mock<IUserRepository> UserRepository()
-    {
+    private static Mock<IUserRepository> UserRepository() {
         var repository = new Mock<IUserRepository>();
         repository
             .Setup(r => r.GetByIdAsync("client-1", It.IsAny<CancellationToken>()))
@@ -39,8 +37,7 @@ public sealed class CreateLoanCommandHandlerTests
         return repository;
     }
 
-    private static Mock<ILoanRepository> LoanRepository()
-    {
+    private static Mock<ILoanRepository> LoanRepository() {
         var repository = new Mock<ILoanRepository>();
         repository
             .Setup(r => r.GetActiveByCustomerAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -57,8 +54,7 @@ public sealed class CreateLoanCommandHandlerTests
         return repository;
     }
 
-    private static Mock<ICreditCardRepository> CreditCardRepository()
-    {
+    private static Mock<ICreditCardRepository> CreditCardRepository() {
         var repository = new Mock<ICreditCardRepository>();
         repository
             .Setup(r => r.GetClientActiveDebtAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -69,8 +65,7 @@ public sealed class CreateLoanCommandHandlerTests
         return repository;
     }
 
-    private static Mock<ISavingsAccountRepository> SavingsAccountRepository()
-    {
+    private static Mock<ISavingsAccountRepository> SavingsAccountRepository() {
         var accountNumber = AccountNumber.Create("123456789").Value;
         var account = SavingsAccount.OpenPrimary(
             "client-1",
@@ -87,8 +82,7 @@ public sealed class CreateLoanCommandHandlerTests
         return repository;
     }
 
-    private static Mock<IUnitOfWork> UnitOfWork()
-    {
+    private static Mock<IUnitOfWork> UnitOfWork() {
         var uow = new Mock<IUnitOfWork>();
         uow
             .Setup(u => u.ExecuteInTransactionAsync(
@@ -104,8 +98,7 @@ public sealed class CreateLoanCommandHandlerTests
         return uow;
     }
 
-    private static Mock<IBusinessClock> Clock()
-    {
+    private static Mock<IBusinessClock> Clock() {
         var clock = new Mock<IBusinessClock>();
         clock.SetupGet(c => c.Now).Returns(FixedNow);
         clock.SetupGet(c => c.NowUtc).Returns(FixedNow);
@@ -113,16 +106,14 @@ public sealed class CreateLoanCommandHandlerTests
         return clock;
     }
 
-    private static Mock<ICurrentUserService> CurrentUser()
-    {
+    private static Mock<ICurrentUserService> CurrentUser() {
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(u => u.UserId).Returns("admin-1");
         user.SetupGet(u => u.IsAuthenticated).Returns(true);
         return user;
     }
 
-    private static Mock<INumberGenerator> NumberGenerator()
-    {
+    private static Mock<INumberGenerator> NumberGenerator() {
         var generator = new Mock<INumberGenerator>();
         generator
             .Setup(g => g.NextLoanNumberAsync(It.IsAny<CancellationToken>()))
@@ -134,8 +125,7 @@ public sealed class CreateLoanCommandHandlerTests
         Mock<IUserRepository>? userRepository = null,
         Mock<ILoanRepository>? loanRepository = null,
         Mock<ICreditCardRepository>? creditCardRepository = null
-    )
-    {
+    ) {
         var financialRepository = new Mock<IFinancialOperationRepository>();
         financialRepository
             .Setup(r => r.AddAsync(It.IsAny<FinancialOperationEntity>(), It.IsAny<CancellationToken>()))
@@ -155,8 +145,7 @@ public sealed class CreateLoanCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidClient_IssuesLoanAndDisburses()
-    {
+    public async Task Handle_ValidClient_IssuesLoanAndDisburses() {
         var handler = CreateHandler();
 
         var result = await handler.Handle(
@@ -173,8 +162,7 @@ public sealed class CreateLoanCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_UnknownCustomer_ReturnsNotFound()
-    {
+    public async Task Handle_UnknownCustomer_ReturnsNotFound() {
         var userRepository = new Mock<IUserRepository>();
         userRepository
             .Setup(r => r.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -191,8 +179,7 @@ public sealed class CreateLoanCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ClientWithActiveLoan_ReturnsConflict()
-    {
+    public async Task Handle_ClientWithActiveLoan_ReturnsConflict() {
         var loanRepository = new Mock<ILoanRepository>();
         loanRepository
             .Setup(r => r.GetActiveByCustomerAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -209,8 +196,7 @@ public sealed class CreateLoanCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_HighRiskWithoutConfirmation_ReturnsConflict()
-    {
+    public async Task Handle_HighRiskWithoutConfirmation_ReturnsConflict() {
         // El cliente ya tiene deuda alta (por encima del promedio del sistema).
         var loanRepository = LoanRepository();
         loanRepository
@@ -238,8 +224,7 @@ public sealed class CreateLoanCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_HighRiskWithConfirmation_IssuesLoan()
-    {
+    public async Task Handle_HighRiskWithConfirmation_IssuesLoan() {
         var loanRepository = LoanRepository();
         loanRepository
             .Setup(r => r.GetClientActiveDebtAsync("client-1", It.IsAny<CancellationToken>()))
@@ -259,8 +244,7 @@ public sealed class CreateLoanCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ZeroInterestRate_IssuesLoan()
-    {
+    public async Task Handle_ZeroInterestRate_IssuesLoan() {
         var handler = CreateHandler();
 
         var result = await handler.Handle(
@@ -273,8 +257,7 @@ public sealed class CreateLoanCommandHandlerTests
         result.Value.TotalAmountToPay.Should().Be(120000m);
     }
 
-    private static Loan SeedLoan()
-    {
+    private static Loan SeedLoan() {
         var number = LoanNumber.Create("111111111").Value;
         return Loan.Issue(
             "client-1",

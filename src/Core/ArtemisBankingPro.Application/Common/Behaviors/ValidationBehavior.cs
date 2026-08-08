@@ -9,8 +9,7 @@ namespace ArtemisBankingPro.Application.Common.Behaviors;
 /// fallos; la capa de presentación la traduce a 400 con ProblemDetails.
 /// </summary>
 public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : IRequest<TResponse>
-{
+    where TRequest : IRequest<TResponse> {
     private readonly IEnumerable<IValidator<TRequest>> _validators;
 
     public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators) =>
@@ -20,10 +19,8 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
         TRequest message,
         MessageHandlerDelegate<TRequest, TResponse> next,
         CancellationToken cancellationToken
-    )
-    {
-        if (!_validators.Any())
-        {
+    ) {
+        if (!_validators.Any()) {
             return await next(message, cancellationToken);
         }
 
@@ -36,8 +33,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
             .Where(failure => failure is not null)
             .ToList();
 
-        if (failures.Count > 0)
-        {
+        if (failures.Count > 0) {
             throw new ValidationException(failures);
         }
 

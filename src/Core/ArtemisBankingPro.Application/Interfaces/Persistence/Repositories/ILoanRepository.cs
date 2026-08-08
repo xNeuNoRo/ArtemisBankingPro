@@ -6,8 +6,7 @@ using ArtemisBankingPro.Domain.Lending.ValueObjects;
 
 namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
-public interface ILoanRepository : IGenericRepository<Loan>
-{
+public interface ILoanRepository : IGenericRepository<Loan> {
     Task<Loan?> GetByNumberAsync(LoanNumber number, CancellationToken ct = default);
 
     Task<Loan?> GetActiveByCustomerAsync(string customerUserId, CancellationToken ct = default);

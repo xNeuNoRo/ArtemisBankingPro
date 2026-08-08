@@ -11,20 +11,17 @@ namespace ArtemisBankingPro.Application.Features.Users.Handlers;
 /// del más reciente al más antiguo, con filtro opcional por rol.
 /// </summary>
 public sealed class GetUsersPagedQueryHandler
-    : IRequestHandler<GetUsersPagedQuery, Result<PageResult<UserListDto>>>
-{
+    : IRequestHandler<GetUsersPagedQuery, Result<PageResult<UserListDto>>> {
     private readonly IUserRepository _userRepository;
 
-    public GetUsersPagedQueryHandler(IUserRepository userRepository)
-    {
+    public GetUsersPagedQueryHandler(IUserRepository userRepository) {
         _userRepository = userRepository;
     }
 
     public async ValueTask<Result<PageResult<UserListDto>>> Handle(
         GetUsersPagedQuery message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var page = new PageRequest(message.Page, message.PageSize);
         var result = await _userRepository.GetPagedAsync(
             message.Role,
@@ -40,20 +37,17 @@ public sealed class GetUsersPagedQueryHandler
 /// Lista usuarios con rol Comercio paginados, del más reciente al más antiguo.
 /// </summary>
 public sealed class GetCommerceUsersPagedQueryHandler
-    : IRequestHandler<GetCommerceUsersPagedQuery, Result<PageResult<UserListDto>>>
-{
+    : IRequestHandler<GetCommerceUsersPagedQuery, Result<PageResult<UserListDto>>> {
     private readonly IUserRepository _userRepository;
 
-    public GetCommerceUsersPagedQueryHandler(IUserRepository userRepository)
-    {
+    public GetCommerceUsersPagedQueryHandler(IUserRepository userRepository) {
         _userRepository = userRepository;
     }
 
     public async ValueTask<Result<PageResult<UserListDto>>> Handle(
         GetCommerceUsersPagedQuery message,
         CancellationToken cancellationToken
-    )
-    {
+    ) {
         var page = new PageRequest(message.Page, message.PageSize);
         var result = await _userRepository.GetCommerceUsersPagedAsync(page, cancellationToken);
 
