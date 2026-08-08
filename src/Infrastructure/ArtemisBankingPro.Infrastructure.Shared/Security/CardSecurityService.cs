@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using ArtemisBankingPro.Application.Interfaces.Security;
 using Microsoft.Extensions.Options;
 
 namespace ArtemisBankingPro.Infrastructure.Shared.Security;
