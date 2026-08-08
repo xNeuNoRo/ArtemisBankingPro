@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Interfaces.Events;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using ArtemisBankingPro.Infrastructure.Persistence.Events;
 using ArtemisBankingPro.Infrastructure.Persistence.Persistence;
@@ -49,7 +50,7 @@ public static class ServicesRegistration {
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
-        services.AddScoped<NumberGenerator>();
+        services.AddScoped<INumberGenerator, NumberGenerator>();
 
         return services;
     }
