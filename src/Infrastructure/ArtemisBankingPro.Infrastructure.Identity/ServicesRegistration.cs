@@ -1,10 +1,10 @@
 using System.Text.Json;
 using ArtemisBankingPro.Application.Interfaces.Identity;
+using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Settings;
 using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
 using ArtemisBankingPro.Infrastructure.Identity.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Security;
 using ArtemisBankingPro.Infrastructure.Identity.Seeds;
