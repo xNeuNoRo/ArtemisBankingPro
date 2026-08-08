@@ -7,7 +7,10 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Domain.Accounts.Entities;
 
-public sealed class SavingsAccount : Entity<int> {
+/// <summary>
+/// Representa una cuenta de ahorros de un usuario, que puede ser primaria o secundaria.
+/// </summary>
+public sealed class SavingsAccount : AggregateRoot<int> {
     private SavingsAccount() { }
 
     private SavingsAccount(

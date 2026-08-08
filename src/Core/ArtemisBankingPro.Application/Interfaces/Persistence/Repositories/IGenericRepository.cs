@@ -1,0 +1,26 @@
+using System.Linq.Expressions;
+using ArtemisBankingPro.Domain.Common.Entities;
+
+namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
+
+/// <summary>
+/// Repositorio genérico con operaciones CRUD de mantenimiento.
+/// </summary>
+public interface IGenericRepository<T>
+    where T : Entity<int>
+{
+    Task<T?> GetByIdAsync(int id, CancellationToken ct = default);
+
+    Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
+
+    Task<int> CountAsync(
+        Expression<Func<T, bool>>? predicate = null,
+        CancellationToken ct = default
+    );
+
+    Task<T> AddAsync(T entity, CancellationToken ct = default);
+
+    Task AddRangeAsync(IEnumerable<T> entities, CancellationToken ct = default);
+
+    void Update(T entity);
+}

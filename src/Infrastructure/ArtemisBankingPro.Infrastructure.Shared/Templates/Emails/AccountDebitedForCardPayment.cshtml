@@ -1,0 +1,8 @@
+@model ArtemisBankingPro.Application.Models.Emails.AccountDebitedForCardPaymentModel
+Hola @Model.CustomerName,
+
+Se ha realizado un pago a una tarjeta de crédito utilizando fondos de su cuenta terminada en @Model.SourceAccountLastFour.
+Tarjeta pagada terminada en: @Model.CardLastFour
+Monto debitado: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.

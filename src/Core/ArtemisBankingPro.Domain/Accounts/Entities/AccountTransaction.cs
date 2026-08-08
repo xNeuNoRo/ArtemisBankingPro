@@ -7,6 +7,9 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Domain.Accounts.Entities;
 
+/// <summary>
+/// Representa una transacción de cuenta asociada a una operación financiera.
+/// </summary>
 public sealed class AccountTransaction : Entity<int> {
     private AccountTransaction() { }
 

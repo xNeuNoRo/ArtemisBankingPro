@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Domain.Cards.Details;
+using ArtemisBankingPro.Domain.Cards.Errors;
 using ArtemisBankingPro.Domain.Cards.Policies;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 
@@ -19,5 +20,12 @@ public sealed class CashAdvancePolicyTests {
         CashAdvanceQuote quote = CashAdvancePolicy.Calculate(Money.Create(0.24m).Value).Value;
 
         quote.Interest.Amount.Should().Be(0.02m);
+    }
+
+    [Fact]
+    public void Calculate_NonPositivePrincipal_ReturnsAmountMustBePositive() {
+        Result<CashAdvanceQuote> result = CashAdvancePolicy.Calculate(Money.Create(0m).Value);
+
+        Assert.Equal(CardErrors.AmountMustBePositive, result.Error);
     }
 }

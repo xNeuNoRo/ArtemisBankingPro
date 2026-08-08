@@ -6,6 +6,9 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Domain.Cards.Entities;
 
+/// <summary>
+/// Representa un consumo realizado con una tarjeta de crédito, que puede ser una compra o un avance de efectivo.
+/// </summary>
 public sealed class CardConsumption : Entity<int> {
     private CardConsumption() { }
 

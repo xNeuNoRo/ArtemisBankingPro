@@ -4,15 +4,20 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
 using ArtemisBankingPro.Domain.Cards.Enums;
+using ArtemisBankingPro.Domain.Common.Entities;
+using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Lending.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Errors;
-using ArtemisBankingPro.Domain.Common.Entities;
-using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Operations.Events;
 
 namespace ArtemisBankingPro.Domain.Operations.Entities;
 
-public sealed class FinancialOperation : Entity<Guid> {
+/// <summary>
+/// Representa una operación financiera realizada por un cliente, como un retiro, transferencia, pago de tarjeta o préstamo.
+/// Contiene información sobre el tipo de operación, estado, montos, usuario que la inició, fecha y detalles asociados (transacciones de cuenta y consumo de tarjeta).
+/// </summary>
+public sealed class FinancialOperation : AggregateRoot<Guid> {
     private readonly List<AccountTransaction> _accountTransactions = [];
 
     private FinancialOperation() { }
@@ -89,8 +94,8 @@ public sealed class FinancialOperation : Entity<Guid> {
         int? creditCardId = null,
         LoanNumber? loanNumber = null,
         int? merchantId = null
-    ) =>
-        Create(
+    ) {
+        Result<FinancialOperation> result = Create(
             id,
             kind,
             FinancialOperationStatus.Approved,
@@ -106,6 +111,13 @@ public sealed class FinancialOperation : Entity<Guid> {
             accountTransactions,
             cardConsumption
         );
+
+        if (result.IsSuccess) {
+            result.Value.RaiseDomainEvent(new FinancialOperationApprovedEvent(id, kind));
+        }
+
+        return result;
+    }
 
     public static Result<FinancialOperation> Reject(
         Guid id,
@@ -348,14 +360,18 @@ public sealed class FinancialOperation : Entity<Guid> {
         }
 
         if (cardConsumption is not null) {
+            Money baseAmount = requestedAmount;
+            if (
+                kind == FinancialOperationKind.CashAdvance
+                && status == FinancialOperationStatus.Approved
+            ) {
+                baseAmount = appliedAmount;
+            }
+
             Money expectedConsumptionAmount =
                 kind == FinancialOperationKind.CashAdvance
-                    ? (
-                        status == FinancialOperationStatus.Approved
-                            ? appliedAmount
-                            : requestedAmount
-                    ).Add(interestAmount)
-                    : requestedAmount;
+                    ? baseAmount.Add(interestAmount)
+                    : baseAmount;
             if (cardConsumption.Amount != expectedConsumptionAmount) {
                 return Result.Failure(OperationErrors.InvalidAmountEquation);
             }

@@ -58,6 +58,139 @@ public sealed class MerchantTests {
         merchant.Rnc.Should().Be("123456789");
     }
 
+    [Fact]
+    public void Create_MissingRequiredFields_ReturnsFailure() {
+        Result<Merchant> invalidName = Merchant.Create(
+            " ",
+            null,
+            "store@example.com",
+            "809-555-1111",
+            "123456789",
+            "admin",
+            Now);
+
+        Result<Merchant> invalidPhone = Merchant.Create(
+            "Store",
+            null,
+            "store@example.com",
+            " ",
+            "123456789",
+            "admin",
+            Now);
+
+        Result<Merchant> invalidRnc = Merchant.Create(
+            "Store",
+            null,
+            "store@example.com",
+            "809-555-1111",
+            "",
+            "admin",
+            Now);
+
+        Result<Merchant> invalidCreator = Merchant.Create(
+            "Store",
+            null,
+            "store@example.com",
+            "809-555-1111",
+            "123456789",
+            " ",
+            Now);
+
+        Assert.Equal(MerchantErrors.InvalidName, invalidName.Error);
+        Assert.Equal(MerchantErrors.InvalidPhoneNumber, invalidPhone.Error);
+        Assert.Equal(MerchantErrors.InvalidRnc, invalidRnc.Error);
+        Assert.Equal(MerchantErrors.InvalidCreator, invalidCreator.Error);
+    }
+
+    [Fact]
+    public void UpdateInformation_InvalidPhoneOrRncOrDate_ReturnsFailure() {
+        Merchant merchant = CreateMerchant();
+
+        Assert.Equal(
+            MerchantErrors.InvalidPhoneNumber,
+            merchant.UpdateInformation("Store", null, "store@example.com", "", "123456789", Now.AddMinutes(1)).Error);
+        Assert.Equal(
+            MerchantErrors.InvalidRnc,
+            merchant.UpdateInformation("Store", null, "store@example.com", "809-555-1111", "", Now.AddMinutes(1)).Error);
+        Assert.Equal(
+            MerchantErrors.InvalidUpdateDate,
+            merchant.UpdateInformation("Store", null, "store@example.com", "809-555-1111", "123456789", Now.AddMinutes(-1)).Error);
+    }
+
+    [Fact]
+    public void AssociateUser_InvalidUserOrPastDate_ReturnsFailure() {
+        Merchant merchant = CreateMerchant();
+
+        Assert.Equal(
+            MerchantErrors.InvalidAssociatedUser,
+            merchant.AssociateUser(" ", Now).Error);
+        Assert.Equal(
+            MerchantErrors.InvalidUpdateDate,
+            merchant.AssociateUser("commerce-1", Now.AddMinutes(-1)).Error);
+    }
+
+    [Fact]
+    public void Activate_AlreadyActive_ReturnsFailure() {
+        Merchant merchant = CreateMerchant();
+
+        Assert.Equal(MerchantErrors.AlreadyActive, merchant.Activate(Now.AddMinutes(1)).Error);
+    }
+
+    [Fact]
+    public void Deactivate_AlreadyInactiveOrPastDate_ReturnsFailure() {
+        Merchant merchant = CreateMerchant();
+        merchant.Deactivate(Now.AddMinutes(1));
+
+        Assert.Equal(MerchantErrors.AlreadyInactive, merchant.Deactivate(Now.AddMinutes(2)).Error);
+
+        Merchant fresh = CreateMerchant();
+        Assert.Equal(
+            MerchantErrors.InvalidUpdateDate,
+            fresh.Deactivate(Now.AddMinutes(-1)).Error);
+    }
+
+    [Fact]
+    public void Activate_AfterDeactivation_WithPastDate_ReturnsFailure() {
+        Merchant merchant = CreateMerchant();
+        merchant.Deactivate(Now.AddMinutes(1));
+
+        Assert.Equal(MerchantErrors.InvalidUpdateDate, merchant.Activate(Now.AddMinutes(-1)).Error);
+    }
+
+    [Fact]
+    public void UpdateInformation_ValidData_MutatesAndSetsUpdatedAt() {
+        Merchant merchant = CreateMerchant();
+
+        Result result = merchant.UpdateInformation(
+            "Renamed",
+            "New description",
+            "NEW@example.com",
+            "809-555-3333",
+            "987654321",
+            Now.AddMinutes(1));
+
+        result.IsSuccess.Should().BeTrue();
+        merchant.Name.Should().Be("Renamed");
+        merchant.Email.Should().Be("new@example.com");
+        merchant.Rnc.Should().Be("987654321");
+        merchant.UpdatedAt.Should().Be(Now.AddMinutes(1));
+    }
+
+    [Fact]
+    public void UpdateInformation_InvalidName_ReturnsFailure() {
+        Merchant merchant = CreateMerchant();
+
+        Result result = merchant.UpdateInformation(
+            "",
+            null,
+            "store@example.com",
+            "809-555-1111",
+            "123456789",
+            Now.AddMinutes(1));
+
+        Assert.Equal(MerchantErrors.InvalidName, result.Error);
+    }
+
     private static Merchant CreateMerchant() =>
         Merchant.Create(
             "Store",

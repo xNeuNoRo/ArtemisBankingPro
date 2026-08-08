@@ -2,6 +2,9 @@ using System.Globalization;
 
 namespace ArtemisBankingPro.Domain.Common.ValueObjects;
 
+/// <summary>
+/// Representa una cantidad de dinero con un valor decimal no negativo.
+/// </summary>
 public sealed record Money : IComparable<Money> {
     private Money(decimal amount) {
         Amount = amount;
@@ -34,9 +37,7 @@ public sealed record Money : IComparable<Money> {
     }
 
     public Money Multiply(decimal multiplier) {
-        if (multiplier < 0m) {
-            throw new ArgumentOutOfRangeException(nameof(multiplier));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(multiplier);
 
         return FromDecimal(Amount * multiplier);
     }
@@ -54,9 +55,7 @@ public sealed record Money : IComparable<Money> {
     public static bool operator >=(Money left, Money right) => left.Amount >= right.Amount;
 
     internal static Money FromDecimal(decimal amount) {
-        if (amount < 0m) {
-            throw new ArgumentOutOfRangeException(nameof(amount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
 
         return new Money(Round(amount));
     }

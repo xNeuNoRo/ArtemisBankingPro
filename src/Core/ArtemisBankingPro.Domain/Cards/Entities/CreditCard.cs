@@ -1,17 +1,22 @@
 using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Cards.Errors;
+using ArtemisBankingPro.Domain.Cards.Events;
 using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Domain.Cards.Entities;
 
-public sealed class CreditCard : Entity<int> {
+/// <summary>
+/// Representa una tarjeta de crédito emitida a un cliente, con un límite de crédito y un saldo actual.
+/// </summary>
+public sealed class CreditCard : AggregateRoot<int> {
     private CreditCard() { }
 
     private CreditCard(
         string customerUserId,
-        CardNumber number,
+        string lastFour,
+        string panFingerprint,
         CvcDigest cvcDigest,
         Money creditLimit,
         CardExpiration expiration,
@@ -19,7 +24,8 @@ public sealed class CreditCard : Entity<int> {
         DateTimeOffset issuedAt
     ) {
         CustomerUserId = customerUserId;
-        Number = number;
+        LastFour = lastFour;
+        PanFingerprint = panFingerprint;
         CvcDigest = cvcDigest;
         CreditLimit = creditLimit;
         CurrentDebt = Money.Zero;
@@ -31,7 +37,11 @@ public sealed class CreditCard : Entity<int> {
 
     public string CustomerUserId { get; private set; } = null!;
 
-    public CardNumber Number { get; private set; } = null!;
+    /// <summary>Últimos cuatro dígitos, identificador de visualización (nunca es un secreto).</summary>
+    public string LastFour { get; private set; } = null!;
+
+    /// <summary>Huella HMAC-SHA256 del número completo, clave de búsqueda única.</summary>
+    public string PanFingerprint { get; private set; } = null!;
 
     public CvcDigest CvcDigest { get; private set; } = null!;
 
@@ -53,7 +63,8 @@ public sealed class CreditCard : Entity<int> {
 
     public static Result<CreditCard> Issue(
         string customerUserId,
-        CardNumber number,
+        string lastFour,
+        string panFingerprint,
         CvcDigest cvcDigest,
         Money creditLimit,
         string assignedByUserId,
@@ -68,7 +79,19 @@ public sealed class CreditCard : Entity<int> {
             return Result.Failure<CreditCard>(CardErrors.InvalidAssigner);
         }
 
-        if (number is null || cvcDigest is null || creditLimit is null) {
+        if (lastFour is null || lastFour.Length != 4 || !lastFour.All(char.IsAsciiDigit)) {
+            return Result.Failure<CreditCard>(CardErrors.InvalidLastFour);
+        }
+
+        if (
+            panFingerprint is null
+            || panFingerprint.Length != 64
+            || !panFingerprint.All(Uri.IsHexDigit)
+        ) {
+            return Result.Failure<CreditCard>(CardErrors.InvalidPanFingerprint);
+        }
+
+        if (cvcDigest is null || creditLimit is null) {
             return Result.Failure<CreditCard>(CardErrors.InvalidCvcDigest);
         }
 
@@ -80,17 +103,29 @@ public sealed class CreditCard : Entity<int> {
             return Result.Failure<CreditCard>(CardErrors.InconsistentIssueDate);
         }
 
-        return Result.Success(
-            new CreditCard(
-                customerUserId,
-                number,
-                cvcDigest,
-                creditLimit,
-                CardExpiration.FromIssueDate(businessDate),
-                assignedByUserId,
-                issuedAt
+        CardExpiration expiration = CardExpiration.FromIssueDate(businessDate);
+        var card = new CreditCard(
+            customerUserId,
+            lastFour,
+            panFingerprint,
+            cvcDigest,
+            creditLimit,
+            expiration,
+            assignedByUserId,
+            issuedAt
+        );
+
+        card.RaiseDomainEvent(
+            new CardAssignedEvent(
+                card.CustomerUserId,
+                card.LastFour,
+                card.CreditLimit.Amount,
+                expiration.Month,
+                expiration.Year
             )
         );
+
+        return Result.Success(card);
     }
 
     public Result CanAuthorizeCharge(Money amount, DateOnly businessDate) {
@@ -153,6 +188,7 @@ public sealed class CreditCard : Entity<int> {
         }
 
         CreditLimit = newLimit;
+        RaiseDomainEvent(new CardLimitChangedEvent(CustomerUserId, LastFour, newLimit.Amount));
         return Result.Success();
     }
 

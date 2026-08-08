@@ -1,10 +1,13 @@
-using ArtemisBankingPro.Domain.Lending.Details;
-using ArtemisBankingPro.Domain.Lending.Enums;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Lending.Details;
+using ArtemisBankingPro.Domain.Lending.Enums;
 
 namespace ArtemisBankingPro.Domain.Lending.Entities;
 
+/// <summary>
+/// Representa un pago de préstamo programado, con su número de cuota, fecha de vencimiento, monto programado, monto de interés, monto de principal y monto pagado.
+/// </summary>
 public sealed class Installment : Entity<int> {
     private Installment() { }
 
@@ -33,10 +36,17 @@ public sealed class Installment : Entity<int> {
 
     public Money RemainingAmount => ScheduledAmount.Subtract(PaidAmount).Value;
 
-    public InstallmentStatus Status =>
-        PaidAmount == Money.Zero ? InstallmentStatus.Pending
-        : PaidAmount == ScheduledAmount ? InstallmentStatus.Paid
-        : InstallmentStatus.PartiallyPaid;
+    public InstallmentStatus Status {
+        get {
+            if (PaidAmount == Money.Zero) {
+                return InstallmentStatus.Pending;
+            }
+
+            return PaidAmount == ScheduledAmount
+                ? InstallmentStatus.Paid
+                : InstallmentStatus.PartiallyPaid;
+        }
+    }
 
     public bool IsOverdue { get; private set; }
 

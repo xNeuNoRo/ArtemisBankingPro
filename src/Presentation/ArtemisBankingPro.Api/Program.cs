@@ -25,4 +25,4 @@ app.MapScalarApiReference("/docs");
 
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();

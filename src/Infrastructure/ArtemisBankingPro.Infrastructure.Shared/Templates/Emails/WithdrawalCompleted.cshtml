@@ -1,0 +1,7 @@
+@model ArtemisBankingPro.Application.Models.Emails.WithdrawalCompletedModel
+Hola @Model.CustomerName,
+
+Se ha realizado un retiro desde su cuenta terminada en @Model.AccountLastFour.
+Monto retirado: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.

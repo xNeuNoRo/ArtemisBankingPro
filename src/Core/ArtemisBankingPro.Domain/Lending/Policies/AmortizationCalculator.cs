@@ -1,10 +1,13 @@
+using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Lending.Details;
 using ArtemisBankingPro.Domain.Lending.Errors;
 using ArtemisBankingPro.Domain.Lending.ValueObjects;
-using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Domain.Lending.Policies;
 
+/// <summary>
+/// Calcula la amortización de un préstamo, generando una lista de cuotas con sus fechas, montos y desglose de interés/principal.
+/// </summary>
 public static class AmortizationCalculator {
     public static Result<IReadOnlyList<AmortizationEntry>> Generate(
         Money principal,
@@ -90,7 +93,7 @@ public static class AmortizationCalculator {
         }
     }
 
-    private static IReadOnlyList<AmortizationEntry> Calculate(
+    private static List<AmortizationEntry> Calculate(
         Money principal,
         InterestRate annualRate,
         IReadOnlyList<DateOnly> dueDates

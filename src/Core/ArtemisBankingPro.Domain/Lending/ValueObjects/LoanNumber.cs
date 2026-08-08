@@ -1,8 +1,11 @@
-using ArtemisBankingPro.Domain.Lending.Errors;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Lending.Errors;
 
 namespace ArtemisBankingPro.Domain.Lending.ValueObjects;
 
+/// <summary>
+/// Representa un número de préstamo único, compuesto por 9 dígitos. Proporciona validación y creación segura del valor.
+/// </summary>
 public sealed record LoanNumber {
     private LoanNumber(string value) {
         Value = value;

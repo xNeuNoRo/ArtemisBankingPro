@@ -1,0 +1,9 @@
+@model ArtemisBankingPro.Application.Models.Emails.CashierTransferReceivedModel
+Hola @Model.CustomerName,
+
+Ha recibido una transacción de dinero desde otra cuenta.
+Cuenta origen terminada en: @Model.SourceLastFour
+Cuenta destino terminada en: @Model.DestinationLastFour
+Monto recibido: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.

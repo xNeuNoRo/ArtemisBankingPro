@@ -20,7 +20,7 @@ public sealed record CvcDigest {
 
     internal string GetValue() => Value;
 
-    public override string ToString() => "[PROTECTED]";
+    public override string ToString() => "[PROTEGIDO]";
 
     private static bool IsSha256Digest(string? value) {
         if (value is null) {

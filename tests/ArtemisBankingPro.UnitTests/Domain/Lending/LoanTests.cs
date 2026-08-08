@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Enums;
+using ArtemisBankingPro.Domain.Lending.Events;
 using ArtemisBankingPro.Domain.Lending.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 
@@ -85,6 +86,55 @@ public sealed class LoanTests {
         loan.ChangeInterestRate(InterestRate.Create(24m).Value, first.DueDate);
 
         first.ScheduledAmount.Should().Be(originalAmount);
+    }
+
+    [Fact]
+    public void Issue_RaisesLoanIssuedEvent_WithScheduleData() {
+        Loan loan = CreateLoan();
+
+        loan.DomainEvents.Should().ContainSingle();
+        LoanIssuedEvent? domainEvent = Assert.IsType<LoanIssuedEvent>(loan.DomainEvents.Single());
+
+        Assert.Equal(loan.Number, domainEvent.LoanNumber);
+        domainEvent.ApprovedPrincipal.Should().Be(12_000m);
+        domainEvent.TermMonths.Should().Be(12);
+        domainEvent.AnnualInterestRate.Should().Be(12m);
+        domainEvent.MonthlyPayment.Should().Be(loan.Installments.First().ScheduledAmount.Amount);
+        domainEvent.CustomerUserId.Should().Be("customer");
+    }
+
+    [Fact]
+    public void ChangeInterestRate_RaisesRateChangedEvent_WithNextInstallment() {
+        Loan loan = CreateLoan();
+        Installment next = loan.Installments.First(item => item.Number == 1);
+        Money originalAmount = next.ScheduledAmount;
+
+        Result result = loan.ChangeInterestRate(InterestRate.Create(24m).Value, IssueDate);
+
+        result.IsSuccess.Should().BeTrue();
+        LoanRateChangedEvent? domainEvent = Assert.IsType<LoanRateChangedEvent>(
+            loan.DomainEvents.OfType<LoanRateChangedEvent>().Single()
+        );
+
+        Assert.Equal(loan.Number, domainEvent.LoanNumber);
+        domainEvent.NewAnnualInterestRate.Should().Be(24m);
+        domainEvent.NextInstallmentAmount.Should().Be(next.ScheduledAmount.Amount);
+        domainEvent.NextInstallmentDueDate.Should().Be(next.DueDate);
+        domainEvent.NextInstallmentAmount.Should().NotBe(originalAmount.Amount);
+    }
+
+    [Fact]
+    public void ChangeInterestRate_NoEligibleInstallments_DoesNotRaiseEvent() {
+        Loan loan = CreateLoan();
+
+        // Todas las cuotas con vencimiento pasado: ninguna elegible.
+        Result result = loan.ChangeInterestRate(
+            InterestRate.Create(24m).Value,
+            loan.Installments.Last().DueDate.AddMonths(1)
+        );
+
+        result.IsFailure.Should().BeTrue();
+        loan.DomainEvents.OfType<LoanRateChangedEvent>().Should().BeEmpty();
     }
 
     private static Loan CreateLoan() =>
