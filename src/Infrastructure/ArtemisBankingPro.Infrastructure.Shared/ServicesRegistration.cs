@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Interfaces.Email;
+using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Settings;
 using ArtemisBankingPro.Infrastructure.Shared.Messaging;
