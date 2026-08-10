@@ -139,6 +139,17 @@ public sealed class CreditCardTests {
     }
 
     [Fact]
+    public void ChangeCreditLimit_CancelledCard_ReturnsNotActive() {
+        CreditCard card = CreateCard();
+        card.Cancel(IssuedAt.AddDays(1)).IsSuccess.Should().BeTrue();
+
+        Result result = card.ChangeCreditLimit(Money.Create(15_000m).Value);
+
+        Assert.Equal(CardErrors.NotActive, result.Error);
+        card.CreditLimit.Amount.Should().Be(10_000m);
+    }
+
+    [Fact]
     public void Issue_MissingCustomerOrAssigner_ReturnsFailure() {
         Result<CreditCard> missingCustomer = CreditCard.Issue(
             " ",

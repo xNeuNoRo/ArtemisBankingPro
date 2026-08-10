@@ -265,7 +265,10 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             return Result.Failure(OperationErrors.InvalidActor);
         }
 
-        bool expectsNoAmount = kind == FinancialOperationKind.CardCancelled;
+        bool expectsNoAmount =
+            kind
+            is FinancialOperationKind.CardCancelled
+                or FinancialOperationKind.CardLimitChanged;
 
         if (!expectsNoAmount && requestedAmount.Amount <= 0m) {
             return Result.Failure(OperationErrors.InvalidRequestedAmount);
@@ -404,7 +407,8 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             is FinancialOperationKind.CreditCardPayment
                 or FinancialOperationKind.CashAdvance
                 or FinancialOperationKind.HermesPayment
-                or FinancialOperationKind.CardCancelled;
+                or FinancialOperationKind.CardCancelled
+                or FinancialOperationKind.CardLimitChanged;
         bool requiresLoan =
             kind is FinancialOperationKind.LoanDisbursement or FinancialOperationKind.LoanPayment;
         bool requiresMerchant = kind == FinancialOperationKind.HermesPayment;
@@ -458,7 +462,12 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                 return 2;
             }
 
-            return kind == FinancialOperationKind.CardCancelled ? 0 : 1;
+            return
+                kind
+                    is FinancialOperationKind.CardCancelled
+                        or FinancialOperationKind.CardLimitChanged
+                    ? 0
+                    : 1;
         }
 
         return kind switch {
