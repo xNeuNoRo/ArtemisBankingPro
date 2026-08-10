@@ -403,6 +403,95 @@ public sealed class FinancialOperationTests {
         Assert.Equal(OperationErrors.InvalidDetails, withMovements.Error);
     }
 
+    [Fact]
+    public void Approve_CardAssigned_ZeroAmountsWithoutReferences_IsValid() {
+        FinancialOperation operation = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardAssigned,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            []).Value;
+
+        operation.Kind.Should().Be(FinancialOperationKind.CardAssigned);
+        operation.Status.Should().Be(FinancialOperationStatus.Approved);
+        operation.RequestedAmount.Should().Be(Money.Zero);
+        operation.AppliedAmount.Should().Be(Money.Zero);
+        operation.InterestAmount.Should().Be(Money.Zero);
+        operation.CreditCardId.Should().BeNull();
+        operation.AccountTransactions.Should().BeEmpty();
+        operation.CardConsumption.Should().BeNull();
+    }
+
+    [Fact]
+    public void Approve_CardAssigned_WithPositiveAmount_ReturnsFailure() {
+        Money amount = Money.Create(100m).Value;
+
+        Result<FinancialOperation> result = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardAssigned,
+            amount,
+            amount,
+            Money.Zero,
+            "admin",
+            Now,
+            []);
+
+        Assert.Equal(OperationErrors.InvalidAmountEquation, result.Error);
+    }
+
+    [Fact]
+    public void Approve_CardAssigned_WithCreditCardReference_ReturnsFailure() {
+        Result<FinancialOperation> result = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardAssigned,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            [],
+            creditCardId: 9);
+
+        Assert.Equal(OperationErrors.InvalidProductReference, result.Error);
+    }
+
+    [Fact]
+    public void Approve_CardAssigned_WithConsumptionOrMovements_ReturnsFailure() {
+        CardConsumptionDetails consumption = new(
+            9,
+            null,
+            "AVANCE",
+            ConsumptionType.CashAdvance,
+            Money.Zero);
+
+        Result<FinancialOperation> withConsumption = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardAssigned,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            [],
+            consumption);
+
+        Result<FinancialOperation> withMovements = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardAssigned,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            [Debit(Source, Money.Zero)]);
+
+        Assert.Equal(OperationErrors.InvalidDetails, withConsumption.Error);
+        Assert.Equal(OperationErrors.InvalidDetails, withMovements.Error);
+    }
+
     private static AccountTransactionDetails Debit(AccountNumber account, Money amount) =>
         new(account, TransactionDirection.Debit, amount, Source.Value, Destination.Value);
 

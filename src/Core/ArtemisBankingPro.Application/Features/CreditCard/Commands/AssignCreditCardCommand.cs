@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
 
 namespace ArtemisBankingPro.Application.Features.CreditCard.Commands;
