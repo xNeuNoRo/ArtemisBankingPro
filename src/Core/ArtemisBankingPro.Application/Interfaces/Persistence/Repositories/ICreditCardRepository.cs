@@ -1,9 +1,17 @@
+using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
+using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
 public interface ICreditCardRepository : IGenericRepository<CreditCard> {
+    /// <summary>Consumos de una tarjeta paginados, más recientes primero.</summary>
+    Task<PageResult<CardConsumptionView>> GetConsumptionsPagedAsync(
+        int creditCardId,
+        PageRequest page,
+        CancellationToken ct = default
+    );
     Task<CreditCard?> GetByPanFingerprintAsync(
         string panFingerprint,
         CancellationToken ct = default

@@ -1,7 +1,10 @@
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
 using ArtemisBankingPro.Domain.Cards.Enums;
+using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +13,43 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICreditCardRepository {
     public CreditCardRepository(BankingDbContext context)
         : base(context) { }
+
+    public async Task<PageResult<CardConsumptionView>> GetConsumptionsPagedAsync(
+        int creditCardId,
+        PageRequest page,
+        CancellationToken ct = default
+    ) {
+        IQueryable<CardConsumption> query = Context
+            .Set<CardConsumption>()
+            .AsNoTracking()
+            .Where(consumption => consumption.CreditCardId == creditCardId);
+
+        int totalCount = await query.CountAsync(ct);
+
+        List<CardConsumptionView> items = await query
+            .Join(
+                Context.Set<FinancialOperation>(),
+                consumption => consumption.FinancialOperationId,
+                operation => operation.Id,
+                (consumption, operation) => new { consumption, operation }
+            )
+            .OrderByDescending(item => item.operation.OccurredAt)
+            .ThenByDescending(item => item.consumption.Id)
+            .Skip(page.Skip)
+            .Take(page.PageSize)
+            .Select(item => new CardConsumptionView(
+                item.consumption.Id,
+                item.operation.OccurredAt,
+                item.consumption.Amount.Amount,
+                item.consumption.Type == ConsumptionType.CashAdvance
+                    ? "AVANCE"
+                    : item.consumption.MerchantDisplayName,
+                item.operation.Status
+            ))
+            .ToListAsync(ct);
+
+        return new PageResult<CardConsumptionView>(items, totalCount, page.Page, page.PageSize);
+    }
 
     public Task<CreditCard?> GetByPanFingerprintAsync(
         string panFingerprint,
