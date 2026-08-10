@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
@@ -49,6 +50,68 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
             .ToListAsync(ct);
 
         return new PageResult<CardConsumptionView>(items, totalCount, page.Page, page.PageSize);
+    }
+
+    public async Task<PageResult<CreditCardSummaryDto>> GetPagedAsync(
+        string? customerUserId,
+        CreditCardStatus? status,
+        PageRequest page,
+        CancellationToken ct = default
+    ) {
+        IQueryable<CreditCard> query = DbSet.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(customerUserId)) {
+            query = query.Where(card => card.CustomerUserId == customerUserId);
+        }
+
+        if (status is null) {
+            query = query
+                .OrderByDescending(card => card.Status == CreditCardStatus.Active)
+                .ThenByDescending(card => card.IssuedAt);
+        }
+        else {
+            query = query
+                .Where(card => card.Status == status)
+                .OrderByDescending(card => card.IssuedAt);
+        }
+
+        int totalCount = await query.CountAsync(ct);
+
+        // CreatedAt es una propiedad shadow; los valores complejos (Money,
+        // Expiration) se proyectan y se convierten al DTO en memoria sin
+        // cargar huella del PAN ni el digesto del CVC.
+        var rows = await query
+            .Skip(page.Skip)
+            .Take(page.PageSize)
+            .Select(card => new {
+                card.Id,
+                card.LastFour,
+                card.CustomerUserId,
+                card.CreditLimit,
+                card.CurrentDebt,
+                card.Expiration,
+                card.Status,
+                CreatedAt = EF.Property<DateTimeOffset>(card, "CreatedAt"),
+            })
+            .ToListAsync(ct);
+
+        List<CreditCardSummaryDto> items = rows
+            .Select(card => new CreditCardSummaryDto(
+                card.Id,
+                $"************{card.LastFour}",
+                card.LastFour,
+                card.CustomerUserId,
+                string.Empty,
+                card.CreditLimit.Amount,
+                card.CreditLimit.Amount - card.CurrentDebt.Amount,
+                card.CurrentDebt.Amount,
+                card.Expiration.ToString(),
+                card.Status.ToString(),
+                card.CreatedAt
+            ))
+            .ToList();
+
+        return new PageResult<CreditCardSummaryDto>(items, totalCount, page.Page, page.PageSize);
     }
 
     public Task<CreditCard?> GetByPanFingerprintAsync(

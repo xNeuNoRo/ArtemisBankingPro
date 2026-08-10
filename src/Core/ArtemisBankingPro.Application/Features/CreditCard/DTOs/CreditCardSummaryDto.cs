@@ -1,7 +1,7 @@
 namespace ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 
 /// <summary>Resumen de tarjeta de crédito para listados.</summary>
-public sealed record CreditCardSummeryDto(
+public sealed record CreditCardSummaryDto(
     int Id,
     string MaskedNumber,
     string LastFour,
@@ -10,7 +10,7 @@ public sealed record CreditCardSummeryDto(
     decimal CreditLimit,
     decimal AvailableCredit,
     decimal CurrentDebt,
-    string Status,
     string Expiration,
+    string Status,
     DateTimeOffset CreatedAt
 );
