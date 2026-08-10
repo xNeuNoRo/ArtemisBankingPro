@@ -277,6 +277,44 @@ public sealed class CreditCardTests {
         Assert.Equal(CardErrors.NotActive, result.Error);
     }
 
+    [Fact]
+    public void Cancel_Success_SetsStatusCancelledAtAndRaisesEvent() {
+        CreditCard card = CreateCard();
+
+        card.Cancel(IssuedAt.AddDays(1)).IsSuccess.Should().BeTrue();
+
+        card.Status.Should().Be(CreditCardStatus.Cancelled);
+        card.CancelledAt.Should().Be(IssuedAt.AddDays(1));
+
+        CardCancelledEvent? domainEvent = Assert.IsType<CardCancelledEvent>(
+            card.DomainEvents.OfType<CardCancelledEvent>().Single()
+        );
+        domainEvent.CustomerUserId.Should().Be("customer");
+        domainEvent.LastFour.Should().Be("1111");
+        domainEvent.CancelledAt.Should().Be(IssuedAt.AddDays(1));
+    }
+
+    [Fact]
+    public void Cancel_AlreadyCancelled_ReturnsNotActive() {
+        CreditCard card = CreateCard();
+        card.Cancel(IssuedAt.AddDays(1)).IsSuccess.Should().BeTrue();
+
+        Result result = card.Cancel(IssuedAt.AddDays(2));
+
+        Assert.Equal(CardErrors.NotActive, result.Error);
+        card.CancelledAt.Should().Be(IssuedAt.AddDays(1));
+    }
+
+    [Fact]
+    public void Cancel_WithDebt_DoesNotRaiseEvent() {
+        CreditCard card = CreateCard();
+        card.AuthorizeCharge(Money.Create(1m).Value, IssueDate);
+
+        card.Cancel(IssuedAt.AddDays(1)).IsFailure.Should().BeTrue();
+
+        card.DomainEvents.OfType<CardCancelledEvent>().Should().BeEmpty();
+    }
+
     private static CreditCard CreateCard() =>
         CreditCard.Issue(
             "customer",

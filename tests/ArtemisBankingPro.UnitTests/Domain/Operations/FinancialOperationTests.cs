@@ -220,6 +220,98 @@ public sealed class FinancialOperationTests {
         Assert.Equal(OperationErrors.UnbalancedTransfer, result.Error);
     }
 
+    [Fact]
+    public void Approve_CardCancelled_ZeroAmountsWithoutMovements_IsValid() {
+        FinancialOperation operation = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardCancelled,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            [],
+            creditCardId: 5).Value;
+
+        operation.Kind.Should().Be(FinancialOperationKind.CardCancelled);
+        operation.Status.Should().Be(FinancialOperationStatus.Approved);
+        operation.RequestedAmount.Should().Be(Money.Zero);
+        operation.AppliedAmount.Should().Be(Money.Zero);
+        operation.InterestAmount.Should().Be(Money.Zero);
+        operation.CreditCardId.Should().Be(5);
+        operation.AccountTransactions.Should().BeEmpty();
+        operation.CardConsumption.Should().BeNull();
+    }
+
+    [Fact]
+    public void Approve_CardCancelled_WithPositiveAmount_ReturnsFailure() {
+        Money amount = Money.Create(100m).Value;
+
+        Result<FinancialOperation> result = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardCancelled,
+            amount,
+            amount,
+            Money.Zero,
+            "admin",
+            Now,
+            [],
+            creditCardId: 5);
+
+        Assert.Equal(OperationErrors.InvalidAmountEquation, result.Error);
+    }
+
+    [Fact]
+    public void Approve_CardCancelled_WithoutCreditCard_ReturnsFailure() {
+        Result<FinancialOperation> result = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardCancelled,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            []);
+
+        Assert.Equal(OperationErrors.InvalidProductReference, result.Error);
+    }
+
+    [Fact]
+    public void Approve_CardCancelled_WithConsumptionOrMovements_ReturnsFailure() {
+        CardConsumptionDetails consumption = new(
+            5,
+            null,
+            "AVANCE",
+            ConsumptionType.CashAdvance,
+            Money.Zero);
+
+        Result<FinancialOperation> withConsumption = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardCancelled,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            [],
+            consumption,
+            creditCardId: 5);
+
+        Result<FinancialOperation> withMovements = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CardCancelled,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            [Debit(Source, Money.Zero)],
+            creditCardId: 5);
+
+        Assert.Equal(OperationErrors.InvalidDetails, withConsumption.Error);
+        Assert.Equal(OperationErrors.InvalidDetails, withMovements.Error);
+    }
+
     private static AccountTransactionDetails Debit(AccountNumber account, Money amount) =>
         new(account, TransactionDirection.Debit, amount, Source.Value, Destination.Value);
 

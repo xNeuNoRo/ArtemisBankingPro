@@ -13,7 +13,7 @@ public sealed class FinancialOperationConfiguration : IEntityTypeConfiguration<F
             table => {
                 table.HasCheckConstraint(
                     "CK_FinancialOperations_Requested_Positive",
-                    "[RequestedAmount] > 0"
+                    "([RequestedAmount] > 0 AND [Kind] <> 15) OR ([Kind] = 15 AND [RequestedAmount] = 0)"
                 );
                 table.HasCheckConstraint(
                     "CK_FinancialOperations_Applied_NonNegative",

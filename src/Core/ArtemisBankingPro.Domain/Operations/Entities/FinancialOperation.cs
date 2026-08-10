@@ -265,12 +265,24 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             return Result.Failure(OperationErrors.InvalidActor);
         }
 
-        if (requestedAmount.Amount <= 0m) {
+        bool expectsNoAmount = kind == FinancialOperationKind.CardCancelled;
+
+        if (!expectsNoAmount && requestedAmount.Amount <= 0m) {
             return Result.Failure(OperationErrors.InvalidRequestedAmount);
         }
 
-        if (status == FinancialOperationStatus.Approved && appliedAmount.Amount <= 0m) {
+        if (expectsNoAmount && requestedAmount != Money.Zero) {
+            return Result.Failure(OperationErrors.InvalidAmountEquation);
+        }
+
+        if (status == FinancialOperationStatus.Approved
+            && appliedAmount.Amount <= 0m
+            && !expectsNoAmount) {
             return Result.Failure(OperationErrors.InvalidAppliedAmount);
+        }
+
+        if (expectsNoAmount && appliedAmount != Money.Zero) {
+            return Result.Failure(OperationErrors.InvalidAmountEquation);
         }
 
         if (status == FinancialOperationStatus.Rejected && appliedAmount != Money.Zero) {
@@ -391,7 +403,8 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             kind
             is FinancialOperationKind.CreditCardPayment
                 or FinancialOperationKind.CashAdvance
-                or FinancialOperationKind.HermesPayment;
+                or FinancialOperationKind.HermesPayment
+                or FinancialOperationKind.CardCancelled;
         bool requiresLoan =
             kind is FinancialOperationKind.LoanDisbursement or FinancialOperationKind.LoanPayment;
         bool requiresMerchant = kind == FinancialOperationKind.HermesPayment;
@@ -434,15 +447,18 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         FinancialOperationStatus status
     ) {
         if (status == FinancialOperationStatus.Approved) {
-            return
+            if (
                 kind
                     is FinancialOperationKind.ExpressTransfer
                         or FinancialOperationKind.BeneficiaryTransfer
                         or FinancialOperationKind.OwnAccountTransfer
                         or FinancialOperationKind.CashierTransfer
                         or FinancialOperationKind.SecondaryAccountClosureTransfer
-                ? 2
-                : 1;
+            ) {
+                return 2;
+            }
+
+            return kind == FinancialOperationKind.CardCancelled ? 0 : 1;
         }
 
         return kind switch {

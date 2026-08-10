@@ -207,6 +207,7 @@ public sealed class CreditCard : AggregateRoot<int> {
 
         Status = CreditCardStatus.Cancelled;
         CancelledAt = cancelledAt;
+        RaiseDomainEvent(new CardCancelledEvent(CustomerUserId, LastFour, cancelledAt));
         return Result.Success();
     }
 }

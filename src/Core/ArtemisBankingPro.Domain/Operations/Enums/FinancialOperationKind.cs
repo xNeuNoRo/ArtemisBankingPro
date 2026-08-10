@@ -15,4 +15,5 @@ public enum FinancialOperationKind {
     CashAdvance = 12,
     HermesPayment = 13,
     SecondaryAccountClosureTransfer = 14,
+    CardCancelled = 15,
 }
