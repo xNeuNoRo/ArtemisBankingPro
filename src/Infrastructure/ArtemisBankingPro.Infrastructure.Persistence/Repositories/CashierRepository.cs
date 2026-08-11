@@ -44,7 +44,9 @@ public sealed class CashierRepository : ICashierRepository {
                 && operation.OccurredAt < endUtc
             );
 
-        int totalTransactions = await dayOperations.CountAsync(ct);
+        // Indicadores exclusivos del cajero autenticado; agregados con COUNT
+        // en SQL, sin materializar filas.
+        int transactionsToday = await dayOperations.CountAsync(ct);
 
         int depositsToday = await dayOperations.CountAsync(
             operation =>
@@ -60,22 +62,21 @@ public sealed class CashierRepository : ICashierRepository {
             ct
         );
 
-        // Solo los pagos aprobados suman al indicador; los rechazados no
-        // modifican deuda ni montos.
-        decimal[] paymentAmounts = await dayOperations
-            .Where(operation =>
+        // Solo los pagos aprobados a tarjeta y a préstamo cuentan; los
+        // rechazados no modifican deuda ni montos.
+        int paymentsToday = await dayOperations.CountAsync(
+            operation =>
                 PaymentKinds.Contains(operation.Kind)
-                && operation.Status == FinancialOperationStatus.Approved
-            )
-            .Select(operation => operation.AppliedAmount.Amount)
-            .ToArrayAsync(ct);
+                && operation.Status == FinancialOperationStatus.Approved,
+            ct
+        );
 
-        return new CashierDashboardDto {
-            TotalTransactions = totalTransactions,
-            PaymentsToday = paymentAmounts.Sum(),
-            DepositsToday = depositsToday,
-            WithdrawalsToday = withdrawalsToday,
-        };
+        return new CashierDashboardDto(
+            transactionsToday,
+            paymentsToday,
+            depositsToday,
+            withdrawalsToday
+        );
     }
 
     public async Task<PageResult<CashierOperationDto>> GetOperationsPagedAsync(

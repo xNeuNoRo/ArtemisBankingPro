@@ -220,10 +220,10 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
 
             var dashboard = await repository.GetDashboardAsync(Cashier, BusinessDate);
 
-            dashboard.TotalTransactions.Should().Be(6);
+            dashboard.TransactionsToday.Should().Be(6);
             dashboard.DepositsToday.Should().Be(2);
             dashboard.WithdrawalsToday.Should().Be(1);
-            dashboard.PaymentsToday.Should().Be(1_600m);
+            dashboard.PaymentsToday.Should().Be(2);
         });
     }
 
@@ -267,10 +267,10 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
 
             var dashboard = await repository.GetDashboardAsync(Cashier, BusinessDate);
 
-            dashboard.TotalTransactions.Should().Be(0);
+            dashboard.TransactionsToday.Should().Be(0);
             dashboard.DepositsToday.Should().Be(0);
             dashboard.WithdrawalsToday.Should().Be(0);
-            dashboard.PaymentsToday.Should().Be(0m);
+            dashboard.PaymentsToday.Should().Be(0);
         });
     }
 
@@ -292,7 +292,7 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
 
             var dashboard = await repository.GetDashboardAsync(Cashier, BusinessDate);
 
-            dashboard.TotalTransactions.Should().Be(2);
+            dashboard.TransactionsToday.Should().Be(2);
             dashboard.DepositsToday.Should().Be(2);
         });
     }
