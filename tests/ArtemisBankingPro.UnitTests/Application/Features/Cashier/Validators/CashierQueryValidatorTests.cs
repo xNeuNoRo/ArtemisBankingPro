@@ -1,8 +1,6 @@
 using ArtemisBankingPro.Application.Common.Interfaces;
-using ArtemisBankingPro.Application.Features.Cashier.DTOs;
 using ArtemisBankingPro.Application.Features.Cashier.Queries;
 using ArtemisBankingPro.Application.Features.Cashier.Validators;
-using ArtemisBankingPro.Domain.Operations.Enums;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Cashier.Validators;
 
@@ -47,12 +45,12 @@ public sealed class GetCashierDashboardQueryValidatorTests {
     }
 }
 
-public sealed class GetCashierOperationsPagedQueryValidatorTests {
-    private readonly GetCashierOperationsPagedQueryValidator _validator = new();
+public sealed class GetCashierOperationsQueryValidatorTests {
+    private readonly GetCashierOperationsQueryValidator _validator = new();
 
     [Fact]
     public async Task Validate_Defaults_Pass() {
-        var result = await _validator.ValidateAsync(new GetCashierOperationsPagedQuery("cashier-1"));
+        var result = await _validator.ValidateAsync(new GetCashierOperationsQuery());
 
         result.IsValid.Should().BeTrue();
     }
@@ -60,14 +58,10 @@ public sealed class GetCashierOperationsPagedQueryValidatorTests {
     [Fact]
     public async Task Validate_ValidFiltersAndPagination_Pass() {
         var result = await _validator.ValidateAsync(
-            new GetCashierOperationsPagedQuery(
-                "cashier-1",
-                new CashierOperationFilters(
-                    FinancialOperationKind.Deposit,
-                    FinancialOperationStatus.Approved,
-                    new DateOnly(2026, 8, 1),
-                    new DateOnly(2026, 8, 6)
-                ),
+            new GetCashierOperationsQuery(
+                new DateTimeOffset(2026, 8, 1, 4, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 8, 6, 4, 0, 0, TimeSpan.Zero),
+                "LoanPayment",
                 Page: 2,
                 PageSize: 15
             )
@@ -76,18 +70,38 @@ public sealed class GetCashierOperationsPagedQueryValidatorTests {
         result.IsValid.Should().BeTrue();
     }
 
-    [Fact]
-    public async Task Validate_EmptyCashierId_Fails() {
-        var result = await _validator.ValidateAsync(new GetCashierOperationsPagedQuery(""));
+    [Theory]
+    [InlineData("Deposit")]
+    [InlineData("Withdrawal")]
+    [InlineData("CardPayment")]
+    [InlineData("LoanPayment")]
+    [InlineData("ThirdPartyTransfer")]
+    [InlineData("thirdpartytransfer")]
+    public async Task Validate_ValidOperationTypes_Pass(string operationType) {
+        var result = await _validator.ValidateAsync(
+            new GetCashierOperationsQuery(OperationType: operationType)
+        );
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("Transfer")]
+    [InlineData("ExpressTransfer")]
+    [InlineData("")]
+    public async Task Validate_InvalidOperationType_Fails(string operationType) {
+        var result = await _validator.ValidateAsync(
+            new GetCashierOperationsQuery(OperationType: operationType)
+        );
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "CashierId");
+        result.Errors.Should().Contain(e => e.PropertyName == "OperationType");
     }
 
     [Fact]
     public async Task Validate_PageZero_Fails() {
         var result = await _validator.ValidateAsync(
-            new GetCashierOperationsPagedQuery("cashier-1", Page: 0)
+            new GetCashierOperationsQuery(Page: 0)
         );
 
         result.IsValid.Should().BeFalse();
@@ -99,7 +113,7 @@ public sealed class GetCashierOperationsPagedQueryValidatorTests {
     [InlineData(21)]
     public async Task Validate_InvalidPageSize_Fails(int pageSize) {
         var result = await _validator.ValidateAsync(
-            new GetCashierOperationsPagedQuery("cashier-1", PageSize: pageSize)
+            new GetCashierOperationsQuery(PageSize: pageSize)
         );
 
         result.IsValid.Should().BeFalse();
@@ -107,52 +121,25 @@ public sealed class GetCashierOperationsPagedQueryValidatorTests {
     }
 
     [Fact]
-    public async Task Validate_InvalidKind_Fails() {
+    public async Task Validate_DateFromAfterDateTo_Fails() {
         var result = await _validator.ValidateAsync(
-            new GetCashierOperationsPagedQuery(
-                "cashier-1",
-                new CashierOperationFilters(Kind: (FinancialOperationKind)999)
+            new GetCashierOperationsQuery(
+                new DateTimeOffset(2026, 8, 6, 4, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 8, 1, 4, 0, 0, TimeSpan.Zero)
             )
         );
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "Filters.Kind.Value");
+        result
+            .Errors.Should()
+            .Contain(e => e.ErrorMessage == "La fecha inicial debe ser anterior o igual a la fecha final.");
     }
 
     [Fact]
-    public async Task Validate_InvalidStatus_Fails() {
-        var result = await _validator.ValidateAsync(
-            new GetCashierOperationsPagedQuery(
-                "cashier-1",
-                new CashierOperationFilters(Status: (FinancialOperationStatus)999)
-            )
-        );
+    public void Query_RequiresCajeroAndAdministradorRoles() {
+        var query = new GetCashierOperationsQuery();
 
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "Filters.Status.Value");
-    }
-
-    [Fact]
-    public async Task Validate_FromDateAfterToDate_Fails() {
-        var result = await _validator.ValidateAsync(
-            new GetCashierOperationsPagedQuery(
-                "cashier-1",
-                new CashierOperationFilters(
-                    FromDate: new DateOnly(2026, 8, 6),
-                    ToDate: new DateOnly(2026, 8, 1)
-                )
-            )
-        );
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "Filters");
-    }
-
-    [Fact]
-    public void Query_RequiresCajeroRole() {
-        var query = new GetCashierOperationsPagedQuery("cashier-1");
-
-        query.RequiredRoles.Should().Equal("Cajero");
+        query.RequiredRoles.Should().Equal("Cajero", "Administrador");
         (query is IAuthorize).Should().BeTrue();
     }
 }

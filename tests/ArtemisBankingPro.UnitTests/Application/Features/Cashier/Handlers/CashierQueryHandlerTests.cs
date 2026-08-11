@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Application.Features.Cashier.DTOs;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
 using ArtemisBankingPro.Application.Features.Cashier.Queries;
+using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Operations.Enums;
@@ -116,9 +117,15 @@ public sealed class GetCashierDashboardQueryHandlerTests {
     }
 }
 
-public sealed class GetCashierOperationsPagedQueryHandlerTests {
+public sealed class GetCashierOperationsQueryHandlerTests {
     private static readonly DateTimeOffset OccurredAt =
         new(2026, 8, 6, 12, 0, 0, TimeSpan.Zero);
+
+    private static Mock<ICurrentUserService> CurrentUser(string userId = "cashier-1") {
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(service => service.UserId).Returns(userId);
+        return currentUser;
+    }
 
     private static PageResult<CashierOperationDto> SamplePage() =>
         new(
@@ -152,18 +159,15 @@ public sealed class GetCashierOperationsPagedQueryHandlerTests {
         );
 
     [Fact]
-    public async Task Handle_ReturnsPagedOperationsFromRepository() {
+    public async Task Handle_ReturnsPagedOperationsForAuthenticatedCashier() {
         var repository = new Mock<ICashierRepository>();
         repository
             .Setup(r => r.GetOperationsPagedAsync(It.IsAny<string>(), It.IsAny<CashierOperationFilters>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SamplePage());
 
-        var handler = new GetCashierOperationsPagedQueryHandler(repository.Object);
+        var handler = new GetCashierOperationsQueryHandler(repository.Object, CurrentUser().Object);
 
-        var result = await handler.Handle(
-            new GetCashierOperationsPagedQuery("cashier-1"),
-            CancellationToken.None
-        );
+        var result = await handler.Handle(new GetCashierOperationsQuery(), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.TotalCount.Should().Be(2);
@@ -176,52 +180,68 @@ public sealed class GetCashierOperationsPagedQueryHandlerTests {
     }
 
     [Fact]
-    public async Task Handle_PassesFiltersAndPagedContractToRepository() {
+    public async Task Handle_PassesAuthenticatedCashierIdAndFiltersToRepository() {
+        DateTimeOffset from = new(2026, 8, 1, 4, 0, 0, TimeSpan.Zero);
+        DateTimeOffset to = new(2026, 8, 6, 4, 0, 0, TimeSpan.Zero);
+
         var repository = new Mock<ICashierRepository>();
         repository
             .Setup(r => r.GetOperationsPagedAsync(It.IsAny<string>(), It.IsAny<CashierOperationFilters>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PageResult<CashierOperationDto>([], TotalCount: 0, Page: 1, PageSize: 20));
 
-        var filters = new CashierOperationFilters(
-            FinancialOperationKind.Deposit,
-            FinancialOperationStatus.Approved
+        var handler = new GetCashierOperationsQueryHandler(
+            repository.Object,
+            CurrentUser("cashier-9").Object
         );
 
-        var handler = new GetCashierOperationsPagedQueryHandler(repository.Object);
-
         await handler.Handle(
-            new GetCashierOperationsPagedQuery("cashier-1", filters, Page: 2, PageSize: 15),
+            new GetCashierOperationsQuery(from, to, "Deposit", Page: 2, PageSize: 15),
             CancellationToken.None
         );
 
         repository.Verify(
             r => r.GetOperationsPagedAsync(
-                "cashier-1",
-                It.Is<CashierOperationFilters>(value => value == filters),
-                It.Is<PageRequest>(value => value.Page == 2 && value.PageSize == 15),
+                "cashier-9",
+                It.Is<CashierOperationFilters>(filters =>
+                    filters.DateFrom == from
+                    && filters.DateTo == to
+                    && filters.Kind == FinancialOperationKind.Deposit
+                ),
+                It.Is<PageRequest>(page => page.Page == 2 && page.PageSize == 15),
                 It.IsAny<CancellationToken>()
             ),
             Times.Once
         );
     }
 
-    [Fact]
-    public async Task Handle_NullFilters_PassesDefaultFilters() {
+    [Theory]
+    [InlineData("Deposit", FinancialOperationKind.Deposit)]
+    [InlineData("Withdrawal", FinancialOperationKind.Withdrawal)]
+    [InlineData("CardPayment", FinancialOperationKind.CreditCardPayment)]
+    [InlineData("LoanPayment", FinancialOperationKind.LoanPayment)]
+    [InlineData("ThirdPartyTransfer", FinancialOperationKind.CashierTransfer)]
+    [InlineData("thirdpartytransfer", FinancialOperationKind.CashierTransfer)]
+    [InlineData(null, null)]
+    public async Task Handle_OperationType_MapsToRepositoryKind(
+        string? operationType,
+        FinancialOperationKind? expectedKind
+    ) {
         var repository = new Mock<ICashierRepository>();
         repository
             .Setup(r => r.GetOperationsPagedAsync(It.IsAny<string>(), It.IsAny<CashierOperationFilters>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PageResult<CashierOperationDto>([], TotalCount: 0, Page: 1, PageSize: 20));
 
-        CashierOperationFilters defaultFilters = new();
+        var handler = new GetCashierOperationsQueryHandler(repository.Object, CurrentUser().Object);
 
-        var handler = new GetCashierOperationsPagedQueryHandler(repository.Object);
-
-        await handler.Handle(new GetCashierOperationsPagedQuery("cashier-1"), CancellationToken.None);
+        await handler.Handle(
+            new GetCashierOperationsQuery(OperationType: operationType),
+            CancellationToken.None
+        );
 
         repository.Verify(
             r => r.GetOperationsPagedAsync(
-                "cashier-1",
-                It.Is<CashierOperationFilters>(value => value == defaultFilters),
+                It.IsAny<string>(),
+                It.Is<CashierOperationFilters>(filters => filters.Kind == expectedKind),
                 It.IsAny<PageRequest>(),
                 It.IsAny<CancellationToken>()
             ),
@@ -236,12 +256,9 @@ public sealed class GetCashierOperationsPagedQueryHandlerTests {
             .Setup(r => r.GetOperationsPagedAsync(It.IsAny<string>(), It.IsAny<CashierOperationFilters>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PageResult<CashierOperationDto>([], TotalCount: 0, Page: 1, PageSize: 20));
 
-        var handler = new GetCashierOperationsPagedQueryHandler(repository.Object);
+        var handler = new GetCashierOperationsQueryHandler(repository.Object, CurrentUser().Object);
 
-        var result = await handler.Handle(
-            new GetCashierOperationsPagedQuery("unknown-cashier"),
-            CancellationToken.None
-        );
+        var result = await handler.Handle(new GetCashierOperationsQuery(), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Items.Should().BeEmpty();
@@ -255,16 +272,10 @@ public sealed class GetCashierOperationsPagedQueryHandlerTests {
             .Setup(r => r.GetOperationsPagedAsync(It.IsAny<string>(), It.IsAny<CashierOperationFilters>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SamplePage());
 
-        var handler = new GetCashierOperationsPagedQueryHandler(repository.Object);
+        var handler = new GetCashierOperationsQueryHandler(repository.Object, CurrentUser().Object);
 
-        var first = await handler.Handle(
-            new GetCashierOperationsPagedQuery("cashier-1"),
-            CancellationToken.None
-        );
-        var second = await handler.Handle(
-            new GetCashierOperationsPagedQuery("cashier-1"),
-            CancellationToken.None
-        );
+        var first = await handler.Handle(new GetCashierOperationsQuery(), CancellationToken.None);
+        var second = await handler.Handle(new GetCashierOperationsQuery(), CancellationToken.None);
 
         second.Value.Should().BeEquivalentTo(first.Value);
         repository.Verify(
@@ -274,10 +285,10 @@ public sealed class GetCashierOperationsPagedQueryHandlerTests {
     }
 
     [Fact]
-    public void Query_RequiresCajeroRole() {
-        var query = new GetCashierOperationsPagedQuery("cashier-1");
+    public void Query_RequiresCajeroAndAdministradorRoles() {
+        var query = new GetCashierOperationsQuery();
 
-        query.RequiredRoles.Should().Equal("Cajero");
+        query.RequiredRoles.Should().Equal("Cajero", "Administrador");
         (query is IAuthorize).Should().BeTrue();
     }
 }

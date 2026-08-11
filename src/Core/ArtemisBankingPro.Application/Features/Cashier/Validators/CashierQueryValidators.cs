@@ -17,14 +17,11 @@ public sealed class GetCashierDashboardQueryValidator : AbstractValidator<GetCas
     }
 }
 
-public sealed class GetCashierOperationsPagedQueryValidator
-    : AbstractValidator<GetCashierOperationsPagedQuery> {
-    public GetCashierOperationsPagedQueryValidator() {
-        RuleFor(x => x.CashierId)
-            .NotEmpty()
-            .WithMessage("El identificador del cajero es requerido.")
-            .MaximumLength(450);
+public sealed class GetCashierOperationsQueryValidator : AbstractValidator<GetCashierOperationsQuery> {
+    private static readonly string[] AllowedOperationTypes =
+        ["Deposit", "Withdrawal", "CardPayment", "LoanPayment", "ThirdPartyTransfer"];
 
+    public GetCashierOperationsQueryValidator() {
         RuleFor(x => x.Page)
             .GreaterThanOrEqualTo(PageRequest.DefaultPage)
             .WithMessage("La página debe ser mayor o igual a 1.");
@@ -33,29 +30,21 @@ public sealed class GetCashierOperationsPagedQueryValidator
             .InclusiveBetween(1, PageRequest.MaxPageSize)
             .WithMessage($"El tamaño de página debe estar entre 1 y {PageRequest.MaxPageSize}.");
 
-        When(x => x.Filters is not null, () => {
-            When(x => x.Filters!.Kind is not null, () => {
-                RuleFor(x => x.Filters!.Kind!.Value)
-                    .IsInEnum()
-                    .WithMessage("El tipo de operación no es válido.");
-            });
+        When(x => x.OperationType is not null, () => {
+            RuleFor(x => x.OperationType)
+                .Must(operationType =>
+                    AllowedOperationTypes.Contains(operationType!, StringComparer.OrdinalIgnoreCase)
+                )
+                .WithMessage(
+                    "El tipo de operación debe ser Deposit, Withdrawal, CardPayment, "
+                        + "LoanPayment o ThirdPartyTransfer."
+                );
+        });
 
-            When(x => x.Filters!.Status is not null, () => {
-                RuleFor(x => x.Filters!.Status!.Value)
-                    .IsInEnum()
-                    .WithMessage("El estado no es válido.");
-            });
-
-            When(
-                x => x.Filters!.FromDate is not null && x.Filters.ToDate is not null,
-                () => {
-                    RuleFor(x => x.Filters)
-                        .Must(filters => filters!.FromDate <= filters.ToDate)
-                        .WithMessage(
-                            "La fecha inicial debe ser anterior o igual a la fecha final."
-                        );
-                }
-            );
+        When(x => x.DateFrom is not null && x.DateTo is not null, () => {
+            RuleFor(x => x)
+                .Must(query => query.DateFrom <= query.DateTo)
+                .WithMessage("La fecha inicial debe ser anterior o igual a la fecha final.");
         });
     }
 }
