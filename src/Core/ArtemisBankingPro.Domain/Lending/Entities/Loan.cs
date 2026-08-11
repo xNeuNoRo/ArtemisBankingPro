@@ -158,6 +158,19 @@ public sealed class Loan : AggregateRoot<int> {
         if (OutstandingAmount == Money.Zero) {
             Status = LoanStatus.Completed;
             CompletedAt = paidAt;
+            RaiseDomainEvent(new LoanCompletedEvent(CustomerUserId, Number, paidAt));
+        }
+
+        if (appliedAmount > Money.Zero) {
+            RaiseDomainEvent(
+                new LoanPaymentProcessedEvent(
+                    CustomerUserId,
+                    Number,
+                    appliedAmount,
+                    OutstandingAmount,
+                    paidAt
+                )
+            );
         }
 
         return Result.Success(appliedAmount);

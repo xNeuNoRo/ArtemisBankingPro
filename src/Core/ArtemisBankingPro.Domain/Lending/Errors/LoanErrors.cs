@@ -80,4 +80,10 @@ public static class LoanErrors {
             "Loan.NoEligibleInstallments",
             "El préstamo no tiene cuotas futuras pendientes elegibles para recálculo."
         );
+
+    public static DomainError NoPendingInstallments { get; } =
+        DomainError.Conflict(
+            "Loan.NoPendingInstallments",
+            "El préstamo no tiene cuotas pendientes por pagar."
+        );
 }
