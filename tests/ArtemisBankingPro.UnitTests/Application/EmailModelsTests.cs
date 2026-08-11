@@ -319,4 +319,103 @@ public sealed class EmailModelsTests {
         model.AmountText.Should().Be("RD$ 900.00");
         model.OccurredAtText.Should().Be("06/08/2026 12:30");
     }
+
+    [Fact]
+    public void Deposit_HasSpecSubject() {
+        var model = new DepositModel(
+            "Juan Pérez",
+            "3333",
+            Money.Create(500m).Value,
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Depósito realizado a su cuenta 3333");
+        model.TemplateName.Should().Be("Deposit");
+        model.AmountText.Should().Be("RD$ 500.00");
+        model.OccurredAtText.Should().Be("06/08/2026 12:30");
+    }
+
+    [Fact]
+    public void Withdrawal_HasSpecSubject() {
+        var model = new WithdrawalModel(
+            "Juan Pérez",
+            "3333",
+            Money.Create(200m).Value,
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Retiro realizado desde su cuenta 3333");
+        model.TemplateName.Should().Be("Withdrawal");
+        model.AmountText.Should().Be("RD$ 200.00");
+    }
+
+    [Fact]
+    public void CardPayment_HasSpecSubject() {
+        var model = new CardPaymentModel(
+            "Juan Pérez",
+            "1234",
+            Money.Create(700m).Value,
+            "3333",
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Pago realizado a la tarjeta 1234");
+        model.TemplateName.Should().Be("CardPayment");
+        model.AmountText.Should().Be("RD$ 700.00");
+        model.SourceAccountLastFour.Should().Be("3333");
+    }
+
+    [Fact]
+    public void LoanPayment_HasSpecSubject() {
+        var model = new LoanPaymentModel(
+            "Juan Pérez",
+            "300000001",
+            Money.Create(900m).Value,
+            "3333",
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Pago realizado al préstamo 300000001");
+        model.TemplateName.Should().Be("LoanPayment");
+        model.AmountText.Should().Be("RD$ 900.00");
+        model.SourceAccountLastFour.Should().Be("3333");
+    }
+
+    [Fact]
+    public void ThirdPartyTransferSender_HasSpecSubject() {
+        var model = new ThirdPartyTransferSenderModel(
+            "Juan Pérez",
+            Money.Create(1_500m).Value,
+            "1111",
+            "2222",
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Transacción realizada a la cuenta 2222");
+        model.TemplateName.Should().Be("ThirdPartyTransferSender");
+        model.AmountText.Should().Be("RD$ 1500.00");
+        model.OccurredAtText.Should().Be("06/08/2026 12:30");
+    }
+
+    [Fact]
+    public void ThirdPartyTransferReceiver_HasSpecSubject() {
+        var model = new ThirdPartyTransferReceiverModel(
+            "María Gómez",
+            Money.Create(1_500m).Value,
+            "1111",
+            "2222",
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Transacción enviada desde la cuenta 1111");
+        model.TemplateName.Should().Be("ThirdPartyTransferReceiver");
+        model.AmountText.Should().Be("RD$ 1500.00");
+        model.OccurredAtText.Should().Be("06/08/2026 12:30");
+    }
 }
