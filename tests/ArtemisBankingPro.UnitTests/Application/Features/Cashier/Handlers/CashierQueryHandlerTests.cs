@@ -4,6 +4,7 @@ using ArtemisBankingPro.Application.Features.Cashier.Handlers;
 using ArtemisBankingPro.Application.Features.Cashier.Queries;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Moq;
@@ -13,13 +14,20 @@ namespace ArtemisBankingPro.UnitTests.Application.Features.Cashier.Handlers;
 public sealed class GetCashierDashboardQueryHandlerTests {
     private static readonly DateOnly BusinessDate = new(2026, 8, 6);
 
+    private static Mock<IBusinessClock> Clock(DateOnly today) {
+        var clock = new Mock<IBusinessClock>();
+        clock.SetupGet(c => c.Today).Returns(today);
+        return clock;
+    }
+
+    private static Mock<ICurrentUserService> CurrentUser(string userId = "cashier-1") {
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(service => service.UserId).Returns(userId);
+        return currentUser;
+    }
+
     private static CashierDashboardDto SampleDashboard() =>
-        new() {
-            TotalTransactions = 7,
-            PaymentsToday = 1_600m,
-            DepositsToday = 3,
-            WithdrawalsToday = 2,
-        };
+        new(TransactionsToday: 7, PaymentsToday: 2, DepositsToday: 3, WithdrawalsToday: 2);
 
     [Fact]
     public async Task Handle_ReturnsDashboardFromRepository() {
@@ -28,36 +36,38 @@ public sealed class GetCashierDashboardQueryHandlerTests {
             .Setup(r => r.GetDashboardAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SampleDashboard());
 
-        var handler = new GetCashierDashboardQueryHandler(repository.Object);
-
-        var result = await handler.Handle(
-            new GetCashierDashboardQuery("cashier-1", BusinessDate),
-            CancellationToken.None
+        var handler = new GetCashierDashboardQueryHandler(
+            repository.Object,
+            CurrentUser().Object,
+            Clock(BusinessDate).Object
         );
 
+        var result = await handler.Handle(new GetCashierDashboardQuery(), CancellationToken.None);
+
         result.IsSuccess.Should().BeTrue();
-        result.Value.TotalTransactions.Should().Be(7);
-        result.Value.PaymentsToday.Should().Be(1_600m);
+        result.Value.TransactionsToday.Should().Be(7);
+        result.Value.PaymentsToday.Should().Be(2);
         result.Value.DepositsToday.Should().Be(3);
         result.Value.WithdrawalsToday.Should().Be(2);
     }
 
     [Fact]
-    public async Task Handle_PassesCashierIdAndBusinessDateToRepository() {
+    public async Task Handle_UsesAuthenticatedCashierIdAndBusinessToday() {
         var repository = new Mock<ICashierRepository>();
         repository
             .Setup(r => r.GetDashboardAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CashierDashboardDto());
+            .ReturnsAsync(new CashierDashboardDto(0, 0, 0, 0));
 
-        var handler = new GetCashierDashboardQueryHandler(repository.Object);
-
-        await handler.Handle(
-            new GetCashierDashboardQuery("cashier-9", BusinessDate),
-            CancellationToken.None
+        var handler = new GetCashierDashboardQueryHandler(
+            repository.Object,
+            CurrentUser("auth-cashier-42").Object,
+            Clock(BusinessDate).Object
         );
 
+        await handler.Handle(new GetCashierDashboardQuery(), CancellationToken.None);
+
         repository.Verify(
-            r => r.GetDashboardAsync("cashier-9", BusinessDate, It.IsAny<CancellationToken>()),
+            r => r.GetDashboardAsync("auth-cashier-42", BusinessDate, It.IsAny<CancellationToken>()),
             Times.Once
         );
     }
@@ -67,18 +77,19 @@ public sealed class GetCashierDashboardQueryHandlerTests {
         var repository = new Mock<ICashierRepository>();
         repository
             .Setup(r => r.GetDashboardAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CashierDashboardDto());
+            .ReturnsAsync(new CashierDashboardDto(0, 0, 0, 0));
 
-        var handler = new GetCashierDashboardQueryHandler(repository.Object);
-
-        var result = await handler.Handle(
-            new GetCashierDashboardQuery("unknown-cashier", BusinessDate),
-            CancellationToken.None
+        var handler = new GetCashierDashboardQueryHandler(
+            repository.Object,
+            CurrentUser().Object,
+            Clock(BusinessDate).Object
         );
 
+        var result = await handler.Handle(new GetCashierDashboardQuery(), CancellationToken.None);
+
         result.IsSuccess.Should().BeTrue();
-        result.Value.TotalTransactions.Should().Be(0);
-        result.Value.PaymentsToday.Should().Be(0m);
+        result.Value.TransactionsToday.Should().Be(0);
+        result.Value.PaymentsToday.Should().Be(0);
         result.Value.DepositsToday.Should().Be(0);
         result.Value.WithdrawalsToday.Should().Be(0);
     }
@@ -90,16 +101,14 @@ public sealed class GetCashierDashboardQueryHandlerTests {
             .Setup(r => r.GetDashboardAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(SampleDashboard());
 
-        var handler = new GetCashierDashboardQueryHandler(repository.Object);
+        var handler = new GetCashierDashboardQueryHandler(
+            repository.Object,
+            CurrentUser().Object,
+            Clock(BusinessDate).Object
+        );
 
-        var first = await handler.Handle(
-            new GetCashierDashboardQuery("cashier-1", BusinessDate),
-            CancellationToken.None
-        );
-        var second = await handler.Handle(
-            new GetCashierDashboardQuery("cashier-1", BusinessDate),
-            CancellationToken.None
-        );
+        var first = await handler.Handle(new GetCashierDashboardQuery(), CancellationToken.None);
+        var second = await handler.Handle(new GetCashierDashboardQuery(), CancellationToken.None);
 
         second.Value.Should().BeEquivalentTo(first.Value);
         repository.Verify(
@@ -109,10 +118,10 @@ public sealed class GetCashierDashboardQueryHandlerTests {
     }
 
     [Fact]
-    public void Query_RequiresCajeroRole() {
-        var query = new GetCashierDashboardQuery("cashier-1", BusinessDate);
+    public void Query_RequiresCajeroAndAdministradorRoles() {
+        var query = new GetCashierDashboardQuery();
 
-        query.RequiredRoles.Should().Equal("Cajero");
+        query.RequiredRoles.Should().Equal("Cajero", "Administrador");
         (query is IAuthorize).Should().BeTrue();
     }
 }

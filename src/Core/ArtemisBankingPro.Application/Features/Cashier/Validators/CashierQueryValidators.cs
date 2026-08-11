@@ -4,19 +4,6 @@ using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Cashier.Validators;
 
-public sealed class GetCashierDashboardQueryValidator : AbstractValidator<GetCashierDashboardQuery> {
-    public GetCashierDashboardQueryValidator() {
-        RuleFor(x => x.CashierId)
-            .NotEmpty()
-            .WithMessage("El identificador del cajero es requerido.")
-            .MaximumLength(450);
-
-        RuleFor(x => x.Date)
-            .NotEmpty()
-            .WithMessage("La fecha es requerida.");
-    }
-}
-
 public sealed class GetCashierOperationsQueryValidator : AbstractValidator<GetCashierOperationsQuery> {
     private static readonly string[] AllowedOperationTypes =
         ["Deposit", "Withdrawal", "CardPayment", "LoanPayment", "ThirdPartyTransfer"];

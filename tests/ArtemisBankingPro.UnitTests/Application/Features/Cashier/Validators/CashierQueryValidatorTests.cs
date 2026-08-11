@@ -4,47 +4,6 @@ using ArtemisBankingPro.Application.Features.Cashier.Validators;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Cashier.Validators;
 
-public sealed class GetCashierDashboardQueryValidatorTests {
-    private readonly GetCashierDashboardQueryValidator _validator = new();
-
-    [Fact]
-    public async Task Validate_ValidQuery_Passes() {
-        var result = await _validator.ValidateAsync(
-            new GetCashierDashboardQuery("cashier-1", new DateOnly(2026, 8, 6))
-        );
-
-        result.IsValid.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task Validate_EmptyCashierId_Fails() {
-        var result = await _validator.ValidateAsync(
-            new GetCashierDashboardQuery("", new DateOnly(2026, 8, 6))
-        );
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "CashierId");
-    }
-
-    [Fact]
-    public async Task Validate_DefaultDate_Fails() {
-        var result = await _validator.ValidateAsync(
-            new GetCashierDashboardQuery("cashier-1", default)
-        );
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "Date");
-    }
-
-    [Fact]
-    public void Query_RequiresCajeroRole() {
-        var query = new GetCashierDashboardQuery("cashier-1", new DateOnly(2026, 8, 6));
-
-        query.RequiredRoles.Should().Equal("Cajero");
-        (query is IAuthorize).Should().BeTrue();
-    }
-}
-
 public sealed class GetCashierOperationsQueryValidatorTests {
     private readonly GetCashierOperationsQueryValidator _validator = new();
 
