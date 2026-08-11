@@ -81,6 +81,32 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
 
     public CardConsumption? CardConsumption { get; private set; }
 
+    /// <summary>
+    /// Marca la operación como una transferencia a cuentas de terceros
+    /// procesada, desencadenando <see cref="ThirdPartyTransferProcessedEvent"/>
+    /// para las notificaciones post-commit. Solo transporta datos seguros.
+    /// </summary>
+    public void RecordThirdPartyTransferProcessed(
+        string sourceAccountNumber,
+        string destinationAccountNumber,
+        Money amount,
+        string sourceOwnerUserId,
+        string destinationOwnerUserId,
+        string cashierUserId
+    ) =>
+        RaiseDomainEvent(
+            new ThirdPartyTransferProcessedEvent(
+                Id,
+                sourceAccountNumber,
+                destinationAccountNumber,
+                amount,
+                sourceOwnerUserId,
+                destinationOwnerUserId,
+                cashierUserId,
+                OccurredAt
+            )
+        );
+
     public static Result<FinancialOperation> Approve(
         Guid id,
         FinancialOperationKind kind,

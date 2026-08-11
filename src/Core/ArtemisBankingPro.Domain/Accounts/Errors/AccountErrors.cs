@@ -33,6 +33,18 @@ public static class AccountErrors {
     public static DomainError NotActive { get; } =
         DomainError.Conflict("Account.NotActive", "La cuenta de ahorro no está activa.");
 
+    public static DomainError SourceNotFound { get; } =
+        DomainError.NotFound(
+            "Account.SourceNotFound",
+            "No existe una cuenta de ahorro con el número indicado como origen."
+        );
+
+    public static DomainError DestinationNotFound { get; } =
+        DomainError.NotFound(
+            "Account.DestinationNotFound",
+            "No existe una cuenta de ahorro con el número indicado como destino."
+        );
+
     public static DomainError InsufficientFunds { get; } =
         DomainError.Declined(
             "Account.InsufficientFunds",
