@@ -92,18 +92,12 @@ public sealed class CashierRepository : ICashierRepository {
             query = query.Where(operation => operation.Kind == filters.Kind);
         }
 
-        if (filters.Status is not null) {
-            query = query.Where(operation => operation.Status == filters.Status);
+        if (filters.DateFrom is { } dateFrom) {
+            query = query.Where(operation => operation.OccurredAt >= dateFrom);
         }
 
-        if (filters.FromDate is not null) {
-            (DateTimeOffset start, _) = ToUtcRange(filters.FromDate.Value);
-            query = query.Where(operation => operation.OccurredAt >= start);
-        }
-
-        if (filters.ToDate is not null) {
-            (_, DateTimeOffset end) = ToUtcRange(filters.ToDate.Value.AddDays(1));
-            query = query.Where(operation => operation.OccurredAt < end);
+        if (filters.DateTo is { } dateTo) {
+            query = query.Where(operation => operation.OccurredAt <= dateTo);
         }
 
         int totalCount = await query.CountAsync(ct);

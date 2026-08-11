@@ -3,12 +3,11 @@ using ArtemisBankingPro.Domain.Operations.Enums;
 namespace ArtemisBankingPro.Application.Features.Cashier.DTOs;
 
 /// <summary>
-/// Filtros tipados del listado de operaciones del cajero.
-/// Las fechas son fechas de negocio (zona America/Santo_Domingo).
+/// Filtros tipados del listado de operaciones del cajero. Los instantes de
+/// fecha son inclusivos en ambos extremos.
 /// </summary>
 public sealed record CashierOperationFilters(
-    FinancialOperationKind? Kind = null,
-    FinancialOperationStatus? Status = null,
-    DateOnly? FromDate = null,
-    DateOnly? ToDate = null
+    DateTimeOffset? DateFrom = null,
+    DateTimeOffset? DateTo = null,
+    FinancialOperationKind? Kind = null
 );

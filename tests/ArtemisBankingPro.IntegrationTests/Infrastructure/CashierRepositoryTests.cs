@@ -77,7 +77,10 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
                 ])
             .Value;
 
-    private static FinancialOperation NewRejectedWithdrawal(decimal amount) =>
+    private static FinancialOperation NewRejectedWithdrawal(
+        decimal amount,
+        DateTimeOffset? occurredAt = null
+    ) =>
         FinancialOperation
             .Reject(
                 Guid.NewGuid(),
@@ -85,7 +88,7 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
                 Money.Create(amount).Value,
                 Money.Zero,
                 Cashier,
-                DayStartUtc.AddHours(10),
+                occurredAt ?? DayStartUtc.AddHours(10),
                 "InsufficientFunds",
                 [
                     new AccountTransactionDetails(
@@ -338,14 +341,14 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task GetOperationsPagedAsync_FiltersByKindStatusAndDateRange() {
+    public async Task GetOperationsPagedAsync_FiltersByKindAndDateRange() {
         IBusinessClock clock = await GetClockAsync();
 
         await WithContextAsync(async context => {
             context.FinancialOperations.AddRange(
-                NewDeposit(100m),
-                NewWithdrawal(50m),
-                NewRejectedWithdrawal(30m),
+                NewDeposit(100m, occurredAt: DayStartUtc.AddHours(8)),
+                NewWithdrawal(50m, occurredAt: DayStartUtc.AddHours(9)),
+                NewRejectedWithdrawal(30m, occurredAt: DayStartUtc.AddHours(10)),
                 NewTransfer(1_500m, DayStartUtc.AddHours(13))
             );
             await context.SaveChangesAsync();
@@ -362,20 +365,24 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
             deposits.TotalCount.Should().Be(1);
             deposits.Items.Should().ContainSingle(item => item.Kind == "Deposit");
 
-            var rejected = await repository.GetOperationsPagedAsync(
+            var withdrawals = await repository.GetOperationsPagedAsync(
                 Cashier,
-                new CashierOperationFilters(Status: FinancialOperationStatus.Rejected),
+                new CashierOperationFilters(Kind: FinancialOperationKind.Withdrawal),
                 new PageRequest()
             );
-            rejected.TotalCount.Should().Be(1);
-            rejected.Items[0].RejectionCode.Should().Be("InsufficientFunds");
-            rejected.Items[0].Amount.Should().Be(30m);
+            withdrawals.TotalCount.Should().Be(2);
+            withdrawals
+                .Items.Should()
+                .ContainSingle(item =>
+                    item.Status == "Rejected" && item.RejectionCode == "InsufficientFunds"
+                );
+            withdrawals.Items.Should().ContainSingle(item => item.Amount == 30m);
 
             var inRange = await repository.GetOperationsPagedAsync(
                 Cashier,
                 new CashierOperationFilters(
-                    FromDate: new DateOnly(2026, 8, 6),
-                    ToDate: new DateOnly(2026, 8, 6)
+                    DateFrom: DayStartUtc,
+                    DateTo: DayEndUtc.AddTicks(-1)
                 ),
                 new PageRequest()
             );
@@ -384,12 +391,26 @@ public sealed class CashierRepositoryTests(SqlServerFixture fixture)
             var outOfRange = await repository.GetOperationsPagedAsync(
                 Cashier,
                 new CashierOperationFilters(
-                    FromDate: new DateOnly(2026, 8, 7),
-                    ToDate: new DateOnly(2026, 8, 8)
+                    DateFrom: DayEndUtc,
+                    DateTo: DayEndUtc.AddDays(1)
                 ),
                 new PageRequest()
             );
             outOfRange.TotalCount.Should().Be(0);
+
+            var inclusiveFrom = await repository.GetOperationsPagedAsync(
+                Cashier,
+                new CashierOperationFilters(DateFrom: DayStartUtc.AddHours(9)),
+                new PageRequest()
+            );
+            inclusiveFrom.TotalCount.Should().Be(3);
+
+            var inclusiveTo = await repository.GetOperationsPagedAsync(
+                Cashier,
+                new CashierOperationFilters(DateTo: DayStartUtc.AddHours(10)),
+                new PageRequest()
+            );
+            inclusiveTo.TotalCount.Should().Be(3);
         });
     }
 
