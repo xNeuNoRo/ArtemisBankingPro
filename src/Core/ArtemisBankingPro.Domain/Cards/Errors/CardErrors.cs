@@ -24,6 +24,12 @@ public static class CardErrors {
             "Debe indicar el administrador que asigna la tarjeta."
         );
 
+    public static DomainError InvalidCvc { get; } =
+        DomainError.Validation(
+            "Card.InvalidCvc",
+            "Los datos de la tarjeta no son válidos."
+        );
+
     public static DomainError InvalidCvcDigest { get; } =
         DomainError.Validation(
             "Card.InvalidCvcDigest",

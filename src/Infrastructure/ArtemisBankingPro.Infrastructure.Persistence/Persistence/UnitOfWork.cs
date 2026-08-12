@@ -34,6 +34,15 @@ public sealed class UnitOfWork : IUnitOfWork {
                     await transaction.CommitAsync(executionCt);
                     return result;
                 }
+                catch (DbUpdateConcurrencyException) {
+                    await transaction.RollbackAsync(executionCt);
+                    return Result.Failure<T>(
+                        DomainError.Conflict(
+                            "Concurrency.Conflict",
+                            "La operación no pudo completarse porque los datos fueron modificados concurrentemente. Reintente la operación."
+                        )
+                    );
+                }
                 catch {
                     await transaction.RollbackAsync(executionCt);
                     throw;
@@ -60,6 +69,15 @@ public sealed class UnitOfWork : IUnitOfWork {
                     await _context.SaveChangesAsync(executionCt);
                     await transaction.CommitAsync(executionCt);
                     return result;
+                }
+                catch (DbUpdateConcurrencyException) {
+                    await transaction.RollbackAsync(executionCt);
+                    return Result.Failure(
+                        DomainError.Conflict(
+                            "Concurrency.Conflict",
+                            "La operación no pudo completarse porque los datos fueron modificados concurrentemente. Reintente la operación."
+                        )
+                    );
                 }
                 catch {
                     await transaction.RollbackAsync(executionCt);

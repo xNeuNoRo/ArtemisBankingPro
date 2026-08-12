@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Interfaces.Time;
+using ArtemisBankingPro.Domain.Cards.Security;
 using ArtemisBankingPro.Domain.Settings;
 using ArtemisBankingPro.Infrastructure.Shared.Messaging;
 using ArtemisBankingPro.Infrastructure.Shared.Security;
@@ -23,6 +24,7 @@ public static class ServicesRegistration {
             configuration.GetSection(CardSecurityOptions.SectionName)
         );
         services.AddScoped<ICardSecurityService, CardSecurityService>();
+        services.AddScoped<ICvcVerifier, CardSecurityService>();
 
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
         services.AddSingleton<IRazorRenderer, RazorRenderer>();

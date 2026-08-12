@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using ArtemisBankingPro.Application.Interfaces.Security;
+using ArtemisBankingPro.Domain.Cards.Security;
 using Microsoft.Extensions.Options;
 
 namespace ArtemisBankingPro.Infrastructure.Shared.Security;
@@ -11,7 +12,7 @@ namespace ArtemisBankingPro.Infrastructure.Shared.Security;
 /// El CVC se almacena como digest HMAC con pepper, no como SHA-256 plano
 /// (el espacio de 3 dígitos es trivial de enumerar).
 /// </summary>
-public sealed class CardSecurityService : ICardSecurityService {
+public sealed class CardSecurityService : ICardSecurityService, ICvcVerifier {
     private readonly CardSecurityOptions _options;
 
     public CardSecurityService(IOptions<CardSecurityOptions> options) {
@@ -59,6 +60,8 @@ public sealed class CardSecurityService : ICardSecurityService {
             Encoding.UTF8.GetBytes(storedDigest)
         );
     }
+
+    public bool Verify(string cvc, string storedDigest) => VerifyCvc(cvc, storedDigest);
 
     private static byte[] GetKey(string? key) {
         try {

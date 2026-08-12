@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Cards.Errors;
 using ArtemisBankingPro.Domain.Cards.Events;
+using ArtemisBankingPro.Domain.Cards.Security;
 using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
@@ -154,6 +155,16 @@ public sealed class CreditCard : AggregateRoot<int> {
 
         CurrentDebt = CurrentDebt.Add(amount);
         return Result.Success();
+    }
+
+    public Result VerifyCvc(string cvc, ICvcVerifier verifier) {
+        if (verifier is null || string.IsNullOrWhiteSpace(cvc)) {
+            return Result.Failure(CardErrors.InvalidCvc);
+        }
+
+        return verifier.Verify(cvc, CvcDigest.GetValue())
+            ? Result.Success()
+            : Result.Failure(CardErrors.InvalidCvc);
     }
 
     public Result<Money> ApplyPayment(Money requestedAmount, DateTimeOffset paidAt) {

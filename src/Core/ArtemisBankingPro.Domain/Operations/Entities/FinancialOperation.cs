@@ -151,6 +151,32 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             )
         );
 
+    /// <summary>
+    /// Marca la operación como un pago Hermes Pay procesado, desencadenando
+    /// <see cref="HermesPayProcessedEvent"/> para las notificaciones
+    /// post-commit. Solo transporta datos seguros.
+    /// </summary>
+    public void RecordHermesPayProcessed(
+        string cardLastFour,
+        int merchantId,
+        string merchantName,
+        Money amount,
+        string cardOwnerUserId,
+        string merchantEmail
+    ) =>
+        RaiseDomainEvent(
+            new HermesPayProcessedEvent(
+                Id,
+                cardLastFour,
+                merchantId,
+                merchantName,
+                amount,
+                cardOwnerUserId,
+                merchantEmail,
+                OccurredAt
+            )
+        );
+
     public static Result<FinancialOperation> Approve(
         Guid id,
         FinancialOperationKind kind,
