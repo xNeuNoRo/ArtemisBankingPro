@@ -45,7 +45,7 @@ public sealed class CreditCardTests {
         CreditCard card = CreateCard();
         card.AuthorizeCharge(Money.Create(500m).Value, IssueDate);
 
-        Money appliedAmount = card.ApplyPayment(Money.Create(1_000m).Value).Value;
+        Money appliedAmount = card.ApplyPayment(Money.Create(1_000m).Value, IssuedAt.AddDays(1)).Value;
 
         appliedAmount.Amount.Should().Be(500m);
         card.CurrentDebt.Should().Be(Money.Zero);
@@ -57,10 +57,51 @@ public sealed class CreditCardTests {
         CreditCard card = CreateCard();
         card.AuthorizeCharge(Money.Create(500m).Value, IssueDate);
 
-        Result<Money> result = card.ApplyPayment(Money.Create(100m).Value);
+        Result<Money> result = card.ApplyPayment(Money.Create(100m).Value, IssuedAt.AddDays(1));
 
         result.IsSuccess.Should().BeTrue();
         card.CurrentDebt.Amount.Should().Be(400m);
+    }
+
+    [Fact]
+    public void ApplyPayment_ValidPayment_RaisesPaymentProcessedEvent() {
+        CreditCard card = CreateCard();
+        card.AuthorizeCharge(Money.Create(500m).Value, IssueDate);
+
+        card.ApplyPayment(Money.Create(300m).Value, IssuedAt.AddDays(1)).IsSuccess.Should().BeTrue();
+
+        CardPaymentProcessedEvent? domainEvent = Assert.IsType<CardPaymentProcessedEvent>(
+            card.DomainEvents.OfType<CardPaymentProcessedEvent>().Single()
+        );
+        domainEvent.CustomerUserId.Should().Be("customer");
+        domainEvent.LastFour.Should().Be("1111");
+        domainEvent.AppliedAmount.Amount.Should().Be(300m);
+        domainEvent.RemainingDebt.Amount.Should().Be(200m);
+        domainEvent.PaidAt.Should().Be(IssuedAt.AddDays(1));
+    }
+
+    [Fact]
+    public void ApplyPayment_FullPayment_RaisesEventWithZeroRemainingDebt() {
+        CreditCard card = CreateCard();
+        card.AuthorizeCharge(Money.Create(500m).Value, IssueDate);
+
+        card.ApplyPayment(Money.Create(500m).Value, IssuedAt.AddDays(1)).IsSuccess.Should().BeTrue();
+
+        CardPaymentProcessedEvent? domainEvent = Assert.IsType<CardPaymentProcessedEvent>(
+            card.DomainEvents.OfType<CardPaymentProcessedEvent>().Single()
+        );
+        domainEvent.AppliedAmount.Amount.Should().Be(500m);
+        domainEvent.RemainingDebt.Amount.Should().Be(0m);
+        card.AvailableCredit.Amount.Should().Be(10_000m);
+    }
+
+    [Fact]
+    public void ApplyPayment_RejectedPayment_DoesNotRaiseEvent() {
+        CreditCard card = CreateCard();
+
+        card.ApplyPayment(Money.Create(100m).Value, IssuedAt.AddDays(1)).IsFailure.Should().BeTrue();
+
+        card.DomainEvents.OfType<CardPaymentProcessedEvent>().Should().BeEmpty();
     }
 
     [Fact]
@@ -261,7 +302,7 @@ public sealed class CreditCardTests {
     public void ApplyPayment_NoDebt_ReturnsNoDebt() {
         CreditCard card = CreateCard();
 
-        Result<Money> result = card.ApplyPayment(Money.Create(100m).Value);
+        Result<Money> result = card.ApplyPayment(Money.Create(100m).Value, IssuedAt.AddDays(1));
 
         Assert.Equal(CardErrors.NoDebt, result.Error);
     }
@@ -271,7 +312,7 @@ public sealed class CreditCardTests {
         CreditCard card = CreateCard();
         card.AuthorizeCharge(Money.Create(100m).Value, IssueDate);
 
-        Result<Money> result = card.ApplyPayment(Money.Create(0m).Value);
+        Result<Money> result = card.ApplyPayment(Money.Create(0m).Value, IssuedAt.AddDays(1));
 
         Assert.Equal(CardErrors.AmountMustBePositive, result.Error);
     }
@@ -280,10 +321,10 @@ public sealed class CreditCardTests {
     public void ApplyPayment_CancelledCard_ReturnsNotActive() {
         CreditCard card = CreateCard();
         card.AuthorizeCharge(Money.Create(100m).Value, IssueDate);
-        card.ApplyPayment(Money.Create(100m).Value).IsSuccess.Should().BeTrue();
+        card.ApplyPayment(Money.Create(100m).Value, IssuedAt.AddDays(1)).IsSuccess.Should().BeTrue();
         card.Cancel(IssuedAt.AddDays(1)).IsSuccess.Should().BeTrue();
 
-        Result<Money> result = card.ApplyPayment(Money.Create(50m).Value);
+        Result<Money> result = card.ApplyPayment(Money.Create(50m).Value, IssuedAt.AddDays(2));
 
         Assert.Equal(CardErrors.NotActive, result.Error);
     }

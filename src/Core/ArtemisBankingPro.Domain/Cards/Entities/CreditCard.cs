@@ -156,7 +156,7 @@ public sealed class CreditCard : AggregateRoot<int> {
         return Result.Success();
     }
 
-    public Result<Money> ApplyPayment(Money requestedAmount) {
+    public Result<Money> ApplyPayment(Money requestedAmount, DateTimeOffset paidAt) {
         if (Status != CreditCardStatus.Active) {
             return Result.Failure<Money>(CardErrors.NotActive);
         }
@@ -171,6 +171,9 @@ public sealed class CreditCard : AggregateRoot<int> {
 
         Money appliedAmount = requestedAmount <= CurrentDebt ? requestedAmount : CurrentDebt;
         CurrentDebt = CurrentDebt.Subtract(appliedAmount).Value;
+        RaiseDomainEvent(
+            new CardPaymentProcessedEvent(CustomerUserId, LastFour, appliedAmount, CurrentDebt, paidAt)
+        );
         return Result.Success(appliedAmount);
     }
 

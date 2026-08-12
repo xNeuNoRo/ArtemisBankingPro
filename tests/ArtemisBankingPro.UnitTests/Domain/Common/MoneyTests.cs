@@ -28,4 +28,17 @@ public sealed class MoneyTests {
         result.IsFailure.Should().BeTrue();
         original.Amount.Should().Be(10m);
     }
+
+    [Fact]
+    public void Subtract_EqualAmountsWithDifferentScale_NormalizesZeroWithoutThrowing() {
+        // 1000.00m - 1000m produce "cero negativo" (-0.00) en la aritmética
+        // decimal; la resta debe devolver Money.Zero y no lanzar.
+        Money original = Money.Create(1000.00m).Value;
+
+        Result<Money> result = original.Subtract(Money.Create(1000m).Value);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().Be(Money.Zero);
+        result.Value.Amount.Should().Be(0m);
+    }
 }
