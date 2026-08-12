@@ -1,14 +1,17 @@
 namespace ArtemisBankingPro.Application.Features.Cashier.DTOs;
 
 /// <summary>
-/// Resultado de una operación de cajero procesada (pago a préstamo, etc.).
-/// OperationId es el correlation ID de la operación financiera persistida.
+/// Resultado de una operación de cajero procesada (pago a préstamo, pago a
+/// tarjeta, etc.). OperationId es el correlation ID de la operación financiera
+/// persistida. Solo se completa el identificador del producto pertinente:
+/// LoanNumber para pagos a préstamo, CardLastFour para pagos a tarjeta.
 /// </summary>
 public sealed record CashierOperationResponse(
     Guid OperationId,
     string AccountNumber,
-    string LoanNumber,
+    string? LoanNumber,
     decimal Amount,
     DateTimeOffset OccurredAt,
-    string Status
+    string Status,
+    string? CardLastFour = null
 );
