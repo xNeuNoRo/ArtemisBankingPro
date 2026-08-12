@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
+using ArtemisBankingPro.Application.Features.HermesPay.DTOs;
 using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
 using ArtemisBankingPro.Domain.Cards.Enums;
@@ -11,6 +12,18 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard> {
     /// <summary>Consumos de una tarjeta paginados, más recientes primero.</summary>
     Task<PageResult<CardConsumptionView>> GetConsumptionsPagedAsync(
         int creditCardId,
+        PageRequest page,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Consumos recibidos por un comercio vía Hermes Pay (spec §41,
+    /// GET /pay/get-transactions), paginados y más recientes primero. Cada
+    /// elemento expone el id, la fecha, el monto, los últimos cuatro dígitos
+    /// de la tarjeta y el estado (APROBADO / RECHAZADO).
+    /// </summary>
+    Task<PageResult<CommerceTransactionDto>> GetConsumptionsByMerchantPagedAsync(
+        int merchantId,
         PageRequest page,
         CancellationToken ct = default
     );

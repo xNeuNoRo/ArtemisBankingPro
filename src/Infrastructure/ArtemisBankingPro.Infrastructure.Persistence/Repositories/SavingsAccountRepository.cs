@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
+using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,23 @@ public sealed class SavingsAccountRepository
                 account.OwnerUserId == ownerUserId
                 && account.Type == AccountType.Primary
                 && account.Status == AccountStatus.Active,
+            ct
+        );
+
+    public Task<SavingsAccount?> GetPrincipalByCommerceIdAsync(
+        int commerceId,
+        CancellationToken ct = default
+    ) =>
+        DbSet.FirstOrDefaultAsync(
+            account =>
+                account.Type == AccountType.Primary
+                && account.Status == AccountStatus.Active
+                && Context
+                    .Set<Merchant>()
+                    .Any(merchant =>
+                        merchant.Id == commerceId
+                        && merchant.AssociatedUserId == account.OwnerUserId
+                    ),
             ct
         );
 

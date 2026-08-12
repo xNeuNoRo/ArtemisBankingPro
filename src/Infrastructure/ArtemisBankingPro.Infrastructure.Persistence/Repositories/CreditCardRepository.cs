@@ -1,4 +1,6 @@
+using System.Globalization;
 using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
+using ArtemisBankingPro.Application.Features.HermesPay.DTOs;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
@@ -6,6 +8,7 @@ using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
+using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
@@ -50,6 +53,49 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
             .ToListAsync(ct);
 
         return new PageResult<CardConsumptionView>(items, totalCount, page.Page, page.PageSize);
+    }
+
+    public async Task<PageResult<CommerceTransactionDto>> GetConsumptionsByMerchantPagedAsync(
+        int merchantId,
+        PageRequest page,
+        CancellationToken ct = default
+    ) {
+        IQueryable<CardConsumption> query = Context
+            .Set<CardConsumption>()
+            .AsNoTracking()
+            .Where(consumption => consumption.MerchantId == merchantId);
+
+        int totalCount = await query.CountAsync(ct);
+
+        List<CommerceTransactionDto> items = await query
+            .Join(
+                Context.Set<FinancialOperation>(),
+                consumption => consumption.FinancialOperationId,
+                operation => operation.Id,
+                (consumption, operation) => new { consumption, operation }
+            )
+            .Join(
+                Context.Set<CreditCard>(),
+                item => item.consumption.CreditCardId,
+                card => card.Id,
+                (item, card) => new { item.consumption, item.operation, card }
+            )
+            .OrderByDescending(item => item.operation.OccurredAt)
+            .ThenByDescending(item => item.consumption.Id)
+            .Skip(page.Skip)
+            .Take(page.PageSize)
+            .Select(item => new CommerceTransactionDto(
+                item.consumption.Id.ToString(CultureInfo.InvariantCulture),
+                item.operation.OccurredAt,
+                item.consumption.Amount.Amount,
+                item.card.LastFour,
+                item.operation.Status == FinancialOperationStatus.Approved
+                    ? "APROBADO"
+                    : "RECHAZADO"
+            ))
+            .ToListAsync(ct);
+
+        return new PageResult<CommerceTransactionDto>(items, totalCount, page.Page, page.PageSize);
     }
 
     public async Task<PageResult<CreditCardSummaryDto>> GetPagedAsync(

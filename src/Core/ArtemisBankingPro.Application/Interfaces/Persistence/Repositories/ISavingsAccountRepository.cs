@@ -11,6 +11,17 @@ public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount> 
         CancellationToken ct = default
     );
 
+    /// <summary>
+    /// Cuenta de ahorro principal activa del usuario asociado al comercio
+    /// (spec §41: el comercio recibe los pagos Hermes Pay en su cuenta
+    /// principal). Devuelve <c>null</c> si el comercio no existe, no tiene
+    /// usuario asociado o su usuario no tiene cuenta principal activa.
+    /// </summary>
+    Task<SavingsAccount?> GetPrincipalByCommerceIdAsync(
+        int commerceId,
+        CancellationToken ct = default
+    );
+
     Task<bool> ExistsActivePrincipalAsync(string ownerUserId, CancellationToken ct = default);
 
     Task<IReadOnlyList<SavingsAccount>> GetByOwnerAsync(
