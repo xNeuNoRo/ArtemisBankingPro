@@ -108,6 +108,28 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         );
 
     /// <summary>
+    /// Marca la operación como un depósito de cajero procesado, desencadenando
+    /// <see cref="DepositProcessedEvent"/> para las notificaciones post-commit.
+    /// Solo transporta datos seguros.
+    /// </summary>
+    public void RecordDepositProcessed(
+        string accountNumber,
+        Money amount,
+        string ownerUserId,
+        string cashierUserId
+    ) =>
+        RaiseDomainEvent(
+            new DepositProcessedEvent(
+                Id,
+                accountNumber,
+                amount,
+                ownerUserId,
+                cashierUserId,
+                OccurredAt
+            )
+        );
+
+    /// <summary>
     /// Marca la operación como un retiro de cajero procesado, desencadenando
     /// <see cref="WithdrawalProcessedEvent"/> para las notificaciones
     /// post-commit. Solo transporta datos seguros.
