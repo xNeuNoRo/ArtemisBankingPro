@@ -1,9 +1,26 @@
+using ArtemisBankingPro.Application.Features.SavingsAccounts.DTOs;
 using ArtemisBankingPro.Domain.Accounts.Entities;
+using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
+using ArtemisBankingPro.Domain.Common.Pagination;
 
 namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
 public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount> {
+    Task<PageResult<SavingsAccountSummaryDto>> GetPagedAsync(
+        string? customerUserId,
+        AccountStatus? status,
+        AccountType? type,
+        PageRequest page,
+        CancellationToken ct = default
+    );
+
+    Task<PageResult<AccountTransactionDto>> GetTransactionsPagedAsync(
+        AccountNumber accountNumber,
+        PageRequest page,
+        CancellationToken ct = default
+    );
+
     Task<SavingsAccount?> GetByNumberAsync(AccountNumber number, CancellationToken ct = default);
 
     Task<SavingsAccount?> GetPrincipalByOwnerAsync(

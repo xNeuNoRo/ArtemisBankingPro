@@ -18,4 +18,5 @@ public enum FinancialOperationKind {
     CardCancelled = 15,
     CardLimitChanged = 16,
     CardAssigned = 17,
+    AccountCancelled = 18,
 }

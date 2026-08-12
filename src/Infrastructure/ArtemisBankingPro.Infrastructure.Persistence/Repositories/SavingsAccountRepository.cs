@@ -1,8 +1,12 @@
+using ArtemisBankingPro.Application.Features.SavingsAccounts.DTOs;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
+using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Merchants.Entities;
+using ArtemisBankingPro.Domain.Operations.Entities;
+using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +17,106 @@ public sealed class SavingsAccountRepository
         ISavingsAccountRepository {
     public SavingsAccountRepository(BankingDbContext context)
         : base(context) { }
+
+    public async Task<PageResult<SavingsAccountSummaryDto>> GetPagedAsync(
+        string? customerUserId,
+        AccountStatus? status,
+        AccountType? type,
+        PageRequest page,
+        CancellationToken ct = default
+    ) {
+        IQueryable<SavingsAccount> query = DbSet.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(customerUserId)) {
+            query = query.Where(account => account.OwnerUserId == customerUserId);
+        }
+
+        if (status is not null) {
+            query = query.Where(account => account.Status == status);
+        }
+
+        if (type is not null) {
+            query = query.Where(account => account.Type == type);
+        }
+
+        query = query
+            .OrderByDescending(account => account.Status == AccountStatus.Active)
+            .ThenByDescending(account => account.OpenedAt)
+            .ThenByDescending(account => account.Id);
+
+        int totalCount = await query.CountAsync(ct);
+        var rows = await query
+            .Skip(page.Skip)
+            .Take(page.PageSize)
+            .Select(account => new {
+                account.Id,
+                account.Number,
+                account.OwnerUserId,
+                account.Balance,
+                account.Type,
+                account.Status,
+                account.OpenedAt,
+            })
+            .ToListAsync(ct);
+        List<SavingsAccountSummaryDto> items = rows
+            .Select(account =>
+                new SavingsAccountSummaryDto(
+                    account.Id,
+                    account.Number.Value,
+                    account.OwnerUserId,
+                    string.Empty,
+                    string.Empty,
+                    account.Balance.Amount,
+                    account.Type.ToString(),
+                    account.Status.ToString(),
+                    account.OpenedAt
+                )
+            )
+            .ToList();
+
+        return new PageResult<SavingsAccountSummaryDto>(items, totalCount, page.Page, page.PageSize);
+    }
+
+    public async Task<PageResult<AccountTransactionDto>> GetTransactionsPagedAsync(
+        AccountNumber accountNumber,
+        PageRequest page,
+        CancellationToken ct = default
+    ) {
+        IQueryable<AccountTransaction> query = Context
+            .Set<AccountTransaction>()
+            .AsNoTracking()
+            .Where(transaction => transaction.AccountNumber == accountNumber);
+        int totalCount = await query.CountAsync(ct);
+        List<AccountTransactionDto> items = await query
+            .Join(
+                Context.Set<FinancialOperation>(),
+                transaction => transaction.FinancialOperationId,
+                operation => operation.Id,
+                (transaction, operation) => new { transaction, operation }
+            )
+            .OrderByDescending(item => item.operation.OccurredAt)
+            .ThenByDescending(item => item.transaction.Id)
+            .Skip(page.Skip)
+            .Take(page.PageSize)
+            .Select(item =>
+                new AccountTransactionDto(
+                    item.transaction.Id,
+                    item.operation.OccurredAt,
+                    item.transaction.Amount.Amount,
+                    item.transaction.Direction == TransactionDirection.Credit
+                        ? "CRÉDITO"
+                        : "DÉBITO",
+                    item.transaction.OriginReference,
+                    item.transaction.BeneficiaryReference,
+                    item.operation.Status == FinancialOperationStatus.Approved
+                        ? "APROBADA"
+                        : "RECHAZADA"
+                )
+            )
+            .ToListAsync(ct);
+
+        return new PageResult<AccountTransactionDto>(items, totalCount, page.Page, page.PageSize);
+    }
 
     public Task<SavingsAccount?> GetByNumberAsync(
         AccountNumber number,

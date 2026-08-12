@@ -78,6 +78,23 @@ public sealed class MigrationTests(SqlServerFixture fixture) : SqlServerTestBase
         });
     }
 
+    [Fact]
+    public async Task AccountCancelledOperation_AllowsZeroAmountsWithoutTransactions() {
+        await WithContextAsync(async context => {
+            Guid operationId = Guid.NewGuid();
+            await context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO dbo.FinancialOperations "
+                    + "(Id, Kind, Status, RequestedAmount, AppliedAmount, InterestAmount, "
+                    + "InitiatedByUserId, OccurredAt, CreatedAt) "
+                    + "VALUES ({0}, 18, 1, 0, 0, 0, 'admin', GETUTCDATE(), GETUTCDATE())",
+                operationId
+            );
+
+            (await context.FinancialOperations.CountAsync(operation => operation.Id == operationId))
+                .Should().Be(1);
+        });
+    }
+
     private static async Task<long> NextSequenceValueAsync(BankingDbContext context) {
         await context.Database.OpenConnectionAsync();
         try {

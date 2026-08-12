@@ -492,6 +492,22 @@ public sealed class FinancialOperationTests {
         Assert.Equal(OperationErrors.InvalidDetails, withMovements.Error);
     }
 
+    [Fact]
+    public void Approve_AccountCancelled_ZeroAmountsWithoutMovements_IsValid() {
+        FinancialOperation operation = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.AccountCancelled,
+            Money.Zero,
+            Money.Zero,
+            Money.Zero,
+            "admin",
+            Now,
+            []).Value;
+
+        operation.Kind.Should().Be(FinancialOperationKind.AccountCancelled);
+        operation.AccountTransactions.Should().BeEmpty();
+    }
+
     private static AccountTransactionDetails Debit(AccountNumber account, Money amount) =>
         new(account, TransactionDirection.Debit, amount, Source.Value, Destination.Value);
 

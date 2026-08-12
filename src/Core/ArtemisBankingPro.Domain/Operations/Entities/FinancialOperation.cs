@@ -365,7 +365,8 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             kind
             is FinancialOperationKind.CardCancelled
                 or FinancialOperationKind.CardLimitChanged
-                or FinancialOperationKind.CardAssigned;
+                or FinancialOperationKind.CardAssigned
+                or FinancialOperationKind.AccountCancelled;
 
         if (!expectsNoAmount && requestedAmount.Amount <= 0m) {
             return Result.Failure(OperationErrors.InvalidRequestedAmount);
@@ -564,6 +565,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                     is FinancialOperationKind.CardCancelled
                         or FinancialOperationKind.CardLimitChanged
                         or FinancialOperationKind.CardAssigned
+                        or FinancialOperationKind.AccountCancelled
                     ? 0
                     : 1;
         }
