@@ -66,17 +66,21 @@ public sealed class Merchant : AggregateRoot<int> {
             return Result.Failure<Merchant>(validationError);
         }
 
-        return Result.Success(
-            new Merchant(
-                name.Trim(),
-                NormalizeOptional(description),
-                email.Trim().ToLowerInvariant(),
-                phoneNumber.Trim(),
-                rnc.Trim(),
-                createdByUserId,
-                createdAt
-            )
+        var merchant = new Merchant(
+            name.Trim(),
+            NormalizeOptional(description),
+            email.Trim().ToLowerInvariant(),
+            phoneNumber.Trim(),
+            rnc.Trim(),
+            createdByUserId,
+            createdAt
         );
+
+        merchant.RaiseDomainEvent(
+            new MerchantCreatedEvent(merchant.Name, merchant.Rnc, merchant.CreatedAt)
+        );
+
+        return Result.Success(merchant);
     }
 
     public Result UpdateInformation(
@@ -102,6 +106,7 @@ public sealed class Merchant : AggregateRoot<int> {
         PhoneNumber = phoneNumber.Trim();
         Rnc = rnc.Trim();
         UpdatedAt = updatedAt;
+        RaiseDomainEvent(new MerchantUpdatedEvent(Id, updatedAt));
         return Result.Success();
     }
 
@@ -135,6 +140,7 @@ public sealed class Merchant : AggregateRoot<int> {
 
         Status = MerchantStatus.Active;
         UpdatedAt = updatedAt;
+        RaiseDomainEvent(new MerchantStatusChangedEvent(Id, true, updatedAt));
         return Result.Success();
     }
 
@@ -149,6 +155,7 @@ public sealed class Merchant : AggregateRoot<int> {
 
         Status = MerchantStatus.Inactive;
         UpdatedAt = updatedAt;
+        RaiseDomainEvent(new MerchantStatusChangedEvent(Id, false, updatedAt));
         return Result.Success();
     }
 
