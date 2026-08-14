@@ -30,4 +30,6 @@ public sealed class BeneficiaryRepository : GenericRepository<Beneficiary>, IBen
                 && beneficiary.DestinationAccountId == destinationAccountId,
             ct
         );
+
+    public void Delete(Beneficiary beneficiary) => DbSet.Remove(beneficiary);
 }

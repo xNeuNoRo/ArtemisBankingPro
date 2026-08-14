@@ -13,4 +13,6 @@ public interface IBeneficiaryRepository : IGenericRepository<Beneficiary> {
         int destinationAccountId,
         CancellationToken ct = default
     );
+
+    void Delete(Beneficiary beneficiary);
 }
