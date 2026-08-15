@@ -236,8 +236,13 @@ public sealed class Loan : AggregateRoot<int> {
     }
 
     public void RefreshDelinquency(DateOnly businessDate) {
+        bool wasDelinquent = IsDelinquent;
         foreach (Installment installment in _installments) {
             installment.RefreshDelinquency(businessDate);
+        }
+
+        if (!wasDelinquent && IsDelinquent) {
+            RaiseDomainEvent(new LoanDelinquentEvent(CustomerUserId, Number, businessDate));
         }
     }
 

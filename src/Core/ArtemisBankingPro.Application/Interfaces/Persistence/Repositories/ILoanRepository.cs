@@ -13,6 +13,13 @@ public interface ILoanRepository : IGenericRepository<Loan> {
 
     Task<Loan?> GetWithInstallmentsByIdAsync(int loanId, CancellationToken ct = default);
 
+    Task<IReadOnlyList<int>> GetActivePastDueLoanIdsAsync(
+        DateOnly businessDate,
+        int afterLoanId,
+        int batchSize,
+        CancellationToken ct = default
+    );
+
     Task<IReadOnlyList<Installment>> GetPendingInstallmentsAsync(
         int loanId,
         CancellationToken ct = default

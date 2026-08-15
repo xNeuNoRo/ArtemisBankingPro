@@ -28,6 +28,30 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository {
     public Task<Loan?> GetWithInstallmentsByIdAsync(int loanId, CancellationToken ct = default) =>
         DbSet.Include(loan => loan.Installments).FirstOrDefaultAsync(loan => loan.Id == loanId, ct);
 
+    public async Task<IReadOnlyList<int>> GetActivePastDueLoanIdsAsync(
+        DateOnly businessDate,
+        int afterLoanId,
+        int batchSize,
+        CancellationToken ct = default
+    ) {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+
+        return await DbSet
+            .AsNoTracking()
+            .Where(loan =>
+                loan.Id > afterLoanId
+                && loan.Status == LoanStatus.Active
+                && loan.Installments.Any(installment =>
+                    installment.DueDate < businessDate
+                    && installment.PaidAmount != installment.ScheduledAmount
+                )
+            )
+            .OrderBy(loan => loan.Id)
+            .Select(loan => loan.Id)
+            .Take(batchSize)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<Installment>> GetPendingInstallmentsAsync(
         int loanId,
         CancellationToken ct = default

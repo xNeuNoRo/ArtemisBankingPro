@@ -127,6 +127,24 @@ public sealed class LoanTests {
     }
 
     [Fact]
+    public void RefreshDelinquency_TransitionToDelinquent_RaisesOneEvent() {
+        Loan loan = CreateLoan();
+        DateOnly businessDate = loan.Installments.Min(item => item.DueDate).AddDays(1);
+
+        loan.RefreshDelinquency(businessDate);
+        loan.RefreshDelinquency(businessDate);
+
+        LoanDelinquentEvent domainEvent = loan.DomainEvents
+            .OfType<LoanDelinquentEvent>()
+            .Should()
+            .ContainSingle()
+            .Which;
+        domainEvent.CustomerUserId.Should().Be("customer");
+        domainEvent.LoanNumber.Should().Be(loan.Number);
+        domainEvent.BusinessDate.Should().Be(businessDate);
+    }
+
+    [Fact]
     public void ChangeInterestRate_PreservesPartialInstallmentAndRecalculatesEligibleOnes() {
         Loan loan = CreateLoan();
         Installment first = loan.Installments.Single(item => item.Number == 1);

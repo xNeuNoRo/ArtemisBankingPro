@@ -237,6 +237,22 @@ public sealed class EmailRenderingTests {
     }
 
     [Fact]
+    public async Task LoanDelinquent_RendersLoanDateAndOutstandingAmount() {
+        var model = new LoanDelinquentModel(
+            "Juan Pérez",
+            "300000001",
+            Money.Create(10_500m).Value,
+            new DateOnly(2026, 8, 14)
+        );
+
+        string body = await _renderer.RenderAsync(model);
+
+        body.Should().Contain("300000001");
+        body.Should().Contain("14/08/2026");
+        body.Should().Contain("RD$ 10500.00");
+    }
+
+    [Fact]
     public async Task CardConsumptionMade_RendersMerchantAndAmount() {
         var model = new CardConsumptionMadeModel(
             "Juan Pérez",
@@ -363,6 +379,7 @@ public sealed class EmailRenderingTests {
             new WithdrawalCompletedModel("Juan", "3333", Money.Create(100m).Value, OccurredAt, SantoDomingo),
             new CardPaymentCompletedModel("Juan", "1234", Money.Create(100m).Value, "3333", OccurredAt, SantoDomingo),
             new LoanPaymentCompletedModel("Juan", "300000001", Money.Create(100m).Value, "3333", OccurredAt, SantoDomingo),
+            new LoanDelinquentModel("Juan", "300000001", Money.Create(100m).Value, new DateOnly(2026, 8, 14)),
             new CardConsumptionMadeModel("Juan", "1234", "Comercio", Money.Create(100m).Value, OccurredAt, SantoDomingo),
             new PaymentReceivedByCommerceModel("Comercio", "1234", Money.Create(100m).Value, OccurredAt, SantoDomingo),
             new CashierTransferSentModel("Juan", Money.Create(100m).Value, "1111", "2222", OccurredAt, SantoDomingo),

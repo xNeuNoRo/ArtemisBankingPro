@@ -98,23 +98,23 @@ public sealed class SharedEmailServiceTests(SqlServerFixture fixture) : SqlServe
     }
 
     [Fact]
-    public void MailKitEmailService_WithoutHost_ThrowsWithClearMessage() {
+    public void MailKitEmailService_WithoutHost_ReportsNotConfigured() {
         using var provider = BuildSharedProvider(new Dictionary<string, string?> {
             ["Email:Smtp:Host"] = null,
         });
 
-        Action act = () => provider.GetRequiredService<IEmailService>();
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Email:Smtp:Host*");
+        IEmailService service = provider.GetRequiredService<IEmailService>();
+        service.IsConfigured.Should().BeFalse();
     }
 
     [Fact]
-    public void MailKitEmailService_WithoutFromAddress_ThrowsWithClearMessage() {
+    public void MailKitEmailService_WithoutFromAddress_ReportsNotConfigured() {
         using var provider = BuildSharedProvider(new Dictionary<string, string?> {
             ["Email:Smtp:FromAddress"] = null,
         });
 
-        Action act = () => provider.GetRequiredService<IEmailService>();
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Email:Smtp:FromAddress*");
+        IEmailService service = provider.GetRequiredService<IEmailService>();
+        service.IsConfigured.Should().BeFalse();
     }
 
     [Fact]
@@ -122,6 +122,7 @@ public sealed class SharedEmailServiceTests(SqlServerFixture fixture) : SqlServe
         using var provider = BuildSharedProvider();
         var service = provider.GetRequiredService<IEmailService>();
         Assert.IsType<ArtemisBankingPro.Infrastructure.Shared.Messaging.MailKitEmailService>(service);
+        service.IsConfigured.Should().BeTrue();
     }
 }
 

@@ -39,7 +39,8 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         CancellationToken cancellationToken
     ) {
         string actorId =
-            _currentUser.UserId
+            message.IdempotencyActorId
+            ?? _currentUser.UserId
             ?? throw new UnauthenticatedException(
                 "Las operaciones idempotentes requieren un actor autenticado."
             );
@@ -82,17 +83,17 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
             response = await next(message, cancellationToken);
         }
         catch {
-            await DeleteRecordAsync(record, cancellationToken);
+            await DeleteRecordAsync(record, CancellationToken.None);
             throw;
         }
 
         if (IsBusinessFailure(response)) {
-            await DeleteRecordAsync(record, cancellationToken);
+            await DeleteRecordAsync(record, CancellationToken.None);
             return response;
         }
 
         record.Complete(message.IdempotencyKey, _clock.NowUtc);
-        await SaveRecordAsync(record, cancellationToken);
+        await SaveRecordAsync(record, CancellationToken.None);
 
         return response;
     }

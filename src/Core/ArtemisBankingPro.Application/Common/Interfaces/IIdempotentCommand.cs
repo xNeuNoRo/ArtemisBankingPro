@@ -18,4 +18,10 @@ public interface IIdempotentCommand {
     /// misma clave con un payload distinto.
     /// </summary>
     string RequestFingerprint { get; }
+
+    /// <summary>
+    /// Actor estable para procesos internos sin usuario autenticado. Los
+    /// comandos interactivos usan el actor autenticado por defecto.
+    /// </summary>
+    string? IdempotencyActorId => null;
 }

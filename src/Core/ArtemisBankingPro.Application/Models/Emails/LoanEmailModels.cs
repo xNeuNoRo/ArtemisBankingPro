@@ -62,6 +62,22 @@ public sealed record LoanPaymentCompletedModel(
     public string OccurredAtText => EmailFormatting.FormatDateTime(OccurredAt, BusinessTimeZone);
 }
 
+/// <summary>Correo enviado cuando un préstamo pasa a estado de mora.</summary>
+public sealed record LoanDelinquentModel(
+    string CustomerName,
+    string LoanNumber,
+    Money OutstandingAmount,
+    DateOnly BusinessDate
+) : IEmailModel {
+    public string Subject => "Préstamo en mora";
+
+    public string TemplateName => "LoanDelinquent";
+
+    public string OutstandingAmountText => EmailFormatting.FormatMoney(OutstandingAmount);
+
+    public string BusinessDateText => EmailFormatting.FormatDate(BusinessDate);
+}
+
 /// <summary>
 /// Notificación al dueño de la cuenta origen cuando se debita su cuenta para
 /// pagar el préstamo de otro cliente.

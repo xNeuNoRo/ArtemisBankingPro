@@ -6,6 +6,8 @@ namespace ArtemisBankingPro.Application.Interfaces.Email;
 /// Envío de correo con plantillas Razor.
 /// </summary>
 public interface IEmailService {
+    bool IsConfigured => true;
+
     Task SendAsync<T>(string recipient, T model, CancellationToken ct = default)
         where T : IEmailModel;
 }

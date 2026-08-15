@@ -21,6 +21,8 @@ public sealed class MailKitEmailService : IEmailService {
     private readonly string _host;
     private readonly string _fromAddress;
 
+    public bool IsConfigured => _options.IsConfigured();
+
     public MailKitEmailService(
         IOptions<EmailSettings> options,
         IRazorRenderer renderer,
@@ -30,26 +32,23 @@ public sealed class MailKitEmailService : IEmailService {
         _renderer = renderer;
         _logger = logger;
 
-        if (string.IsNullOrWhiteSpace(_options.Host)) {
-            throw new InvalidOperationException(
-                "Email:Smtp:Host no está configurada. El envío de correo no está disponible."
-            );
-        }
-
-        if (string.IsNullOrWhiteSpace(_options.FromAddress)) {
-            throw new InvalidOperationException(
-                "Email:Smtp:FromAddress no está configurada. El envío de correo no está disponible."
-            );
-        }
-
-        _host = _options.Host;
-        _fromAddress = _options.FromAddress;
+        _host = _options.Host ?? string.Empty;
+        _fromAddress = _options.FromAddress ?? string.Empty;
     }
 
     public async Task SendAsync<T>(string recipient, T model, CancellationToken ct = default)
         where T : IEmailModel {
         ArgumentException.ThrowIfNullOrWhiteSpace(recipient);
         ArgumentNullException.ThrowIfNull(model);
+
+        if (!IsConfigured) {
+            throw new EmailSendException(
+                model.Subject,
+                new InvalidOperationException(
+                    "La configuración SMTP no está completa."
+                )
+            );
+        }
 
         string body = await _renderer.RenderAsync(model, ct);
         MimeMessage mailMessage = BuildMailMessage(recipient, model.Subject, body);

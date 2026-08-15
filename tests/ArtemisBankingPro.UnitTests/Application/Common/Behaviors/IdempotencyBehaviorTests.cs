@@ -16,6 +16,13 @@ public sealed record IdempotentRequest(string Payload) : IRequest<Result<Unit>>,
     public string RequestFingerprint => Payload;
 }
 
+public sealed record SystemIdempotentRequest(string Payload)
+    : IRequest<Result<Unit>>, IIdempotentCommand {
+    public string IdempotencyKey => $"system-key-{Payload}";
+    public string RequestFingerprint => Payload;
+    public string? IdempotencyActorId => "system:test";
+}
+
 public sealed class IdempotencyBehaviorTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
 
@@ -226,5 +233,31 @@ public sealed class IdempotencyBehaviorTests {
 
         await act.Should().ThrowAsync<UnauthenticatedException>();
         repository.Verify(r => r.AddAsync(It.IsAny<IdempotencyRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_SystemActor_DoesNotRequireAuthenticatedUser() {
+        var repository = new Mock<IIdempotencyRecordRepository>();
+        repository
+            .Setup(r => r.GetAsync("system-key-abc", "system:test", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IdempotencyRecord?)null);
+        var behavior = new IdempotencyBehavior<SystemIdempotentRequest, Result<Unit>>(
+            repository.Object,
+            UnitOfWork().Object,
+            User(userId: null!).Object,
+            Clock().Object
+        );
+
+        Result<Unit> result = await behavior.Handle(
+            new SystemIdempotentRequest("abc"),
+            (_, _) => ValueTask.FromResult(Result.Success(Unit.Value)),
+            CancellationToken.None
+        );
+
+        result.IsSuccess.Should().BeTrue();
+        repository.Verify(
+            r => r.GetAsync("system-key-abc", "system:test", It.IsAny<CancellationToken>()),
+            Times.Once
+        );
     }
 }
