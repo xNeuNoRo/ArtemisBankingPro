@@ -21,6 +21,6 @@ public sealed class ProcessWithdrawalCommandValidator
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
-            .WithMessage("El monto del retiro debe ser mayor que cero.");
+            .WithMessage("El monto a retirar debe ser mayor que cero.");
     }
 }

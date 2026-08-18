@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -15,7 +16,6 @@ using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
@@ -108,18 +108,26 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
     private static ProcessCardPaymentCommandHandler CreatePaymentHandler(
         IServiceProvider provider
-    ) =>
-        new(
+    ) {
+        var processor = new CardPaymentProcessor(
             provider.GetRequiredService<ICreditCardRepository>(),
             provider.GetRequiredService<ISavingsAccountRepository>(),
             provider.GetRequiredService<IFinancialOperationRepository>(),
-            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IUnitOfWork>(),
+            provider.GetRequiredService<IBusinessClock>()
+        );
+
+        return new ProcessCardPaymentCommandHandler(
+            processor,
+            provider.GetRequiredService<ICreditCardRepository>(),
+            provider.GetRequiredService<ISavingsAccountRepository>(),
+            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IBusinessClock>(),
             provider.GetRequiredService<ICurrentUserService>(),
             provider.GetRequiredService<IEmailService>(),
             provider.GetRequiredService<ILogger<ProcessCardPaymentCommandHandler>>()
         );
+    }
 
     private async Task<int> SeedCardWithDebtAsync(string customerUserId, decimal debt) {
         int cardId = 0;
@@ -177,7 +185,7 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessCardPaymentCommand(cardId, accountNumber, 1000m),
+            new ProcessCardPaymentCommand(cardId, accountNumber, 1000m, "cpay-success"),
             CancellationToken.None
         );
 
@@ -233,7 +241,7 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
         decimal requested = 1_000_000m;
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessCardPaymentCommand(cardId, accountNumber, requested),
+            new ProcessCardPaymentCommand(cardId, accountNumber, requested, "cpay-requested"),
             CancellationToken.None
         );
 
@@ -273,7 +281,7 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessCardPaymentCommand(cardId, accountNumber, 1_000_000m),
+            new ProcessCardPaymentCommand(cardId, accountNumber, 1_000_000m, "cpay-million"),
             CancellationToken.None
         );
 
@@ -295,7 +303,8 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
             (await context.FinancialOperations.CountAsync(operation =>
                 operation.Kind == FinancialOperationKind.CreditCardPayment
-            )).Should().Be(0);
+                && operation.Status == FinancialOperationStatus.Rejected
+            )).Should().Be(1);
         });
     }
 
@@ -310,7 +319,7 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessCardPaymentCommand(cardId, accountNumber, 1000m),
+            new ProcessCardPaymentCommand(cardId, accountNumber, 1000m, "cpay-no-debt"),
             CancellationToken.None
         );
 
@@ -355,7 +364,7 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessCardPaymentCommand(cardId, accountNumber, 1000m),
+            new ProcessCardPaymentCommand(cardId, accountNumber, 1000m, "cpay-cancelled-card"),
             CancellationToken.None
         );
 
@@ -382,7 +391,7 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessCardPaymentCommand(cardId, cancelledNumber, 1000m),
+            new ProcessCardPaymentCommand(cardId, cancelledNumber, 1000m, "cpay-cancelled-account"),
             CancellationToken.None
         );
 
@@ -434,6 +443,53 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
             Assert.NotNull(account);
             account.Cancel(DateTimeOffset.UtcNow).IsSuccess.Should().BeTrue();
             await context.SaveChangesAsync();
+        });
+    }
+
+    [Fact]
+    public async Task TwoConcurrentPayments_ApplyOnlyRealDebt() {
+        AppUser client = await CreateClientWithPrincipalAccountAsync("cpayrace", 200000m);
+        int cardId = await SeedCardWithDebtAsync(client.Id, debt: 1000m);
+        string accountNumber = await GetPrincipalNumberAsync(client.Id);
+
+        await using var providerA = BuildProvider();
+        await using var providerB = BuildProvider();
+        await using var scopeA = providerA.CreateAsyncScope();
+        await using var scopeB = providerB.CreateAsyncScope();
+        var handlerA = CreatePaymentHandler(scopeA.ServiceProvider);
+        var handlerB = CreatePaymentHandler(scopeB.ServiceProvider);
+
+        var outcomes = await Task.WhenAll(
+            handlerA.Handle(
+                new ProcessCardPaymentCommand(cardId, accountNumber, 800m, "cpay-race-a"),
+                CancellationToken.None
+            ).AsTask(),
+            handlerB.Handle(
+                new ProcessCardPaymentCommand(cardId, accountNumber, 800m, "cpay-race-b"),
+                CancellationToken.None
+            ).AsTask()
+        );
+
+        // Un solo pago se aplica (rowversion del agregado): el perdedor
+        // obtiene conflicto de concurrencia, nunca un doble débito ni doble
+        // reducción de deuda.
+        outcomes.Count(outcome => outcome.IsSuccess).Should().Be(1);
+        outcomes.Count(outcome => outcome.IsFailure).Should().Be(1);
+
+        await WithContextAsync(async context => {
+            var card = await context.CreditCards.AsNoTracking()
+                .SingleAsync(item => item.Id == cardId);
+            card.CurrentDebt.Amount.Should().Be(200m);
+
+            var account = await context.SavingsAccounts.AsNoTracking()
+                .SingleAsync(item => item.Number == AccountNumber.Create(accountNumber).Value);
+            account.Balance.Amount.Should().Be(200000m - 800m);
+
+            int approvedCount = await context.FinancialOperations.CountAsync(operation =>
+                operation.Kind == FinancialOperationKind.CreditCardPayment
+                && operation.Status == FinancialOperationStatus.Approved
+            );
+            approvedCount.Should().Be(1);
         });
     }
 }

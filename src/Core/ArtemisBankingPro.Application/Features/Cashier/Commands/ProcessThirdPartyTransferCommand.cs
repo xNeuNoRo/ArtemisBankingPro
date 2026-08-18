@@ -8,19 +8,17 @@ namespace ArtemisBankingPro.Application.Features.Cashier.Commands;
 
 /// <summary>
 /// Transfiere fondos desde una cuenta de ahorro activa a la cuenta de un
-/// tercero (dueño distinto) por parte de un cajero o administrador.
-/// Atómico: débito del origen, crédito del destino, dos transacciones de
-/// cuenta pareadas con un correlation ID compartido y la operación financiera.
+/// tercero (dueño distinto) por parte de un cajero. Atómico: débito del
+/// origen, crédito del destino, dos transacciones de cuenta pareadas con un
+/// correlation ID compartido y la operación financiera.
 /// </summary>
 public sealed record ProcessThirdPartyTransferCommand(
     string SourceAccountNumber,
     string DestinationAccountNumber,
-    decimal Amount
+    decimal Amount,
+    string IdempotencyKey
 ) : IRequest<Result<ProcessThirdPartyTransferResponse>>, IAuthorize, IIdempotentCommand {
-    public string[] RequiredRoles => ["Cajero", "Administrador"];
-
-    public string IdempotencyKey =>
-        $"thirdparty-{SourceAccountNumber}-{DestinationAccountNumber}-{Amount.ToString("0.00", CultureInfo.InvariantCulture)}-{TimeProvider.System.GetUtcNow():yyyyMMddHHmm}";
+    public string[] RequiredRoles => ["Cajero"];
 
     public string RequestFingerprint =>
         $"{SourceAccountNumber}|{DestinationAccountNumber}|{Amount.ToString("0.00", CultureInfo.InvariantCulture)}";

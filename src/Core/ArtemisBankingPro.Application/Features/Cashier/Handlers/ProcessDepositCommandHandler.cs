@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.DTOs;
 using ArtemisBankingPro.Application.Interfaces.Email;
@@ -12,7 +13,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.Errors;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
@@ -104,8 +104,9 @@ public sealed class ProcessDepositCommandHandler
             return Result.Failure<CashierOperationResponse>(persistResult.Error!);
         }
 
-        // 4. Correo post-commit (fallo no revierte el depósito).
-        await SendNotificationAsync(
+        // 4. Correo post-commit (fallo no revierte el depósito; la respuesta
+        // informa el warning de notificación).
+        bool notificationsOk = await SendNotificationAsync(
             account,
             amount,
             occurredAt,
@@ -119,7 +120,8 @@ public sealed class ProcessDepositCommandHandler
                 null,
                 amount.Amount,
                 occurredAt,
-                "Approved"
+                "Approved",
+                NotificationWarning: notificationsOk ? null : NotificationMessages.EmailFailed
             )
         );
     }
@@ -177,7 +179,7 @@ public sealed class ProcessDepositCommandHandler
         );
     }
 
-    private async Task SendNotificationAsync(
+    private async Task<bool> SendNotificationAsync(
         SavingsAccount account,
         Money amount,
         DateTimeOffset occurredAt,
@@ -188,10 +190,10 @@ public sealed class ProcessDepositCommandHandler
             cancellationToken
         );
         if (owner is null) {
-            return;
+            return true;
         }
 
-        await TrySendAsync(
+        return await TrySendAsync(
             owner,
             new DepositModel(
                 $"{owner.FirstName} {owner.LastName}".Trim(),
@@ -205,7 +207,7 @@ public sealed class ProcessDepositCommandHandler
         );
     }
 
-    private async Task TrySendAsync<T>(
+    private async Task<bool> TrySendAsync<T>(
         UserListDto recipient,
         T model,
         string accountNumber,
@@ -214,6 +216,7 @@ public sealed class ProcessDepositCommandHandler
         where T : IEmailModel {
         try {
             await _emailService.SendAsync(recipient.Email, model, cancellationToken);
+            return true;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
@@ -222,6 +225,7 @@ public sealed class ProcessDepositCommandHandler
                 model.TemplateName,
                 accountNumber
             );
+            return false;
         }
     }
 }

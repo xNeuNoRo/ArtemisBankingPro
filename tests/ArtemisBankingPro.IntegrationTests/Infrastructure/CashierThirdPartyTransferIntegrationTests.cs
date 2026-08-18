@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -12,7 +13,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
@@ -105,17 +105,24 @@ public sealed class CashierThirdPartyTransferIntegrationTests(SqlServerFixture f
             services.AddScoped<IEmailService>(_ => new NoopEmailService());
         });
 
-    private static ProcessThirdPartyTransferCommandHandler CreateHandler(IServiceProvider provider) =>
-        new(
+    private static ProcessThirdPartyTransferCommandHandler CreateHandler(IServiceProvider provider) {
+        var processor = new TransferProcessor(
             provider.GetRequiredService<ISavingsAccountRepository>(),
             provider.GetRequiredService<IFinancialOperationRepository>(),
-            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IUnitOfWork>(),
+            provider.GetRequiredService<IBusinessClock>()
+        );
+
+        return new ProcessThirdPartyTransferCommandHandler(
+            processor,
+            provider.GetRequiredService<ISavingsAccountRepository>(),
+            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IBusinessClock>(),
             provider.GetRequiredService<ICurrentUserService>(),
             provider.GetRequiredService<IEmailService>(),
             provider.GetRequiredService<ILogger<ProcessThirdPartyTransferCommandHandler>>()
         );
+    }
 
     [Fact]
     public async Task ProcessThirdPartyTransfer_Success_UpdatesBalancesAndPersistsPairedHistory() {
@@ -130,7 +137,7 @@ public sealed class CashierThirdPartyTransferIntegrationTests(SqlServerFixture f
         var handler = CreateHandler(scope.ServiceProvider);
 
         var result = await handler.Handle(
-            new ProcessThirdPartyTransferCommand(sourceNumber, destinationNumber, 200m),
+            new ProcessThirdPartyTransferCommand(sourceNumber, destinationNumber, 200m, "tpt-success"),
             CancellationToken.None
         );
 
@@ -189,7 +196,7 @@ public sealed class CashierThirdPartyTransferIntegrationTests(SqlServerFixture f
         var handler = CreateHandler(scope.ServiceProvider);
 
         var result = await handler.Handle(
-            new ProcessThirdPartyTransferCommand(sourceNumber, destinationNumber, 200m),
+            new ProcessThirdPartyTransferCommand(sourceNumber, destinationNumber, 200m, "tpt-insufficient"),
             CancellationToken.None
         );
 
@@ -210,7 +217,10 @@ public sealed class CashierThirdPartyTransferIntegrationTests(SqlServerFixture f
             Assert.NotNull(destination);
             destination.Balance.Amount.Should().Be(500m);
 
-            (await context.FinancialOperations.CountAsync()).Should().Be(0);
+            (await context.FinancialOperations.CountAsync(operation =>
+                operation.Kind == FinancialOperationKind.CashierTransfer
+                && operation.Status == FinancialOperationStatus.Rejected
+            )).Should().Be(1);
         });
     }
 
@@ -225,7 +235,7 @@ public sealed class CashierThirdPartyTransferIntegrationTests(SqlServerFixture f
         var handler = CreateHandler(scope.ServiceProvider);
 
         var result = await handler.Handle(
-            new ProcessThirdPartyTransferCommand(principalNumber, secondaryNumber, 200m),
+            new ProcessThirdPartyTransferCommand(principalNumber, secondaryNumber, 200m, "tpt-same-owner"),
             CancellationToken.None
         );
 
@@ -277,7 +287,7 @@ public sealed class CashierThirdPartyTransferIntegrationTests(SqlServerFixture f
         var handler = CreateHandler(scope.ServiceProvider);
 
         var result = await handler.Handle(
-            new ProcessThirdPartyTransferCommand(sourceNumber, secondaryNumber, 200m),
+            new ProcessThirdPartyTransferCommand(sourceNumber, secondaryNumber, 200m, "tpt-cancelled"),
             CancellationToken.None
         );
 

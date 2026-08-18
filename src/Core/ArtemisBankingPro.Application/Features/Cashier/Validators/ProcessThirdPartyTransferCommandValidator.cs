@@ -32,10 +32,10 @@ public sealed class ProcessThirdPartyTransferCommandValidator
 
         RuleFor(x => x.DestinationAccountNumber)
             .NotEqual(x => x.SourceAccountNumber)
-            .WithMessage("La cuenta destino debe ser diferente a la cuenta origen.");
+            .WithMessage("La cuenta origen y la cuenta destino no pueden ser la misma.");
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
-            .WithMessage("El monto a transferir debe ser mayor que cero.");
+            .WithMessage("El monto de la transacción debe ser mayor que cero.");
     }
 }

@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -12,7 +13,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
@@ -101,17 +101,24 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
 
     private static ProcessWithdrawalCommandHandler CreateWithdrawalHandler(
         IServiceProvider provider
-    ) =>
-        new(
+    ) {
+        var processor = new WithdrawalProcessor(
             provider.GetRequiredService<ISavingsAccountRepository>(),
             provider.GetRequiredService<IFinancialOperationRepository>(),
-            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IUnitOfWork>(),
+            provider.GetRequiredService<IBusinessClock>()
+        );
+
+        return new ProcessWithdrawalCommandHandler(
+            processor,
+            provider.GetRequiredService<ISavingsAccountRepository>(),
+            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IBusinessClock>(),
             provider.GetRequiredService<ICurrentUserService>(),
             provider.GetRequiredService<IEmailService>(),
             provider.GetRequiredService<ILogger<ProcessWithdrawalCommandHandler>>()
         );
+    }
 
     private async Task<string> GetPrincipalNumberAsync(string ownerUserId) {
         await using var scope = Fixture.Services.CreateAsyncScope();
@@ -130,7 +137,7 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
         await using var scope = provider.CreateAsyncScope();
         var handler = CreateWithdrawalHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessWithdrawalCommand(accountNumber, 5000m),
+            new ProcessWithdrawalCommand(accountNumber, 5000m, "wd-success"),
             CancellationToken.None
         );
 
@@ -160,8 +167,8 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
             operation.AccountTransactions.Should().ContainSingle(transaction =>
                 transaction.Direction == TransactionDirection.Debit
                 && transaction.AccountNumber.Value == accountNumber
-                && transaction.OriginReference == "RETIRO"
-                && transaction.BeneficiaryReference == accountNumber
+                && transaction.OriginReference == accountNumber
+                && transaction.BeneficiaryReference == "RETIRO"
                 && transaction.Amount.Amount == 5000m
             );
         });
@@ -176,7 +183,7 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
         await using var scope = provider.CreateAsyncScope();
         var handler = CreateWithdrawalHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessWithdrawalCommand(accountNumber, 1000m),
+            new ProcessWithdrawalCommand(accountNumber, 1000m, "wd-exact"),
             CancellationToken.None
         );
 
@@ -208,7 +215,7 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
         await using var scope = provider.CreateAsyncScope();
         var handler = CreateWithdrawalHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessWithdrawalCommand(accountNumber, 5000m),
+            new ProcessWithdrawalCommand(accountNumber, 5000m, "wd-insufficient"),
             CancellationToken.None
         );
 
@@ -225,7 +232,8 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
 
             (await context.FinancialOperations.CountAsync(operation =>
                 operation.Kind == FinancialOperationKind.Withdrawal
-            )).Should().Be(0);
+                && operation.Status == FinancialOperationStatus.Rejected
+            )).Should().Be(1);
         });
     }
 
@@ -239,7 +247,7 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
         await using var scope = provider.CreateAsyncScope();
         var handler = CreateWithdrawalHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessWithdrawalCommand(accountNumber, 1000m),
+            new ProcessWithdrawalCommand(accountNumber, 1000m, "wd-cancelled"),
             CancellationToken.None
         );
 
@@ -250,6 +258,41 @@ public sealed class CashierWithdrawalIntegrationTests(SqlServerFixture fixture)
             (await context.FinancialOperations.CountAsync(operation =>
                 operation.Kind == FinancialOperationKind.Withdrawal
             )).Should().Be(0);
+        });
+    }
+
+    [Fact]
+    public async Task TwoConcurrentWithdrawals_OnlyOneDebits() {
+        AppUser client = await CreateClientWithPrincipalAccountAsync("wdrawrace", 1000m);
+        string accountNumber = await GetPrincipalNumberAsync(client.Id);
+
+        await using var providerA = BuildProvider();
+        await using var providerB = BuildProvider();
+        await using var scopeA = providerA.CreateAsyncScope();
+        await using var scopeB = providerB.CreateAsyncScope();
+        var handlerA = CreateWithdrawalHandler(scopeA.ServiceProvider);
+        var handlerB = CreateWithdrawalHandler(scopeB.ServiceProvider);
+
+        var outcomes = await Task.WhenAll(
+            handlerA.Handle(
+                new ProcessWithdrawalCommand(accountNumber, 800m, "wd-race-a"),
+                CancellationToken.None
+            ).AsTask(),
+            handlerB.Handle(
+                new ProcessWithdrawalCommand(accountNumber, 800m, "wd-race-b"),
+                CancellationToken.None
+            ).AsTask()
+        );
+
+        // Un solo retiro se aplica: el perdedor obtiene conflicto de
+        // concurrencia (rowversion) o fondos insuficientes, nunca -600.
+        outcomes.Count(outcome => outcome.IsSuccess).Should().Be(1);
+        outcomes.Count(outcome => outcome.IsFailure).Should().Be(1);
+
+        await WithContextAsync(async context => {
+            var account = await context.SavingsAccounts.AsNoTracking()
+                .SingleAsync(item => item.Number == AccountNumber.Create(accountNumber).Value);
+            account.Balance.Amount.Should().Be(200m);
         });
     }
 

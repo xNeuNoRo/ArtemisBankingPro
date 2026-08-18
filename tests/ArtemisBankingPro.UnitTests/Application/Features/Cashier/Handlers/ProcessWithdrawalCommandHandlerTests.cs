@@ -1,5 +1,7 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -10,7 +12,6 @@ using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Events;
@@ -117,11 +118,17 @@ public sealed class ProcessWithdrawalCommandHandlerTests {
         emailService = new Mock<IEmailService>();
         userRepository ??= UserRepository();
 
-        return new ProcessWithdrawalCommandHandler(
+        var processor = new WithdrawalProcessor(
             accountRepository.Object,
             operationRepository.Object,
-            userRepository.Object,
             UnitOfWork().Object,
+            Clock().Object
+        );
+
+        return new ProcessWithdrawalCommandHandler(
+            processor,
+            accountRepository.Object,
+            userRepository.Object,
             Clock().Object,
             new FixedCurrentUser(),
             emailService.Object,
@@ -130,7 +137,7 @@ public sealed class ProcessWithdrawalCommandHandlerTests {
     }
 
     private static ProcessWithdrawalCommand Command(decimal amount = 1000m) =>
-        new("100000001", amount);
+        new("100000001", amount, "test-key");
 
     [Fact]
     public async Task Handle_ValidWithdrawal_DebitsAccountCreatesOperationAndSendsEmail() {
@@ -170,8 +177,8 @@ public sealed class ProcessWithdrawalCommandHandlerTests {
         operation.AccountTransactions.Should().ContainSingle(transaction =>
             transaction.Direction == TransactionDirection.Debit
             && transaction.AccountNumber.Value == "100000001"
-            && transaction.OriginReference == "RETIRO"
-            && transaction.BeneficiaryReference == "100000001"
+            && transaction.OriginReference == "100000001"
+            && transaction.BeneficiaryReference == "RETIRO"
             && transaction.Amount.Amount == 1000m
         );
 
@@ -235,7 +242,7 @@ public sealed class ProcessWithdrawalCommandHandlerTests {
     }
 
     [Fact]
-    public async Task Handle_InsufficientFunds_ReturnsDeclinedWithoutStateChanges() {
+    public async Task Handle_InsufficientFunds_ReturnsDeclinedAndPersistsRejection() {
         var account = SeedAccount(initialBalance: 1000m);
         var handler = CreateHandler(
             out _,
@@ -250,7 +257,17 @@ public sealed class ProcessWithdrawalCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.InsufficientFunds");
         account.Balance.Amount.Should().Be(1000m);
-        addedOperation().Should().BeNull();
+
+        FinancialOperation operation = addedOperation()!;
+        Assert.NotNull(operation);
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Account.InsufficientFunds");
+        operation.AccountTransactions.Should().ContainSingle(transaction =>
+            transaction.Direction == TransactionDirection.Debit
+            && transaction.OriginReference == "100000001"
+            && transaction.BeneficiaryReference == "RETIRO"
+            && transaction.Amount.Amount == 5000m
+        );
     }
 
     [Fact]
@@ -274,24 +291,22 @@ public sealed class ProcessWithdrawalCommandHandlerTests {
         var result = await handler.Handle(Command(1000m), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        result.Value.NotificationWarning.Should().Be(NotificationMessages.EmailFailed);
         account.Balance.Amount.Should().Be(49000m);
     }
 
     [Fact]
-    public void Command_RequiresCashierOrAdministratorRoles() {
+    public void Command_RequiresCashierRole() {
         var command = Command();
 
-        command.RequiredRoles.Should().BeEquivalentTo("Cajero", "Administrador");
+        command.RequiredRoles.Should().Equal("Cajero");
     }
 
     [Fact]
-    public void Command_BuildsStableIdempotencyKeyWithMinuteGranularity() {
+    public void Command_CarriesCallerSuppliedIdempotencyKeyAndStableFingerprint() {
         var command = Command(1000m);
 
-        string key = command.IdempotencyKey;
-        string fingerprint = command.RequestFingerprint;
-
-        key.Should().MatchRegex(@"^withdrawal-100000001-1000\.00-\d{12}$");
-        fingerprint.Should().Be("100000001|1000.00");
+        command.IdempotencyKey.Should().Be("test-key");
+        command.RequestFingerprint.Should().Be("100000001|1000.00");
     }
 }

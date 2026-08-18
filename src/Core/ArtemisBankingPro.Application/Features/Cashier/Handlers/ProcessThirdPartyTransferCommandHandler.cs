@@ -1,20 +1,16 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.DTOs;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
-using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Application.Models.Emails;
-using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Entities;
-using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.Errors;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Operations.Entities;
-using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Errors;
 using Mediator;
 using Microsoft.Extensions.Logging;
@@ -23,36 +19,32 @@ namespace ArtemisBankingPro.Application.Features.Cashier.Handlers;
 
 /// <summary>
 /// Procesa una transferencia a cuentas de terceros (spec §31): valida origen
-/// activo con fondos, destino activo de dueño distinto y ejecuta el débito,
-/// el crédito, las dos transacciones pareadas y la operación financiera de
-/// forma atómica. Los correos a ambos propietarios se envían después del
-/// commit y su fallo no revierte la transferencia.
+/// y destino y la regla de terceros, delega el núcleo financiero atómico en
+/// <see cref="ITransferProcessor"/> y envía los correos a ambos propietarios
+/// después del commit (su fallo no revierte la transferencia).
 /// </summary>
 public sealed class ProcessThirdPartyTransferCommandHandler
     : IRequestHandler<ProcessThirdPartyTransferCommand, Result<ProcessThirdPartyTransferResponse>> {
+    private readonly ITransferProcessor _processor;
     private readonly ISavingsAccountRepository _savingsAccountRepository;
-    private readonly IFinancialOperationRepository _financialOperationRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IBusinessClock _clock;
     private readonly ICurrentUserService _currentUser;
     private readonly IEmailService _emailService;
     private readonly ILogger<ProcessThirdPartyTransferCommandHandler> _logger;
 
     public ProcessThirdPartyTransferCommandHandler(
+        ITransferProcessor processor,
         ISavingsAccountRepository savingsAccountRepository,
-        IFinancialOperationRepository financialOperationRepository,
         IUserRepository userRepository,
-        IUnitOfWork unitOfWork,
         IBusinessClock clock,
         ICurrentUserService currentUser,
         IEmailService emailService,
         ILogger<ProcessThirdPartyTransferCommandHandler> logger
     ) {
+        _processor = processor;
         _savingsAccountRepository = savingsAccountRepository;
-        _financialOperationRepository = financialOperationRepository;
         _userRepository = userRepository;
-        _unitOfWork = unitOfWork;
         _clock = clock;
         _currentUser = currentUser;
         _emailService = emailService;
@@ -63,7 +55,6 @@ public sealed class ProcessThirdPartyTransferCommandHandler
         ProcessThirdPartyTransferCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. Identificadores válidos y cuenta destino distinta de la origen.
         var sourceNumberResult = AccountNumber.Create(message.SourceAccountNumber);
         if (sourceNumberResult.IsFailure) {
             return Result.Failure<ProcessThirdPartyTransferResponse>(sourceNumberResult.Error!);
@@ -80,15 +71,11 @@ public sealed class ProcessThirdPartyTransferCommandHandler
             return Result.Failure<ProcessThirdPartyTransferResponse>(OperationErrors.SameAccount);
         }
 
-        // 2. Monto válido.
         var amountResult = Money.Create(message.Amount);
         if (amountResult.IsFailure) {
             return Result.Failure<ProcessThirdPartyTransferResponse>(amountResult.Error!);
         }
 
-        var amount = amountResult.Value;
-
-        // 3. Origen: debe existir y estar activo.
         var source = await _savingsAccountRepository.GetByNumberAsync(
             sourceNumberResult.Value,
             cancellationToken
@@ -97,18 +84,6 @@ public sealed class ProcessThirdPartyTransferCommandHandler
             return Result.Failure<ProcessThirdPartyTransferResponse>(AccountErrors.SourceNotFound);
         }
 
-        if (source.Status != AccountStatus.Active) {
-            return Result.Failure<ProcessThirdPartyTransferResponse>(AccountErrors.NotActive);
-        }
-
-        // 4. Fondos suficientes (se revalida bajo protección de concurrencia
-        // dentro de la transacción).
-        var canDebitResult = source.CanDebit(amount);
-        if (canDebitResult.IsFailure) {
-            return Result.Failure<ProcessThirdPartyTransferResponse>(canDebitResult.Error!);
-        }
-
-        // 5. Destino: debe existir, estar activo y pertenecer a un tercero.
         var destination = await _savingsAccountRepository.GetByNumberAsync(
             destinationNumberResult.Value,
             cancellationToken
@@ -119,130 +94,48 @@ public sealed class ProcessThirdPartyTransferCommandHandler
             );
         }
 
-        if (destination.Status != AccountStatus.Active) {
-            return Result.Failure<ProcessThirdPartyTransferResponse>(AccountErrors.NotActive);
-        }
-
         if (destination.OwnerUserId == source.OwnerUserId) {
             return Result.Failure<ProcessThirdPartyTransferResponse>(
                 OperationErrors.DestinationMustBeThirdParty
             );
         }
 
-        // 6. Débito + crédito + transacciones pareadas + operación, atómicos.
-        var occurredAt = _clock.Now;
-        Guid operationId = Guid.NewGuid();
-
-        var persistResult = await ExecuteTransferAsync(
-            operationId,
+        var outcomeResult = await _processor.TransferAsync(
             source,
             destination,
-            amount,
-            occurredAt,
+            amountResult.Value,
+            TransferFlow.CashierThirdParty,
+            _currentUser.UserId!,
             cancellationToken
         );
-        if (persistResult.IsFailure) {
-            return Result.Failure<ProcessThirdPartyTransferResponse>(persistResult.Error!);
+        if (outcomeResult.IsFailure) {
+            return Result.Failure<ProcessThirdPartyTransferResponse>(outcomeResult.Error!);
         }
 
-        // 7. Correos post-commit a ambos propietarios (fallo no revierte).
-        await SendNotificationsAsync(
-            operationId,
+        var outcome = outcomeResult.Value;
+        bool notificationsOk = await SendNotificationsAsync(
+            outcome.OperationId,
             source,
             destination,
-            amount,
-            occurredAt,
+            outcome.AppliedAmount,
+            outcome.OccurredAt,
             cancellationToken
         );
 
         return Result.Success(
             new ProcessThirdPartyTransferResponse(
-                operationId,
+                outcome.OperationId,
                 source.Number.Value,
                 destination.Number.Value,
-                amount.Amount,
-                occurredAt,
-                "Approved"
+                outcome.AppliedAmount.Amount,
+                outcome.OccurredAt,
+                "Approved",
+                NotificationWarning: notificationsOk ? null : NotificationMessages.EmailFailed
             )
         );
     }
 
-    private async Task<Result> ExecuteTransferAsync(
-        Guid operationId,
-        SavingsAccount source,
-        SavingsAccount destination,
-        Money amount,
-        DateTimeOffset occurredAt,
-        CancellationToken cancellationToken
-    ) {
-        return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                var debitResult = source.Debit(amount);
-                if (debitResult.IsFailure) {
-                    return debitResult;
-                }
-
-                var creditResult = destination.Credit(amount);
-                if (creditResult.IsFailure) {
-                    return creditResult;
-                }
-
-                // Orden estable (Id ascendente) al actualizar las filas para
-                // reducir deadlocks en operaciones concurrentes.
-                foreach (SavingsAccount account in new[] { source, destination }.OrderBy(
-                    account => account.Id
-                )) {
-                    _savingsAccountRepository.Update(account);
-                }
-
-                var operationResult = FinancialOperation.Approve(
-                    operationId,
-                    FinancialOperationKind.CashierTransfer,
-                    amount,
-                    amount,
-                    Money.Zero,
-                    _currentUser.UserId!,
-                    occurredAt,
-                    [
-                        new AccountTransactionDetails(
-                            source.Number,
-                            TransactionDirection.Debit,
-                            amount,
-                            source.Number.Value,
-                            destination.Number.Value
-                        ),
-                        new AccountTransactionDetails(
-                            destination.Number,
-                            TransactionDirection.Credit,
-                            amount,
-                            source.Number.Value,
-                            destination.Number.Value
-                        ),
-                    ]
-                );
-                if (operationResult.IsFailure) {
-                    return Result.Failure(operationResult.Error!);
-                }
-
-                var operation = operationResult.Value;
-                operation.RecordThirdPartyTransferProcessed(
-                    source.Number.Value,
-                    destination.Number.Value,
-                    amount,
-                    source.OwnerUserId,
-                    destination.OwnerUserId,
-                    _currentUser.UserId!
-                );
-
-                await _financialOperationRepository.AddAsync(operation, ct);
-
-                return Result.Success();
-            },
-            ct: cancellationToken
-        );
-    }
-
-    private async Task SendNotificationsAsync(
+    private async Task<bool> SendNotificationsAsync(
         Guid operationId,
         SavingsAccount source,
         SavingsAccount destination,
@@ -260,7 +153,7 @@ public sealed class ProcessThirdPartyTransferCommandHandler
             owner => owner.Id == destination.OwnerUserId
         );
 
-        await TrySendAsync(
+        bool allSent = await TrySendAsync(
             sourceOwner,
             new ThirdPartyTransferSenderModel(
                 FullName(sourceOwner),
@@ -274,7 +167,7 @@ public sealed class ProcessThirdPartyTransferCommandHandler
             cancellationToken
         );
 
-        await TrySendAsync(
+        return (await TrySendAsync(
             destinationOwner,
             new ThirdPartyTransferReceiverModel(
                 FullName(destinationOwner),
@@ -286,10 +179,10 @@ public sealed class ProcessThirdPartyTransferCommandHandler
             ),
             operationId,
             cancellationToken
-        );
+        )) && allSent;
     }
 
-    private async Task TrySendAsync<T>(
+    private async Task<bool> TrySendAsync<T>(
         UserListDto? recipient,
         T model,
         Guid operationId,
@@ -297,11 +190,12 @@ public sealed class ProcessThirdPartyTransferCommandHandler
     )
         where T : IEmailModel {
         if (recipient is null) {
-            return;
+            return true;
         }
 
         try {
             await _emailService.SendAsync(recipient.Email, model, cancellationToken);
+            return true;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
@@ -310,6 +204,7 @@ public sealed class ProcessThirdPartyTransferCommandHandler
                 model.TemplateName,
                 operationId
             );
+            return false;
         }
     }
 

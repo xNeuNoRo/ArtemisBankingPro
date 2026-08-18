@@ -1,5 +1,7 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -13,7 +15,6 @@ using ArtemisBankingPro.Domain.Cards.Events;
 using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -35,6 +36,12 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
         public int? CommerceId => null;
     }
 
+    private static void SetId(CreditCardEntity card, int id) =>
+        typeof(CreditCardEntity)
+            .GetProperty(nameof(CreditCardEntity.Id))!
+            .GetSetMethod(true)!
+            .Invoke(card, [id]);
+
     private static CreditCardEntity SeedCard(decimal debt = 4000m) {
         var card = CreditCardEntity.Issue(
             ClientId,
@@ -46,6 +53,7 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
             FixedNow,
             FixedToday
         ).Value;
+        SetId(card, 1);
 
         if (debt > 0m) {
             card.AuthorizeCharge(Money.Create(debt).Value, FixedToday)
@@ -158,13 +166,22 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
                 );
         }
 
-        return new ProcessCardPaymentCommandHandler(
+        var unitOfWork = UnitOfWork();
+        var clock = Clock();
+        var processor = new CardPaymentProcessor(
             cardRepository.Object,
             accountRepository.Object,
             operationRepository.Object,
+            unitOfWork.Object,
+            clock.Object
+        );
+
+        return new ProcessCardPaymentCommandHandler(
+            processor,
+            cardRepository.Object,
+            accountRepository.Object,
             userRepository.Object,
-            UnitOfWork().Object,
-            Clock().Object,
+            clock.Object,
             new FixedCurrentUser(),
             emailService.Object,
             NullLogger<ProcessCardPaymentCommandHandler>.Instance
@@ -172,7 +189,7 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
     }
 
     private static ProcessCardPaymentCommand Command(decimal amount = 1000m) =>
-        new(1, "100000001", amount);
+        new(1, "100000001", amount, "test-key");
 
     [Fact]
     public async Task Handle_ValidPayment_DebitsAccountReducesDebtAndCreatesOperation() {
@@ -208,7 +225,7 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
             r => r.AddAsync(
                 It.Is<FinancialOperation>(op =>
                     op.Kind == FinancialOperationKind.CreditCardPayment
-                    && op.CreditCardId == 1
+                    && op.CreditCardId == card.Id
                     && op.RequestedAmount.Amount == 1000m
                     && op.AppliedAmount.Amount == 1000m
                     && op.AccountTransactions.Count == 1
@@ -222,7 +239,7 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
         emailService.Verify(
             s => s.SendAsync(
                 "maria@artemis.com",
-                It.IsAny<CardPaymentModel>(),
+                It.IsAny<CardPaymentCompletedModel>(),
                 It.IsAny<CancellationToken>()
             ),
             Times.Once
@@ -396,7 +413,7 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
         emailService
             .Setup(s => s.SendAsync(
                 It.IsAny<string>(),
-                It.IsAny<CardPaymentModel>(),
+                It.IsAny<CardPaymentCompletedModel>(),
                 It.IsAny<CancellationToken>()
             ))
             .ThrowsAsync(new EmailSendException("Pago realizado a la tarjeta 1234", new IOException("smtp")));
@@ -404,6 +421,7 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
         var result = await handler.Handle(Command(1000m), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        result.Value.NotificationWarning.Should().Be(NotificationMessages.EmailFailed);
         account.Balance.Amount.Should().Be(49000m);
         card.CurrentDebt.Amount.Should().Be(3000m);
     }
@@ -428,7 +446,7 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
         emailService.Verify(
             s => s.SendAsync(
                 "maria@artemis.com",
-                It.IsAny<CardPaymentModel>(),
+                It.IsAny<CardPaymentCompletedModel>(),
                 It.IsAny<CancellationToken>()
             ),
             Times.Once
@@ -444,20 +462,17 @@ public sealed class ProcessCardPaymentCommandHandlerTests {
     }
 
     [Fact]
-    public void Command_RequiresCashierOrAdministratorRoles() {
+    public void Command_RequiresCashierRole() {
         var command = Command();
 
-        command.RequiredRoles.Should().BeEquivalentTo("Cajero", "Administrador");
+        command.RequiredRoles.Should().Equal("Cajero");
     }
 
     [Fact]
-    public void Command_BuildsStableIdempotencyKeyWithMinuteGranularity() {
+    public void Command_CarriesCallerSuppliedIdempotencyKeyAndStableFingerprint() {
         var command = Command(1000m);
 
-        string key = command.IdempotencyKey;
-        string fingerprint = command.RequestFingerprint;
-
-        key.Should().MatchRegex(@"^card-payment-1-100000001-1000\.00-\d{12}$");
-        fingerprint.Should().Be("1|100000001|1000.00");
+        command.IdempotencyKey.Should().Be("test-key");
+        command.RequestFingerprint.Should().Be("1|100000001|1000.00");
     }
 }

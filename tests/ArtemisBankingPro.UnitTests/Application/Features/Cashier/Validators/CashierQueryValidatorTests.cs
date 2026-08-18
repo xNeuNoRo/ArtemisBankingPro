@@ -95,10 +95,10 @@ public sealed class GetCashierOperationsQueryValidatorTests {
     }
 
     [Fact]
-    public void Query_RequiresCajeroAndAdministradorRoles() {
+    public void Query_RequiresCajeroRole() {
         var query = new GetCashierOperationsQuery();
 
-        query.RequiredRoles.Should().Equal("Cajero", "Administrador");
+        query.RequiredRoles.Should().Equal("Cajero");
         (query is IAuthorize).Should().BeTrue();
     }
 }

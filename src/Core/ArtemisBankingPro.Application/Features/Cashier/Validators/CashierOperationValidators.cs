@@ -21,6 +21,6 @@ public sealed class ProcessDepositCommandValidator
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
-            .WithMessage("El monto del depósito debe ser mayor que cero.");
+            .WithMessage("El monto a depositar debe ser mayor que cero.");
     }
 }

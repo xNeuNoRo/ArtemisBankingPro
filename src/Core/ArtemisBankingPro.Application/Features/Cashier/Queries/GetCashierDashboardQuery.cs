@@ -11,5 +11,5 @@ namespace ArtemisBankingPro.Application.Features.Cashier.Queries;
 /// no recibe entrada del cliente.
 /// </summary>
 public sealed record GetCashierDashboardQuery : IRequest<Result<CashierDashboardDto>>, IAuthorize {
-    public string[] RequiredRoles => ["Cajero", "Administrador"];
+    public string[] RequiredRoles => ["Cajero"];
 }

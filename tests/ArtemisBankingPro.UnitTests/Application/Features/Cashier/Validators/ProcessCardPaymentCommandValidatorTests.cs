@@ -7,7 +7,7 @@ public sealed class ProcessCardPaymentCommandValidatorTests {
     private readonly ProcessCardPaymentCommandValidator _validator = new();
 
     private static ProcessCardPaymentCommand ValidCommand(decimal amount = 1000m) =>
-        new(1, "100000001", amount);
+        new(1, "100000001", amount, "test-key");
 
     [Fact]
     public async Task Validate_ValidCommand_Passes() {
@@ -31,7 +31,7 @@ public sealed class ProcessCardPaymentCommandValidatorTests {
     [InlineData(-5)]
     public async Task Validate_InvalidCardId_Fails(int cardId) {
         var result = await _validator.ValidateAsync(
-            new ProcessCardPaymentCommand(cardId, "100000001", 1000m)
+            new ProcessCardPaymentCommand(cardId, "100000001", 1000m, "test-key")
         );
 
         result.IsValid.Should().BeFalse();
@@ -45,7 +45,7 @@ public sealed class ProcessCardPaymentCommandValidatorTests {
     [InlineData("ABCDEFGHI")]
     public async Task Validate_InvalidAccountNumber_Fails(string accountNumber) {
         var result = await _validator.ValidateAsync(
-            new ProcessCardPaymentCommand(1, accountNumber, 1000m)
+            new ProcessCardPaymentCommand(1, accountNumber, 1000m, "test-key")
         );
 
         result.IsValid.Should().BeFalse();

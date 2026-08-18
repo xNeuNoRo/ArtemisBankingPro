@@ -7,7 +7,7 @@ public sealed class ProcessWithdrawalCommandValidatorTests {
     private readonly ProcessWithdrawalCommandValidator _validator = new();
 
     private static ProcessWithdrawalCommand ValidCommand(decimal amount = 1000m) =>
-        new("100000001", amount);
+        new("100000001", amount, "test-key");
 
     [Fact]
     public async Task Validate_ValidCommand_Passes() {
@@ -23,7 +23,10 @@ public sealed class ProcessWithdrawalCommandValidatorTests {
         var result = await _validator.ValidateAsync(ValidCommand(amount));
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "Amount");
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == "Amount"
+            && e.ErrorMessage == "El monto a retirar debe ser mayor que cero."
+        );
     }
 
     [Theory]
@@ -33,7 +36,7 @@ public sealed class ProcessWithdrawalCommandValidatorTests {
     [InlineData("ABCDEFGHI")]
     public async Task Validate_InvalidAccountNumber_Fails(string accountNumber) {
         var result = await _validator.ValidateAsync(
-            new ProcessWithdrawalCommand(accountNumber, 1000m)
+            new ProcessWithdrawalCommand(accountNumber, 1000m, "test-key")
         );
 
         result.IsValid.Should().BeFalse();

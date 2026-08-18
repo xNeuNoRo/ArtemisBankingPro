@@ -1,64 +1,53 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.DTOs;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
-using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Application.Models.Emails;
-using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Entities;
-using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.Errors;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
-using ArtemisBankingPro.Domain.Cards.Enums;
-using ArtemisBankingPro.Domain.Cards.Errors;
-using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Operations.Entities;
-using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
 using Microsoft.Extensions.Logging;
+using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 
 namespace ArtemisBankingPro.Application.Features.Cashier.Handlers;
 
 /// <summary>
-/// Procesa un pago a tarjeta de crédito (spec §29): valida tarjeta activa con
-/// deuda y cuenta origen activa con fondos, capa el monto efectivo a la deuda
-/// real (el excedente no se descuenta) y ejecuta de forma atómica el débito de
-/// la cuenta, la reducción de deuda de la tarjeta, la operación financiera
-/// <c>CreditCardPayment</c> y el evento de dominio. Los correos se envían
-/// después del commit y su fallo no revierte el pago.
+/// Procesa un pago a tarjeta de crédito (spec §29): valida la tarjeta y la
+/// cuenta origen, delega el núcleo financiero atómico en
+/// <see cref="ICardPaymentProcessor"/> y envía los correos después del commit
+/// (su fallo no revierte el pago).
 /// </summary>
 public sealed class ProcessCardPaymentCommandHandler
     : IRequestHandler<ProcessCardPaymentCommand, Result<CashierOperationResponse>> {
+    private readonly ICardPaymentProcessor _processor;
     private readonly ICreditCardRepository _creditCardRepository;
     private readonly ISavingsAccountRepository _savingsAccountRepository;
-    private readonly IFinancialOperationRepository _financialOperationRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IBusinessClock _clock;
     private readonly ICurrentUserService _currentUser;
     private readonly IEmailService _emailService;
     private readonly ILogger<ProcessCardPaymentCommandHandler> _logger;
 
     public ProcessCardPaymentCommandHandler(
+        ICardPaymentProcessor processor,
         ICreditCardRepository creditCardRepository,
         ISavingsAccountRepository savingsAccountRepository,
-        IFinancialOperationRepository financialOperationRepository,
         IUserRepository userRepository,
-        IUnitOfWork unitOfWork,
         IBusinessClock clock,
         ICurrentUserService currentUser,
         IEmailService emailService,
         ILogger<ProcessCardPaymentCommandHandler> logger
     ) {
+        _processor = processor;
         _creditCardRepository = creditCardRepository;
         _savingsAccountRepository = savingsAccountRepository;
-        _financialOperationRepository = financialOperationRepository;
         _userRepository = userRepository;
-        _unitOfWork = unitOfWork;
         _clock = clock;
         _currentUser = currentUser;
         _emailService = emailService;
@@ -69,7 +58,6 @@ public sealed class ProcessCardPaymentCommandHandler
         ProcessCardPaymentCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. Tarjeta activa con deuda (estado mutable re-leído).
         var card = await _creditCardRepository.GetByIdAsync(
             message.CardId,
             cancellationToken
@@ -80,15 +68,6 @@ public sealed class ProcessCardPaymentCommandHandler
             );
         }
 
-        if (card.Status != CreditCardStatus.Active) {
-            return Result.Failure<CashierOperationResponse>(CardErrors.NotActive);
-        }
-
-        if (card.CurrentDebt == Money.Zero) {
-            return Result.Failure<CashierOperationResponse>(CardErrors.NoDebt);
-        }
-
-        // 2. Cuenta origen: debe existir y estar activa.
         var accountNumberResult = AccountNumber.Create(message.AccountNumber);
         if (accountNumberResult.IsFailure) {
             return Result.Failure<CashierOperationResponse>(accountNumberResult.Error!);
@@ -102,142 +81,61 @@ public sealed class ProcessCardPaymentCommandHandler
             return Result.Failure<CashierOperationResponse>(AccountErrors.SourceNotFound);
         }
 
-        if (account.Status != AccountStatus.Active) {
-            return Result.Failure<CashierOperationResponse>(AccountErrors.NotActive);
-        }
-
-        // 3. Monto efectivo = min(solicitado, deuda real). El excedente no se
-        // descuenta ni se aplica.
-        decimal effectiveAmount = Math.Min(message.Amount, card.CurrentDebt.Amount);
-        var effectiveMoneyResult = Money.Create(effectiveAmount);
-        if (effectiveMoneyResult.IsFailure) {
-            return Result.Failure<CashierOperationResponse>(effectiveMoneyResult.Error!);
-        }
-
-        var effective = effectiveMoneyResult.Value;
-
-        // 4. Fondos suficientes (se revalida bajo protección de concurrencia
-        // dentro de la transacción).
-        var canDebitResult = account.CanDebit(effective);
-        if (canDebitResult.IsFailure) {
-            return Result.Failure<CashierOperationResponse>(canDebitResult.Error!);
-        }
-
-        // 5. Débito + reducción de deuda + operación, atómicos.
-        var occurredAt = _clock.Now;
-        Guid operationId = Guid.NewGuid();
         var requestedResult = Money.Create(message.Amount);
         if (requestedResult.IsFailure) {
             return Result.Failure<CashierOperationResponse>(requestedResult.Error!);
         }
 
-        var persistResult = await ExecutePaymentAsync(
-            operationId,
-            message.CardId,
+        var outcomeResult = await _processor.PayAsync(
             card,
             account,
             requestedResult.Value,
-            effective,
-            occurredAt,
+            _currentUser.UserId!,
             cancellationToken
         );
-        if (persistResult.IsFailure) {
-            return Result.Failure<CashierOperationResponse>(persistResult.Error!);
+        if (outcomeResult.IsFailure) {
+            return Result.Failure<CashierOperationResponse>(outcomeResult.Error!);
         }
 
-        // 6. Correos post-commit (fallo no revierte el pago).
-        await SendNotificationsAsync(
+        var outcome = outcomeResult.Value;
+        bool notificationsOk = await SendNotificationsAsync(
             card,
             account,
-            effective,
-            occurredAt,
+            outcome.AppliedAmount,
+            outcome.OccurredAt,
             cancellationToken
         );
 
         return Result.Success(
             new CashierOperationResponse(
-                operationId,
+                outcome.OperationId,
                 account.Number.Value,
                 null,
-                effective.Amount,
-                occurredAt,
+                outcome.AppliedAmount.Amount,
+                outcome.OccurredAt,
                 "Approved",
-                card.LastFour
+                card.LastFour,
+                NotificationWarning: notificationsOk ? null : NotificationMessages.EmailFailed
             )
         );
     }
 
-    private async Task<Result> ExecutePaymentAsync(
-        Guid operationId,
-        int cardId,
-        CreditCardEntity card,
-        SavingsAccount account,
-        Money requestedAmount,
-        Money effectiveAmount,
-        DateTimeOffset occurredAt,
-        CancellationToken cancellationToken
-    ) {
-        return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                var debitResult = account.Debit(effectiveAmount);
-                if (debitResult.IsFailure) {
-                    return debitResult;
-                }
-
-                var paymentResult = card.ApplyPayment(effectiveAmount, occurredAt);
-                if (paymentResult.IsFailure) {
-                    return Result.Failure(paymentResult.Error!);
-                }
-
-                // Orden estable de actualización para reducir deadlocks.
-                _savingsAccountRepository.Update(account);
-                _creditCardRepository.Update(card);
-
-                var operationResult = FinancialOperation.Approve(
-                    operationId,
-                    FinancialOperationKind.CreditCardPayment,
-                    requestedAmount,
-                    effectiveAmount,
-                    Money.Zero,
-                    _currentUser.UserId!,
-                    occurredAt,
-                    [
-                        new AccountTransactionDetails(
-                            account.Number,
-                            TransactionDirection.Debit,
-                            effectiveAmount,
-                            account.Number.Value,
-                            card.LastFour
-                        ),
-                    ],
-                    creditCardId: cardId
-                );
-                if (operationResult.IsFailure) {
-                    return Result.Failure(operationResult.Error!);
-                }
-
-                await _financialOperationRepository.AddAsync(operationResult.Value, ct);
-                return Result.Success();
-            },
-            ct: cancellationToken
-        );
-    }
-
-    private async Task SendNotificationsAsync(
+    private async Task<bool> SendNotificationsAsync(
         CreditCardEntity card,
         SavingsAccount account,
         Money effectiveAmount,
         DateTimeOffset occurredAt,
         CancellationToken cancellationToken
     ) {
+        bool allSent = true;
         var cardCustomer = await _userRepository.GetByIdAsync(
             card.CustomerUserId,
             cancellationToken
         );
         if (cardCustomer is not null) {
-            await TrySendAsync(
+            allSent = (await TrySendAsync(
                 cardCustomer,
-                new CardPaymentModel(
+                new CardPaymentCompletedModel(
                     $"{cardCustomer.FirstName} {cardCustomer.LastName}".Trim(),
                     card.LastFour,
                     effectiveAmount,
@@ -247,37 +145,35 @@ public sealed class ProcessCardPaymentCommandHandler
                 ),
                 card.LastFour,
                 cancellationToken
+            )) && allSent;
+        }
+
+        if (account.OwnerUserId != card.CustomerUserId) {
+            var accountOwner = await _userRepository.GetByIdAsync(
+                account.OwnerUserId,
+                cancellationToken
             );
+            if (accountOwner is not null) {
+                allSent = (await TrySendAsync(
+                    accountOwner,
+                    new AccountDebitedForCardPaymentModel(
+                        $"{accountOwner.FirstName} {accountOwner.LastName}".Trim(),
+                        effectiveAmount,
+                        account.Number.Value[^4..],
+                        card.LastFour,
+                        occurredAt,
+                        _clock.BusinessTimeZone
+                    ),
+                    card.LastFour,
+                    cancellationToken
+                )) && allSent;
+            }
         }
 
-        if (account.OwnerUserId == card.CustomerUserId) {
-            return;
-        }
-
-        var accountOwner = await _userRepository.GetByIdAsync(
-            account.OwnerUserId,
-            cancellationToken
-        );
-        if (accountOwner is null) {
-            return;
-        }
-
-        await TrySendAsync(
-            accountOwner,
-            new AccountDebitedForCardPaymentModel(
-                $"{accountOwner.FirstName} {accountOwner.LastName}".Trim(),
-                effectiveAmount,
-                account.Number.Value[^4..],
-                card.LastFour,
-                occurredAt,
-                _clock.BusinessTimeZone
-            ),
-            card.LastFour,
-            cancellationToken
-        );
+        return allSent;
     }
 
-    private async Task TrySendAsync<T>(
+    private async Task<bool> TrySendAsync<T>(
         UserListDto recipient,
         T model,
         string cardLastFour,
@@ -286,6 +182,7 @@ public sealed class ProcessCardPaymentCommandHandler
         where T : IEmailModel {
         try {
             await _emailService.SendAsync(recipient.Email, model, cancellationToken);
+            return true;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
@@ -294,6 +191,7 @@ public sealed class ProcessCardPaymentCommandHandler
                 model.TemplateName,
                 cardLastFour
             );
+            return false;
         }
     }
 }

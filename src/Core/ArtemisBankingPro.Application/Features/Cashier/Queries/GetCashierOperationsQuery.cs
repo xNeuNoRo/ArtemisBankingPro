@@ -19,5 +19,5 @@ public sealed record GetCashierOperationsQuery(
     int Page = PageRequest.DefaultPage,
     int PageSize = PageRequest.DefaultPageSize
 ) : IRequest<Result<PageResult<CashierOperationDto>>>, IAuthorize {
-    public string[] RequiredRoles => ["Cajero", "Administrador"];
+    public string[] RequiredRoles => ["Cajero"];
 }

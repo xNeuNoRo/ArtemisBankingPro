@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Common.Behaviors;
 using ArtemisBankingPro.Application.Common.Mapping;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,12 @@ public static class ServicesRegistration {
         });
 
         services.AddValidatorsFromAssembly(typeof(ServicesRegistration).Assembly);
+        services.AddScoped<ICardPaymentProcessor, CardPaymentProcessor>();
+        services.AddScoped<ILoanPaymentProcessor, LoanPaymentProcessor>();
+        services.AddScoped<ITransferProcessor, TransferProcessor>();
+        services.AddScoped<ICashAdvanceProcessor, CashAdvanceProcessor>();
+        services.AddScoped<IWithdrawalProcessor, WithdrawalProcessor>();
+
 
         // Mapster composes explicit feature mappings and validates them during startup.
         services.AddSingleton(MapsterConfig.Create());

@@ -110,7 +110,7 @@ public sealed class GetCashierDashboardQueryHandlerTests {
         var first = await handler.Handle(new GetCashierDashboardQuery(), CancellationToken.None);
         var second = await handler.Handle(new GetCashierDashboardQuery(), CancellationToken.None);
 
-        second.Value.Should().BeEquivalentTo(first.Value);
+        Assert.Equivalent(first.Value, second.Value);
         repository.Verify(
             r => r.GetDashboardAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()),
             Times.Exactly(2)
@@ -118,10 +118,10 @@ public sealed class GetCashierDashboardQueryHandlerTests {
     }
 
     [Fact]
-    public void Query_RequiresCajeroAndAdministradorRoles() {
+    public void Query_RequiresCajeroRole() {
         var query = new GetCashierDashboardQuery();
 
-        query.RequiredRoles.Should().Equal("Cajero", "Administrador");
+        query.RequiredRoles.Should().Equal("Cajero");
         (query is IAuthorize).Should().BeTrue();
     }
 }
@@ -286,7 +286,7 @@ public sealed class GetCashierOperationsQueryHandlerTests {
         var first = await handler.Handle(new GetCashierOperationsQuery(), CancellationToken.None);
         var second = await handler.Handle(new GetCashierOperationsQuery(), CancellationToken.None);
 
-        second.Value.Should().BeEquivalentTo(first.Value);
+        Assert.Equivalent(first.Value, second.Value);
         repository.Verify(
             r => r.GetOperationsPagedAsync(It.IsAny<string>(), It.IsAny<CashierOperationFilters>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()),
             Times.Exactly(2)
@@ -294,10 +294,10 @@ public sealed class GetCashierOperationsQueryHandlerTests {
     }
 
     [Fact]
-    public void Query_RequiresCajeroAndAdministradorRoles() {
+    public void Query_RequiresCajeroRole() {
         var query = new GetCashierOperationsQuery();
 
-        query.RequiredRoles.Should().Equal("Cajero", "Administrador");
+        query.RequiredRoles.Should().Equal("Cajero");
         (query is IAuthorize).Should().BeTrue();
     }
 }

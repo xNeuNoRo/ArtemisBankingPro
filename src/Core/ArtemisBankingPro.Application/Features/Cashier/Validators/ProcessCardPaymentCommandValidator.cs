@@ -25,6 +25,6 @@ public sealed class ProcessCardPaymentCommandValidator
 
         RuleFor(x => x.Amount)
             .GreaterThan(0)
-            .WithMessage("El monto del pago debe ser mayor que cero.");
+            .WithMessage("El monto a pagar debe ser mayor que cero.");
     }
 }

@@ -1,5 +1,7 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -9,7 +11,6 @@ using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Enums;
 using ArtemisBankingPro.Domain.Lending.Events;
@@ -148,13 +149,22 @@ public sealed class ProcessLoanPaymentCommandHandlerTests {
                 );
         }
 
-        return new ProcessLoanPaymentCommandHandler(
+        var unitOfWork = UnitOfWork();
+        var clock = Clock();
+        var processor = new LoanPaymentProcessor(
             loanRepository.Object,
             accountRepository.Object,
             operationRepository.Object,
+            unitOfWork.Object,
+            clock.Object
+        );
+
+        return new ProcessLoanPaymentCommandHandler(
+            processor,
+            loanRepository.Object,
+            accountRepository.Object,
             userRepository.Object,
-            UnitOfWork().Object,
-            Clock().Object,
+            clock.Object,
             new FixedCurrentUser(),
             emailService.Object,
             NullLogger<ProcessLoanPaymentCommandHandler>.Instance
@@ -162,7 +172,7 @@ public sealed class ProcessLoanPaymentCommandHandlerTests {
     }
 
     private static ProcessLoanPaymentCommand Command(decimal amount = 1000m) =>
-        new(1, "100000001", amount);
+        new(1, "100000001", amount, "test-key");
 
     [Fact]
     public async Task Handle_ValidPayment_DebitsAccountAppliesToLoanAndCreatesOperation() {
@@ -201,7 +211,7 @@ public sealed class ProcessLoanPaymentCommandHandlerTests {
         emailService.Verify(
             s => s.SendAsync(
                 "maria@artemis.com",
-                It.IsAny<LoanPaymentModel>(),
+                It.IsAny<LoanPaymentCompletedModel>(),
                 It.IsAny<CancellationToken>()
             ),
             Times.Once
@@ -385,7 +395,7 @@ public sealed class ProcessLoanPaymentCommandHandlerTests {
         emailService
             .Setup(s => s.SendAsync(
                 It.IsAny<string>(),
-                It.IsAny<LoanPaymentModel>(),
+                It.IsAny<LoanPaymentCompletedModel>(),
                 It.IsAny<CancellationToken>()
             ))
             .ThrowsAsync(new EmailSendException("Pago realizado al préstamo 111111111", new IOException("smtp")));
@@ -393,6 +403,7 @@ public sealed class ProcessLoanPaymentCommandHandlerTests {
         var result = await handler.Handle(Command(1000m), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        result.Value.NotificationWarning.Should().Be(NotificationMessages.EmailFailed);
         account.Balance.Amount.Should().Be(49000m);
     }
 
@@ -416,7 +427,7 @@ public sealed class ProcessLoanPaymentCommandHandlerTests {
         emailService.Verify(
             s => s.SendAsync(
                 "maria@artemis.com",
-                It.IsAny<LoanPaymentModel>(),
+                It.IsAny<LoanPaymentCompletedModel>(),
                 It.IsAny<CancellationToken>()
             ),
             Times.Once
@@ -432,20 +443,17 @@ public sealed class ProcessLoanPaymentCommandHandlerTests {
     }
 
     [Fact]
-    public void Command_RequiresCashierOrAdministratorRoles() {
+    public void Command_RequiresCashierRole() {
         var command = Command();
 
-        command.RequiredRoles.Should().BeEquivalentTo("Cajero", "Administrador");
+        command.RequiredRoles.Should().Equal("Cajero");
     }
 
     [Fact]
-    public void Command_BuildsStableIdempotencyKeyWithMinuteGranularity() {
+    public void Command_CarriesCallerSuppliedIdempotencyKeyAndStableFingerprint() {
         var command = Command(1000m);
 
-        string key = command.IdempotencyKey;
-        string fingerprint = command.RequestFingerprint;
-
-        key.Should().MatchRegex(@"^loan-payment-1-100000001-1000\.00-\d{12}$");
-        fingerprint.Should().Be("1|100000001|1000.00");
+        command.IdempotencyKey.Should().Be("test-key");
+        command.RequestFingerprint.Should().Be("1|100000001|1000.00");
     }
 }

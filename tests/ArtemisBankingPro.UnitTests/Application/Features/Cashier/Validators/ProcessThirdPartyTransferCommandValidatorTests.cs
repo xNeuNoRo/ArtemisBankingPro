@@ -7,7 +7,7 @@ public sealed class ProcessThirdPartyTransferCommandValidatorTests {
     private readonly ProcessThirdPartyTransferCommandValidator _validator = new();
 
     private static ProcessThirdPartyTransferCommand ValidCommand(decimal amount = 200m) =>
-        new("100000001", "100000002", amount);
+        new("100000001", "100000002", amount, "test-key");
 
     [Fact]
     public async Task Validate_ValidCommand_Passes() {
@@ -33,7 +33,7 @@ public sealed class ProcessThirdPartyTransferCommandValidatorTests {
     [InlineData("ABCDEFGHI")]
     public async Task Validate_InvalidSourceNumber_Fails(string number) {
         var result = await _validator.ValidateAsync(
-            new ProcessThirdPartyTransferCommand(number, "100000002", 200m)
+            new ProcessThirdPartyTransferCommand(number, "100000002", 200m, "test-key")
         );
 
         result.IsValid.Should().BeFalse();
@@ -43,7 +43,7 @@ public sealed class ProcessThirdPartyTransferCommandValidatorTests {
     [Fact]
     public async Task Validate_InvalidDestinationNumber_Fails() {
         var result = await _validator.ValidateAsync(
-            new ProcessThirdPartyTransferCommand("100000001", "ABCDEFGHI", 200m)
+            new ProcessThirdPartyTransferCommand("100000001", "ABCDEFGHI", 200m, "test-key")
         );
 
         result.IsValid.Should().BeFalse();
@@ -53,7 +53,7 @@ public sealed class ProcessThirdPartyTransferCommandValidatorTests {
     [Fact]
     public async Task Validate_SameSourceAndDestination_Fails() {
         var result = await _validator.ValidateAsync(
-            new ProcessThirdPartyTransferCommand("100000001", "100000001", 200m)
+            new ProcessThirdPartyTransferCommand("100000001", "100000001", 200m, "test-key")
         );
 
         result.IsValid.Should().BeFalse();
@@ -61,7 +61,7 @@ public sealed class ProcessThirdPartyTransferCommandValidatorTests {
             .Errors.Should()
             .Contain(e =>
                 e.PropertyName == "DestinationAccountNumber"
-                && e.ErrorMessage == "La cuenta destino debe ser diferente a la cuenta origen."
+                && e.ErrorMessage == "La cuenta origen y la cuenta destino no pueden ser la misma."
             );
     }
 }

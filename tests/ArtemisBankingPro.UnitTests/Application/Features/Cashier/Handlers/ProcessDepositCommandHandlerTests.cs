@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
 using ArtemisBankingPro.Application.Interfaces.Email;
@@ -10,7 +11,6 @@ using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Events;
@@ -130,7 +130,7 @@ public sealed class ProcessDepositCommandHandlerTests {
     }
 
     private static ProcessDepositCommand Command(decimal amount = 1000m) =>
-        new("100000001", amount);
+        new("100000001", amount, "test-key");
 
     [Fact]
     public async Task Handle_ValidDeposit_CreditsAccountCreatesOperationAndSendsEmail() {
@@ -252,7 +252,7 @@ public sealed class ProcessDepositCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.AmountMustBePositive");
         account.Balance.Amount.Should().Be(10000m);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -276,24 +276,22 @@ public sealed class ProcessDepositCommandHandlerTests {
         var result = await handler.Handle(Command(1000m), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        result.Value.NotificationWarning.Should().Be(NotificationMessages.EmailFailed);
         account.Balance.Amount.Should().Be(11000m);
     }
 
     [Fact]
-    public void Command_RequiresCashierOrAdministratorRoles() {
+    public void Command_RequiresCashierRole() {
         var command = Command();
 
-        command.RequiredRoles.Should().BeEquivalentTo("Cajero", "Administrador");
+        command.RequiredRoles.Should().Equal("Cajero");
     }
 
     [Fact]
-    public void Command_BuildsStableIdempotencyKeyWithMinuteGranularity() {
+    public void Command_CarriesCallerSuppliedIdempotencyKeyAndStableFingerprint() {
         var command = Command(1000m);
 
-        string key = command.IdempotencyKey;
-        string fingerprint = command.RequestFingerprint;
-
-        key.Should().MatchRegex(@"^deposit-100000001-1000\.00-\d{12}$");
-        fingerprint.Should().Be("100000001|1000.00");
+        command.IdempotencyKey.Should().Be("test-key");
+        command.RequestFingerprint.Should().Be("100000001|1000.00");
     }
 }

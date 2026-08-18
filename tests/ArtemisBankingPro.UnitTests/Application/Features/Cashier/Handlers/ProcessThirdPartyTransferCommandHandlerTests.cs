@@ -1,7 +1,9 @@
+using ArtemisBankingPro.Application.Common;
 using System.Data;
 using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -13,7 +15,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Events;
@@ -192,15 +193,24 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         Mock<IEmailService>? emailService = null
     ) {
         var operationRepository = OperationRepository(out addedOperation);
-        return new ProcessThirdPartyTransferCommandHandler(
-            (accountRepository ?? AccountRepository(
-                Account(SourceNumberValue, "client-source", 1_000m, id: 1),
-                Account(DestinationNumberValue, "client-dest", 500m, id: 2)
-            )).Object,
+        var unitOfWork = UnitOfWork();
+        var clock = Clock();
+        var accountRepositoryMock = accountRepository ?? AccountRepository(
+            Account(SourceNumberValue, "client-source", 1_000m, id: 1),
+            Account(DestinationNumberValue, "client-dest", 500m, id: 2)
+        );
+        var processor = new TransferProcessor(
+            accountRepositoryMock.Object,
             operationRepository.Object,
+            unitOfWork.Object,
+            clock.Object
+        );
+
+        return new ProcessThirdPartyTransferCommandHandler(
+            processor,
+            accountRepositoryMock.Object,
             (userRepository ?? UserRepository()).Object,
-            UnitOfWork().Object,
-            Clock().Object,
+            clock.Object,
             CurrentUser().Object,
             (emailService ?? new Mock<IEmailService>()).Object,
             NullLogger<ProcessThirdPartyTransferCommandHandler>.Instance
@@ -208,7 +218,7 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
     }
 
     private static ProcessThirdPartyTransferCommand Command(decimal amount = 200m) =>
-        new(SourceNumberValue, DestinationNumberValue, amount);
+        new(SourceNumberValue, DestinationNumberValue, amount, "test-key");
 
     [Fact]
     public async Task Handle_ValidTransfer_DebitsSourceCreditsDestinationAtomically() {
@@ -234,7 +244,7 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         destination.Balance.Amount.Should().Be(700m);
 
         var operation = addedOperation();
-        operation.Should().NotBeNull();
+        Assert.NotNull(operation);
         operation.Id.Should().Be(result.Value.OperationId);
         operation.Kind.Should().Be(FinancialOperationKind.CashierTransfer);
         operation.Status.Should().Be(FinancialOperationStatus.Approved);
@@ -370,7 +380,8 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         var result = await handler.Handle(Command(200m), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        addedOperation().Should().NotBeNull();
+        result.Value.NotificationWarning.Should().Be(NotificationMessages.EmailFailed);
+        Assert.NotNull(addedOperation());
     }
 
     [Fact]
@@ -378,14 +389,14 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         var handler = CreateHandler(out Func<FinancialOperation?> addedOperation);
 
         var result = await handler.Handle(
-            new ProcessThirdPartyTransferCommand(SourceNumberValue, SourceNumberValue, 200m),
+            new ProcessThirdPartyTransferCommand(SourceNumberValue, SourceNumberValue, 200m, "test-key"),
             CancellationToken.None
         );
 
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Operation.SameAccount");
         result.Error.Category.Should().Be(ErrorCategory.Validation);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -401,7 +412,7 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.SourceNotFound");
         result.Error.Category.Should().Be(ErrorCategory.NotFound);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -420,14 +431,14 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.DestinationNotFound");
         result.Error.Category.Should().Be(ErrorCategory.NotFound);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
     public async Task Handle_InactiveSource_ReturnsNotActiveWithoutPersistence() {
         var accountRepository = AccountRepository(
             Account(SourceNumberValue, "client-source", 1_000m, id: 1, status: AccountStatus.Cancelled),
-            null
+            Account(DestinationNumberValue, "client-dest", 500m, id: 2)
         );
         var handler = CreateHandler(
             out Func<FinancialOperation?> addedOperation,
@@ -439,7 +450,7 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.NotActive");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -458,7 +469,7 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.NotActive");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -477,11 +488,11 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Operation.DestinationMustBeThirdParty");
         result.Error.Category.Should().Be(ErrorCategory.Validation);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
-    public async Task Handle_InsufficientFunds_ReturnsDeclinedWithoutPersistence() {
+    public async Task Handle_InsufficientFunds_ReturnsDeclinedAndPersistsRejection() {
         var accountRepository = AccountRepository(
             Account(SourceNumberValue, "client-source", 50m, id: 1),
             Account(DestinationNumberValue, "client-dest", 500m, id: 2)
@@ -496,28 +507,35 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.InsufficientFunds");
         result.Error.Category.Should().Be(ErrorCategory.Declined);
-        addedOperation().Should().BeNull();
+
+        FinancialOperation operation = addedOperation()!;
+        Assert.NotNull(operation);
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.Kind.Should().Be(FinancialOperationKind.CashierTransfer);
+        operation.RejectionCode.Should().Be("Account.InsufficientFunds");
+        operation.AccountTransactions.Should().ContainSingle(t =>
+            t.Direction == TransactionDirection.Debit && t.Amount.Amount == 200m
+        );
     }
 
     [Fact]
-    public void Command_HasSpecIdempotencyKeyFormatAndStableFingerprint() {
+    public void Command_CarriesCallerSuppliedIdempotencyKeyAndStableFingerprint() {
         var command = new ProcessThirdPartyTransferCommand(
             SourceNumberValue,
             DestinationNumberValue,
-            200m
+            200m,
+            "test-key"
         );
 
-        command.IdempotencyKey.Should().MatchRegex(
-            "^thirdparty-100000001-100000002-200.00-\\d{12}$"
-        );
+        command.IdempotencyKey.Should().Be("test-key");
         command.RequestFingerprint.Should().Be("100000001|100000002|200.00");
     }
 
     [Fact]
-    public void Command_RequiresCajeroAndAdministradorRoles() {
+    public void Command_RequiresCajeroRole() {
         var command = Command();
 
-        command.RequiredRoles.Should().Equal("Cajero", "Administrador");
+        command.RequiredRoles.Should().Equal("Cajero");
         (command is IAuthorize).Should().BeTrue();
         (command is IIdempotentCommand).Should().BeTrue();
     }

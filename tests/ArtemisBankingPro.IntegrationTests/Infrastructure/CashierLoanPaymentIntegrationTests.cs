@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Features.Cashier.Commands;
 using ArtemisBankingPro.Application.Features.Cashier.Handlers;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Features.Loans.Commands;
 using ArtemisBankingPro.Application.Features.Loans.Handlers;
 using ArtemisBankingPro.Application.Interfaces.Email;
@@ -14,7 +15,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Lending.Enums;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
@@ -112,21 +112,31 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
             provider.GetRequiredService<INumberGenerator>(),
             provider.GetRequiredService<IUnitOfWork>(),
             provider.GetRequiredService<IBusinessClock>(),
-            provider.GetRequiredService<ICurrentUserService>()
+            provider.GetRequiredService<ICurrentUserService>(),
+            provider.GetRequiredService<IEmailService>(),
+            provider.GetRequiredService<ILogger<CreateLoanCommandHandler>>()
         );
 
-    private static ProcessLoanPaymentCommandHandler CreatePaymentHandler(IServiceProvider provider) =>
-        new(
+    private static ProcessLoanPaymentCommandHandler CreatePaymentHandler(IServiceProvider provider) {
+        var processor = new LoanPaymentProcessor(
             provider.GetRequiredService<ILoanRepository>(),
             provider.GetRequiredService<ISavingsAccountRepository>(),
             provider.GetRequiredService<IFinancialOperationRepository>(),
-            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IUnitOfWork>(),
+            provider.GetRequiredService<IBusinessClock>()
+        );
+
+        return new ProcessLoanPaymentCommandHandler(
+            processor,
+            provider.GetRequiredService<ILoanRepository>(),
+            provider.GetRequiredService<ISavingsAccountRepository>(),
+            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<IBusinessClock>(),
             provider.GetRequiredService<ICurrentUserService>(),
             provider.GetRequiredService<IEmailService>(),
             provider.GetRequiredService<ILogger<ProcessLoanPaymentCommandHandler>>()
         );
+    }
 
     private async Task<(int LoanId, string LoanNumber, string AccountNumber)> SeedActiveLoanAsync(
         IServiceProvider provider,
@@ -156,7 +166,7 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessLoanPaymentCommand(loanId, accountNumber, 8884.88m),
+            new ProcessLoanPaymentCommand(loanId, accountNumber, 8884.88m, "lp-success"),
             CancellationToken.None
         );
 
@@ -193,8 +203,8 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
             operation.RequestedAmount.Amount.Should().Be(8884.88m);
             operation.AppliedAmount.Amount.Should().Be(8884.88m);
             operation.InitiatedByUserId.Should().Be(CashierId);
-            operation.LoanNumber.Should().NotBeNull();
-            operation.LoanNumber.Value.Should().Be(loanNumber);
+            Assert.NotNull(operation.LoanNumber);
+            Assert.Equal(loanNumber, operation.LoanNumber.Value);
             operation.AccountTransactions.Should().ContainSingle(transaction =>
                 transaction.Direction == TransactionDirection.Debit
                 && transaction.AccountNumber.Value == accountNumber
@@ -217,7 +227,7 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessLoanPaymentCommand(loanId, accountNumber, 8884.88m + 100m),
+            new ProcessLoanPaymentCommand(loanId, accountNumber, 8884.88m + 100m, "lp-multi"),
             CancellationToken.None
         );
 
@@ -252,7 +262,7 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
         decimal requested = 1_000_000m;
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessLoanPaymentCommand(loanId, accountNumber, requested),
+            new ProcessLoanPaymentCommand(loanId, accountNumber, requested, "lp-requested"),
             CancellationToken.None
         );
 
@@ -296,7 +306,7 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessLoanPaymentCommand(loanId, accountNumber, 1_000_000m),
+            new ProcessLoanPaymentCommand(loanId, accountNumber, 1_000_000m, "lp-million"),
             CancellationToken.None
         );
 
@@ -319,7 +329,8 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
 
             (await context.FinancialOperations.CountAsync(operation =>
                 operation.Kind == FinancialOperationKind.LoanPayment
-            )).Should().Be(0);
+                && operation.Status == FinancialOperationStatus.Rejected
+            )).Should().Be(1);
         });
     }
 
@@ -336,7 +347,7 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessLoanPaymentCommand(loanId, cancelledNumber, 1000m),
+            new ProcessLoanPaymentCommand(loanId, cancelledNumber, 1000m, "lp-cancelled-account"),
             CancellationToken.None
         );
 
@@ -400,13 +411,13 @@ public sealed class CashierLoanPaymentIntegrationTests(SqlServerFixture fixture)
 
         var handler = CreatePaymentHandler(scope.ServiceProvider);
         var first = await handler.Handle(
-            new ProcessLoanPaymentCommand(loanId, accountNumber, 1_000_000m),
+            new ProcessLoanPaymentCommand(loanId, accountNumber, 1_000_000m, "lp-completed"),
             CancellationToken.None
         );
         first.IsSuccess.Should().BeTrue();
 
         var second = await handler.Handle(
-            new ProcessLoanPaymentCommand(loanId, accountNumber, 1000m),
+            new ProcessLoanPaymentCommand(loanId, accountNumber, 1000m, "lp-completed-2"),
             CancellationToken.None
         );
 

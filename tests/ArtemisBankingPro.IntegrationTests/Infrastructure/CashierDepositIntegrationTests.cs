@@ -12,7 +12,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
@@ -130,7 +129,7 @@ public sealed class CashierDepositIntegrationTests(SqlServerFixture fixture)
         await using var scope = provider.CreateAsyncScope();
         var handler = CreateDepositHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessDepositCommand(accountNumber, 5000m),
+            new ProcessDepositCommand(accountNumber, 5000m, "dep-success"),
             CancellationToken.None
         );
 
@@ -176,7 +175,7 @@ public sealed class CashierDepositIntegrationTests(SqlServerFixture fixture)
         await using var scope = provider.CreateAsyncScope();
         var handler = CreateDepositHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessDepositCommand(accountNumber, 0m),
+            new ProcessDepositCommand(accountNumber, 0m, "dep-nonpositive"),
             CancellationToken.None
         );
 
@@ -207,7 +206,7 @@ public sealed class CashierDepositIntegrationTests(SqlServerFixture fixture)
         await using var scope = provider.CreateAsyncScope();
         var handler = CreateDepositHandler(scope.ServiceProvider);
         var result = await handler.Handle(
-            new ProcessDepositCommand(accountNumber, 1000m),
+            new ProcessDepositCommand(accountNumber, 1000m, "dep-cancelled"),
             CancellationToken.None
         );
 
