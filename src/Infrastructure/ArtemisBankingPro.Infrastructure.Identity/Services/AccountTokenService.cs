@@ -4,7 +4,10 @@ using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Identity.Security;
+using ArtemisBankingPro.Domain.Common.ValueObjects;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 
 namespace ArtemisBankingPro.Infrastructure.Identity.Services;
@@ -16,15 +19,18 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 /// </summary>
 public sealed class AccountTokenService : IAccountTokenService {
     private readonly IdentityContext _context;
+    private readonly UserManager<AppUser> _userManager;
     private readonly AccountTokenOptions _options;
     private readonly TimeProvider _timeProvider;
 
     public AccountTokenService(
         IdentityContext context,
+        UserManager<AppUser> userManager,
         IOptions<AccountTokenOptions> options,
         TimeProvider timeProvider
     ) {
         _context = context;
+        _userManager = userManager;
         _options = options.Value;
         _timeProvider = timeProvider;
 
@@ -125,6 +131,90 @@ public sealed class AccountTokenService : IAccountTokenService {
 
         AccountTokenVerificationResult result = await ConsumeIfValidAsync(match, tokenHash, nowUtc, ct);
         return new TokenVerification(result, result == AccountTokenVerificationResult.Valid ? match.UserId : null);
+    }
+
+    public async Task<Result<AccountTokenVerificationResult>> CompletePasswordResetAsync(
+        string userId,
+        string token,
+        string newPassword,
+        CancellationToken ct = default
+    ) {
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token)) {
+            return Result.Success(AccountTokenVerificationResult.Invalid);
+        }
+
+        string tokenHash = ComputeHash(token);
+        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
+        AccountToken? match = await _context.AccountTokens
+            .Where(item => item.UserId == userId && item.Type == AccountTokenType.PasswordReset)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(item => item.TokenHash == tokenHash, ct);
+
+        if (match is null || !HashesMatch(match.TokenHash, tokenHash)) {
+            return Result.Success(AccountTokenVerificationResult.Invalid);
+        }
+
+        if (match.IsExpired(nowUtc)) {
+            return Result.Success(AccountTokenVerificationResult.Expired);
+        }
+
+        if (match.IsUsed) {
+            return Result.Success(AccountTokenVerificationResult.AlreadyUsed);
+        }
+
+        AppUser? user = await _userManager.FindByIdAsync(userId);
+        if (user is null) {
+            return Result.Failure<AccountTokenVerificationResult>(
+                DomainError.NotFound("User.NotFound", "El usuario no existe.")
+            );
+        }
+
+        IExecutionStrategy strategy = _context.Database.CreateExecutionStrategy();
+        try {
+            return await strategy.ExecuteAsync(async () => {
+                await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+
+                match.MarkUsed(nowUtc);
+
+                IdentityResult removeResult = await _userManager.RemovePasswordAsync(user);
+                if (!removeResult.Succeeded) {
+                    return Result.Failure<AccountTokenVerificationResult>(
+                        DomainError.Conflict(
+                            "User.PasswordChangeFailed",
+                            "No fue posible cambiar la contraseña del usuario."
+                        )
+                    );
+                }
+
+                IdentityResult addResult = await _userManager.AddPasswordAsync(user, newPassword);
+                if (!addResult.Succeeded) {
+                    return Result.Failure<AccountTokenVerificationResult>(
+                        DomainError.Conflict(
+                            "User.PasswordChangeFailed",
+                            "No fue posible cambiar la contraseña del usuario."
+                        )
+                    );
+                }
+
+                user.Active = true;
+                IdentityResult updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded) {
+                    return Result.Failure<AccountTokenVerificationResult>(
+                        DomainError.Conflict(
+                            "User.StatusUpdateFailed",
+                            "No fue posible actualizar el estado del usuario."
+                        )
+                    );
+                }
+
+                await _context.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                return Result.Success(AccountTokenVerificationResult.Valid);
+            });
+        }
+        catch (DbUpdateConcurrencyException) {
+            return Result.Success(AccountTokenVerificationResult.AlreadyUsed);
+        }
     }
 
     private async Task<AccountTokenVerificationResult> ConsumeIfValidAsync(

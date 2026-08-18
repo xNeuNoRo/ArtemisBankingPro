@@ -1,3 +1,5 @@
+using ArtemisBankingPro.Domain.Common.ValueObjects;
+
 namespace ArtemisBankingPro.Application.Interfaces.Identity;
 
 public enum AccountTokenType {
@@ -59,6 +61,18 @@ public interface IAccountTokenService {
     Task<TokenVerification> VerifyAndConsumeByTokenAsync(
         AccountTokenType type,
         string token,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Completa el restablecimiento de contraseña consumiendo el token, cambiando
+    /// la contraseña y reactivando el usuario dentro de una sola transacción de
+    /// Identity.
+    /// </summary>
+    Task<Result<AccountTokenVerificationResult>> CompletePasswordResetAsync(
+        string userId,
+        string token,
+        string newPassword,
         CancellationToken ct = default
     );
 }

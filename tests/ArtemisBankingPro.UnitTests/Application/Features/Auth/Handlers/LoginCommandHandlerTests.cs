@@ -154,6 +154,10 @@ public sealed class LoginCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Category.Should().Be(ErrorCategory.Unauthorized);
         result.Error.Code.Should().Be("Auth.Inactive");
+        result.Error.Message.Should().Be(
+            "Su cuenta se encuentra inactiva. Debe activar su cuenta mediante el enlace "
+                + "enviado a su correo electrónico registrado para poder acceder al sistema."
+        );
     }
 
     [Fact]
@@ -173,5 +177,6 @@ public sealed class LoginCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Category.Should().Be(ErrorCategory.Forbidden);
         result.Error.Code.Should().Be("Auth.RoleNotAllowed");
+        result.Error.Message.Should().Be("Este usuario no tiene permisos para acceder a la API.");
     }
 }

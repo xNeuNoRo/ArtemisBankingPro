@@ -13,28 +13,28 @@ namespace ArtemisBankingPro.Application.Features.Auth.Handlers;
 public sealed class ResetPasswordCommandHandler
     : IRequestHandler<ResetPasswordCommand, Result<Unit>> {
     private readonly IAccountTokenService _tokenService;
-    private readonly IUserAccountService _userAccountService;
 
-    public ResetPasswordCommandHandler(
-        IAccountTokenService tokenService,
-        IUserAccountService userAccountService
-    ) {
+    public ResetPasswordCommandHandler(IAccountTokenService tokenService) {
         _tokenService = tokenService;
-        _userAccountService = userAccountService;
     }
 
     public async ValueTask<Result<Unit>> Handle(
         ResetPasswordCommand message,
         CancellationToken cancellationToken
     ) {
-        var verification = await _tokenService.VerifyAndConsumeAsync(
+        Result<AccountTokenVerificationResult> completion =
+            await _tokenService.CompletePasswordResetAsync(
             message.UserId,
-            AccountTokenType.PasswordReset,
             message.Token,
+            message.Password,
             cancellationToken
         );
 
-        if (verification == AccountTokenVerificationResult.Expired) {
+        if (completion.IsFailure) {
+            return Result.Failure<Unit>(completion.Error!);
+        }
+
+        if (completion.Value == AccountTokenVerificationResult.Expired) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ResetExpired",
@@ -44,7 +44,7 @@ public sealed class ResetPasswordCommandHandler
             );
         }
 
-        if (verification == AccountTokenVerificationResult.AlreadyUsed) {
+        if (completion.Value == AccountTokenVerificationResult.AlreadyUsed) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ResetAlreadyUsed",
@@ -53,32 +53,13 @@ public sealed class ResetPasswordCommandHandler
             );
         }
 
-        if (verification == AccountTokenVerificationResult.Invalid) {
+        if (completion.Value == AccountTokenVerificationResult.Invalid) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
                     "Auth.ResetInvalid",
                     "El enlace de restablecimiento no es válido."
                 )
             );
-        }
-
-        var passwordResult = await _userAccountService.ChangePasswordAsync(
-            message.UserId,
-            message.Password,
-            cancellationToken
-        );
-        if (passwordResult.IsFailure) {
-            return Result.Failure<Unit>(passwordResult.Error!);
-        }
-
-        var reactivateResult = await _userAccountService.SetActiveAsync(
-            message.UserId,
-            isActive: true,
-            cancellationToken
-        );
-
-        if (reactivateResult.IsFailure) {
-            return Result.Failure<Unit>(reactivateResult.Error!);
         }
 
         return Result.Success(Unit.Value);

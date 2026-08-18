@@ -61,6 +61,14 @@ public sealed class UserAccountService : IUserAccountService {
         return new PasswordResetUserInfo(user.Id, user.UserName!, user.Email!, user.FullName);
     }
 
+    public async Task<bool?> GetActiveAsync(
+        string userId,
+        CancellationToken ct = default
+    ) {
+        AppUser? user = await _userManager.FindByIdAsync(userId);
+        return user?.Active;
+    }
+
     public async Task<Result> SetActiveAsync(
         string userId,
         bool isActive,

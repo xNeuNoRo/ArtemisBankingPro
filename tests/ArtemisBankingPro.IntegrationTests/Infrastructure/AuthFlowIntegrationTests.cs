@@ -211,8 +211,7 @@ public sealed class AuthFlowIntegrationTests(SqlServerFixture fixture) : SqlServ
         // 3. Completar el restablecimiento con el token enviado por correo
         await using (var scope = provider.CreateAsyncScope()) {
             var handler = new ResetPasswordCommandHandler(
-                scope.ServiceProvider.GetRequiredService<IAccountTokenService>(),
-                scope.ServiceProvider.GetRequiredService<IUserAccountService>()
+                scope.ServiceProvider.GetRequiredService<IAccountTokenService>()
             );
 
             var resetResult = await handler.Handle(

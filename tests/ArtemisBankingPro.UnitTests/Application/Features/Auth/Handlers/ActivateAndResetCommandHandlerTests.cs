@@ -100,28 +100,21 @@ public sealed class ResetPasswordCommandHandlerTests {
     private static Mock<IAccountTokenService> TokenService(AccountTokenVerificationResult result) {
         var service = new Mock<IAccountTokenService>();
         service
-            .Setup(s => s.VerifyAndConsumeAsync(
+            .Setup(s => s.CompletePasswordResetAsync(
                 It.IsAny<string>(),
-                AccountTokenType.PasswordReset,
+                It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()
             ))
-            .ReturnsAsync(result);
+            .ReturnsAsync(Result.Success(result));
         return service;
     }
 
     [Fact]
     public async Task Handle_ValidToken_ChangesPasswordAndReactivates() {
         var tokenService = TokenService(AccountTokenVerificationResult.Valid);
-        var userService = new Mock<IUserAccountService>();
-        userService
-            .Setup(s => s.ChangePasswordAsync("user-1", It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success());
-        userService
-            .Setup(s => s.SetActiveAsync("user-1", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success());
 
-        var handler = new ResetPasswordCommandHandler(tokenService.Object, userService.Object);
+        var handler = new ResetPasswordCommandHandler(tokenService.Object);
 
         var result = await handler.Handle(
             new ResetPasswordCommand("user-1", "token", "123P@$$word!", "123P@$$word!"),
@@ -129,21 +122,14 @@ public sealed class ResetPasswordCommandHandlerTests {
         );
 
         result.IsSuccess.Should().BeTrue();
-        userService.Verify(
-            s => s.ChangePasswordAsync("user-1", "123P@$$word!", It.IsAny<CancellationToken>()),
-            Times.Once
-        );
-        userService.Verify(
-            s => s.SetActiveAsync("user-1", true, It.IsAny<CancellationToken>()),
-            Times.Once
-        );
+        tokenService.Verify(s => s.CompletePasswordResetAsync(
+            "user-1", "token", "123P@$$word!", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task Handle_ExpiredToken_ReturnsExpirationMessage() {
         var handler = new ResetPasswordCommandHandler(
-            TokenService(AccountTokenVerificationResult.Expired).Object,
-            new Mock<IUserAccountService>().Object
+            TokenService(AccountTokenVerificationResult.Expired).Object
         );
 
         var result = await handler.Handle(
@@ -158,8 +144,7 @@ public sealed class ResetPasswordCommandHandlerTests {
     [Fact]
     public async Task Handle_AlreadyUsedToken_ReturnsUsedMessage() {
         var handler = new ResetPasswordCommandHandler(
-            TokenService(AccountTokenVerificationResult.AlreadyUsed).Object,
-            new Mock<IUserAccountService>().Object
+            TokenService(AccountTokenVerificationResult.AlreadyUsed).Object
         );
 
         var result = await handler.Handle(
@@ -174,8 +159,7 @@ public sealed class ResetPasswordCommandHandlerTests {
     [Fact]
     public async Task Handle_InvalidToken_ReturnsInvalidMessage() {
         var handler = new ResetPasswordCommandHandler(
-            TokenService(AccountTokenVerificationResult.Invalid).Object,
-            new Mock<IUserAccountService>().Object
+            TokenService(AccountTokenVerificationResult.Invalid).Object
         );
 
         var result = await handler.Handle(
@@ -189,13 +173,14 @@ public sealed class ResetPasswordCommandHandlerTests {
 
     [Fact]
     public async Task Handle_PasswordChangeFailure_PropagatesError() {
-        var tokenService = TokenService(AccountTokenVerificationResult.Valid);
-        var userService = new Mock<IUserAccountService>();
-        userService
-            .Setup(s => s.ChangePasswordAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Failure(DomainError.Conflict("User.PasswordChangeFailed", "fallo")));
+        var tokenService = new Mock<IAccountTokenService>();
+        tokenService
+            .Setup(s => s.CompletePasswordResetAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Failure<AccountTokenVerificationResult>(
+                DomainError.Conflict("User.PasswordChangeFailed", "fallo")));
 
-        var handler = new ResetPasswordCommandHandler(tokenService.Object, userService.Object);
+        var handler = new ResetPasswordCommandHandler(tokenService.Object);
 
         var result = await handler.Handle(
             new ResetPasswordCommand("user-1", "token", "123P@$$word!", "123P@$$word!"),

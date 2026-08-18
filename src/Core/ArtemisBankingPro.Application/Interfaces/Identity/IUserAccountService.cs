@@ -59,6 +59,11 @@ public interface IUserAccountService {
     );
 
     /// <summary>
+    /// Devuelve el estado activo actual de un usuario, o <c>null</c> si no existe.
+    /// </summary>
+    Task<bool?> GetActiveAsync(string userId, CancellationToken ct = default);
+
+    /// <summary>
     /// Activa o desactiva la cuenta de un usuario. Inactivar impide el inicio
     /// de sesión pero no elimina productos ni historial.
     /// </summary>
