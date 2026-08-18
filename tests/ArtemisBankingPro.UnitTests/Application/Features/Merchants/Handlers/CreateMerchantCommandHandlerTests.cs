@@ -93,7 +93,7 @@ public sealed class CreateMerchantCommandHandlerTests {
             r => r.AddAsync(It.IsAny<Merchant>(), It.IsAny<CancellationToken>()),
             Times.Once
         );
-        fixture.AddedMerchant.Should().NotBeNull();
+        Assert.NotNull(fixture.AddedMerchant);
         fixture.AddedMerchant.DomainEvents.OfType<MerchantCreatedEvent>()
             .Should().ContainSingle(domainEvent =>
                 domainEvent.Name == "Tienda Demo"
@@ -191,9 +191,12 @@ public sealed class CreateMerchantCommandHandlerTests {
 
     [Fact]
     public void Command_IdempotencyKey_IsStablePerRnc() {
-        CreateMerchantCommand first = ValidCommand();
-        CreateMerchantCommand second = ValidCommand() with { Name = "Tienda Renombrada" };
-        CreateMerchantCommand other = ValidCommand() with { Rnc = "101999998" };
+        CreateMerchantCommand first = ValidCommand() with { IdempotencyKey = "merchant-key-1" };
+        CreateMerchantCommand second = first with { Name = "Tienda Renombrada" };
+        CreateMerchantCommand other = first with {
+            Rnc = "101999998",
+            IdempotencyKey = "merchant-key-2",
+        };
 
         first.IdempotencyKey.Should().Be(second.IdempotencyKey);
         first.IdempotencyKey.Should().NotBe(other.IdempotencyKey);

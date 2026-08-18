@@ -170,4 +170,26 @@ public sealed class MerchantCreateTests(SqlServerFixture fixture)
         RecordingMerchantCreatedHandler.Received[0].Rnc.Should().Be("101000111");
         RecordingMerchantCreatedHandler.Received[0].CreatedAt.Should().NotBe(default);
     }
+
+    [Fact]
+    public async Task ConcurrentCreate_SameRncAndEmail_ExactlyOneSucceeds() {
+        await using var providerA = BuildCreateProvider();
+        await using var providerB = BuildCreateProvider();
+
+        var outcomes = await Task.WhenAll(
+            RunCommandAsync(providerA, NewCommand()),
+            RunCommandAsync(providerB, NewCommand())
+        );
+
+        // La carrera de los índices únicos de RNC/email termina en conflicto
+        // determinista (UnitOfWork traduce 2601/2627), nunca en 500: el
+        // perdedor ve Commerce.RncExists, sin inserción duplicada.
+        outcomes.Count(outcome => outcome.IsSuccess).Should().Be(1);
+        outcomes.Count(outcome => outcome.IsFailure).Should().Be(1);
+
+        await WithContextAsync(async context => {
+            int stored = await context.Merchants.CountAsync(item => item.Rnc == "101000111");
+            stored.Should().Be(1);
+        });
+    }
 }

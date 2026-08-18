@@ -169,15 +169,17 @@ public sealed class UpdateMerchantCommandHandlerTests {
 
     [Fact]
     public void Command_IdempotencyKey_IsStablePerMerchantId() {
-        UpdateMerchantCommand command = ValidCommand(42);
+        UpdateMerchantCommand command = ValidCommand(42) with {
+            IdempotencyKey = "merchant-update-key",
+        };
 
-        command.IdempotencyKey.Should().Be("update-merchant-42");
+        command.IdempotencyKey.Should().Be("merchant-update-key");
 
         UpdateMerchantCommand changedPayload = command with {
             Name = "Otra variante",
             Rnc = "111222333",
         };
-        changedPayload.IdempotencyKey.Should().Be("update-merchant-42");
+        changedPayload.IdempotencyKey.Should().Be("merchant-update-key");
         changedPayload.RequestFingerprint.Should().NotBe(command.RequestFingerprint);
     }
 }

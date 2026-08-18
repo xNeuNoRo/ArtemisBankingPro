@@ -49,6 +49,12 @@ public sealed class ChangeMerchantStatusCommandHandlerTests {
                 .Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Merchant?)null);
             UserAccountService
+                .Setup(s => s.GetActiveAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()
+                ))
+                .ReturnsAsync(true);
+            UserAccountService
                 .Setup(s => s.SetActiveAsync(
                     It.IsAny<string>(),
                     It.IsAny<bool>(),
@@ -201,6 +207,91 @@ public sealed class ChangeMerchantStatusCommandHandlerTests {
     }
 
     [Fact]
+    public async Task Handle_AssociatedUserDoesNotExist_ReturnsNotFoundWithoutChangingMerchant() {
+        var fixture = new Fixture();
+        Merchant merchant = NewMerchant(associatedUserId: "user-10");
+        fixture.MerchantRepository
+            .Setup(r => r.GetByIdAsync(5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(merchant);
+        fixture.UserAccountService
+            .Setup(s => s.GetActiveAsync("user-10", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((bool?)null);
+
+        var result = await fixture.Handler.Handle(
+            new ChangeMerchantStatusCommand(5, IsActive: false),
+            CancellationToken.None
+        );
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Code.Should().Be("User.NotFound");
+        merchant.Status.Should().Be(MerchantStatus.Active);
+        fixture.UserAccountService.Verify(
+            s => s.SetActiveAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task Handle_UserAlreadyInactive_StatusChangeFails_DoesNotReactivateUser() {
+        var fixture = new Fixture();
+        Merchant merchant = NewMerchant(associatedUserId: "user-10");
+        fixture.MerchantRepository
+            .Setup(r => r.GetByIdAsync(5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(merchant);
+        fixture.UserAccountService
+            .Setup(s => s.GetActiveAsync("user-10", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        merchant.Deactivate(Now);
+
+        var result = await fixture.Handler.Handle(
+            new ChangeMerchantStatusCommand(5, IsActive: false),
+            CancellationToken.None
+        );
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Code.Should().Be("Merchant.AlreadyInactive");
+        fixture.UserAccountService.Verify(
+            s => s.SetActiveAsync(
+                "user-10",
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task Handle_PersistenceFails_RestoresExactPreviousUserState() {
+        var fixture = new Fixture();
+        Merchant merchant = NewMerchant(associatedUserId: "user-10");
+        fixture.MerchantRepository
+            .Setup(r => r.GetByIdAsync(5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(merchant);
+        fixture.UnitOfWork
+            .Setup(unit => unit.ExecuteInTransactionAsync(
+                It.IsAny<Func<CancellationToken, Task<Result>>>(),
+                It.IsAny<System.Data.IsolationLevel>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync(Result.Failure(DomainError.Conflict("Concurrency.Conflict", "conflicto")));
+
+        var result = await fixture.Handler.Handle(
+            new ChangeMerchantStatusCommand(5, IsActive: false),
+            CancellationToken.None
+        );
+
+        result.IsFailure.Should().BeTrue();
+        fixture.UserAccountService.Verify(
+            s => s.SetActiveAsync("user-10", false, It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+        fixture.UserAccountService.Verify(
+            s => s.SetActiveAsync("user-10", true, It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+    }
+
+    [Fact]
     public async Task Handle_UnknownMerchant_ReturnsNotFound() {
         var fixture = new Fixture();
 
@@ -254,9 +345,15 @@ public sealed class ChangeMerchantStatusCommandHandlerTests {
 
     [Fact]
     public void Command_IdempotencyKey_IsStablePerMerchantAndTargetState() {
-        ChangeMerchantStatusCommand first = new(5, IsActive: false);
-        ChangeMerchantStatusCommand duplicate = new(5, IsActive: false);
-        ChangeMerchantStatusCommand opposite = new(5, IsActive: true);
+        ChangeMerchantStatusCommand first = new(5, IsActive: false) {
+            IdempotencyKey = "status-key-1",
+        };
+        ChangeMerchantStatusCommand duplicate = new(5, IsActive: false) {
+            IdempotencyKey = "status-key-1",
+        };
+        ChangeMerchantStatusCommand opposite = new(5, IsActive: true) {
+            IdempotencyKey = "status-key-2",
+        };
 
         first.IdempotencyKey.Should().Be(duplicate.IdempotencyKey);
         first.IdempotencyKey.Should().NotBe(opposite.IdempotencyKey);

@@ -57,21 +57,35 @@ public sealed class ChangeMerchantStatusCommandHandler
 
         // 2. Al desactivar, el usuario asociado queda inactivo (spec §40).
         //    Al reactivar, los usuarios asociados no se activan automáticamente.
-        //    La inactivación del usuario se resuelve antes de mutar el
-        //    agregado: si falla, el comercio permanece sin cambios.
+        //    Se captura el estado real previo del usuario para poder restaurarlo
+        //    exactamente si la operación sobre el comercio falla: nunca se
+        //    reactiva un usuario que ya estaba inactivo.
         string? associatedUserId = merchant.AssociatedUserId;
-        bool userDeactivated = false;
+        bool? previousActive = null;
         if (!message.IsActive && associatedUserId is not null) {
-            var userResult = await _userAccountService.SetActiveAsync(
+            previousActive = await _userAccountService.GetActiveAsync(
                 associatedUserId,
-                false,
                 cancellationToken
             );
-            if (userResult.IsFailure) {
-                return Result.Failure<Unit>(userResult.Error!);
+            if (previousActive is null) {
+                return Result.Failure<Unit>(
+                    DomainError.NotFound(
+                        "User.NotFound",
+                        "El usuario asociado al comercio no existe."
+                    )
+                );
             }
 
-            userDeactivated = true;
+            if (previousActive.Value) {
+                var userResult = await _userAccountService.SetActiveAsync(
+                    associatedUserId,
+                    false,
+                    cancellationToken
+                );
+                if (userResult.IsFailure) {
+                    return Result.Failure<Unit>(userResult.Error!);
+                }
+            }
         }
 
         // 3. Cambiar el estado en el agregado (rechaza no-op y fechas inválidas).
@@ -79,9 +93,10 @@ public sealed class ChangeMerchantStatusCommandHandler
             ? merchant.Activate(_clock.Now)
             : merchant.Deactivate(_clock.Now);
         if (statusChange.IsFailure) {
-            if (userDeactivated) {
-                await CompensateUserReactivationAsync(
+            if (previousActive == true) {
+                await CompensateUserStatusAsync(
                     associatedUserId!,
+                    previousActive.Value,
                     merchant,
                     cancellationToken
                 );
@@ -91,7 +106,7 @@ public sealed class ChangeMerchantStatusCommandHandler
         }
 
         // 4. Persistir el cambio de estado atómicamente. Si la persistencia
-        //    falla tras haber inactivado el usuario, se compensa reactivándolo.
+        //    falla tras haber inactivado el usuario, se restaura su estado previo.
         var saveResult = await _unitOfWork.ExecuteInTransactionAsync(
             _ => {
                 _merchantRepository.Update(merchant);
@@ -101,9 +116,10 @@ public sealed class ChangeMerchantStatusCommandHandler
         );
 
         if (saveResult.IsFailure) {
-            if (userDeactivated) {
-                await CompensateUserReactivationAsync(
+            if (previousActive == true) {
+                await CompensateUserStatusAsync(
                     associatedUserId!,
+                    previousActive.Value,
                     merchant,
                     cancellationToken
                 );
@@ -115,14 +131,15 @@ public sealed class ChangeMerchantStatusCommandHandler
         return Result.Success(Unit.Value);
     }
 
-    private async Task CompensateUserReactivationAsync(
+    private async Task CompensateUserStatusAsync(
         string userId,
+        bool previousActive,
         Merchant merchant,
         CancellationToken cancellationToken
     ) {
         var compensation = await _userAccountService.SetActiveAsync(
             userId,
-            true,
+            previousActive,
             cancellationToken
         );
         if (compensation.IsFailure) {

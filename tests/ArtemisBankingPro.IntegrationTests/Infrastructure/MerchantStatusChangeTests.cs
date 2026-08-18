@@ -109,7 +109,7 @@ public sealed class MerchantStatusChangeTests(SqlServerFixture fixture)
         await using var scope = Fixture.Services.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
         AppUser? user = await userManager.FindByIdAsync(userId);
-        user.Should().NotBeNull();
+        Assert.NotNull(user);
         return user;
     }
 
