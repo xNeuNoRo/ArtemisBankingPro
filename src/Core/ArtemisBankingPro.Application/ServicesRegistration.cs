@@ -1,6 +1,9 @@
 using ArtemisBankingPro.Application.Common.Behaviors;
 using ArtemisBankingPro.Application.Common.Mapping;
 using ArtemisBankingPro.Application.Features.FinancialProcessors;
+using ArtemisBankingPro.Application.Features.Operations.Handlers;
+using ArtemisBankingPro.Application.Interfaces.Events;
+using ArtemisBankingPro.Domain.Operations.Events;
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +31,11 @@ public static class ServicesRegistration {
         services.AddScoped<ITransferProcessor, TransferProcessor>();
         services.AddScoped<ICashAdvanceProcessor, CashAdvanceProcessor>();
         services.AddScoped<IWithdrawalProcessor, WithdrawalProcessor>();
+
+        services.AddScoped<
+            IEventHandler<FinancialOperationApprovedEvent>,
+            FinancialOperationAuditLogHandler
+        >();
 
 
         // Mapster composes explicit feature mappings and validates them during startup.
