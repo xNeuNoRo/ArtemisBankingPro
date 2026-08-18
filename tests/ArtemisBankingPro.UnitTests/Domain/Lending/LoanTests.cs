@@ -140,7 +140,7 @@ public sealed class LoanTests {
             .ContainSingle()
             .Which;
         domainEvent.CustomerUserId.Should().Be("customer");
-        domainEvent.LoanNumber.Should().Be(loan.Number);
+        Assert.Equal(loan.Number, domainEvent.LoanNumber);
         domainEvent.BusinessDate.Should().Be(businessDate);
     }
 
@@ -170,6 +170,19 @@ public sealed class LoanTests {
         loan.ChangeInterestRate(InterestRate.Create(24m).Value, first.DueDate);
 
         first.ScheduledAmount.Should().Be(originalAmount);
+    }
+
+    [Fact]
+    public void ChangeInterestRate_OverdueInstallment_DoesNotChangeIt() {
+        Loan loan = CreateLoan();
+        Installment first = loan.Installments.Single(item => item.Number == 1);
+        Money originalAmount = first.ScheduledAmount;
+
+        loan.RefreshDelinquency(first.DueDate.AddDays(1));
+        loan.ChangeInterestRate(InterestRate.Create(24m).Value, first.DueDate.AddDays(1));
+
+        first.ScheduledAmount.Should().Be(originalAmount);
+        first.IsOverdue.Should().BeTrue();
     }
 
     [Fact]
