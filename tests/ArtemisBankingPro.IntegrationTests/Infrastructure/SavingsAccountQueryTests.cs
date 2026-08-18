@@ -70,6 +70,76 @@ public sealed class SavingsAccountQueryTests(SqlServerFixture fixture) : SqlServ
         });
     }
 
+    [Fact]
+    public async Task GetTransactionsPagedAsync_AppliesDateAndTypeFiltersInSql() {
+        AccountNumber number = AccountNumber.Create("100000005").Value;
+        DateTimeOffset depositAt = OpenedAt;
+        await WithContextAsync(async context => {
+            context.SavingsAccounts.Add(
+                SavingsAccount.OpenPrimary("client-1", number, Money.Zero, "admin", OpenedAt).Value
+            );
+            context.FinancialOperations.AddRange(
+                Operation(FinancialOperationKind.Deposit, TransactionDirection.Credit, number, 100m, depositAt),
+                Operation(FinancialOperationKind.Withdrawal, TransactionDirection.Debit, number, 25m, depositAt.AddHours(1)),
+                Operation(FinancialOperationKind.Deposit, TransactionDirection.Credit, number, 50m, depositAt.AddHours(2))
+            );
+            await context.SaveChangesAsync();
+        });
+
+        await WithContextAsync(async context => {
+            var repository = new SavingsAccountRepository(context);
+
+            var all = await repository.GetTransactionsPagedAsync(number, new PageRequest());
+            all.TotalCount.Should().Be(3);
+
+            var debits = await repository.GetTransactionsPagedAsync(
+                number,
+                new PageRequest(),
+                transactionType: "DÉBITO"
+            );
+            debits.TotalCount.Should().Be(1);
+            debits.Items[0].Amount.Should().Be(25m);
+
+            var credits = await repository.GetTransactionsPagedAsync(
+                number,
+                new PageRequest(),
+                transactionType: "credito"
+            );
+            credits.TotalCount.Should().Be(2);
+
+            var since = await repository.GetTransactionsPagedAsync(
+                number,
+                new PageRequest(),
+                dateFrom: depositAt.AddHours(1)
+            );
+            since.TotalCount.Should().Be(2);
+
+            var until = await repository.GetTransactionsPagedAsync(
+                number,
+                new PageRequest(),
+                dateTo: depositAt.AddMinutes(30)
+            );
+            until.TotalCount.Should().Be(1);
+
+            var combined = await repository.GetTransactionsPagedAsync(
+                number,
+                new PageRequest(),
+                depositAt.AddHours(1),
+                depositAt.AddHours(3),
+                "CRÉDITO"
+            );
+            combined.TotalCount.Should().Be(1);
+            combined.Items[0].Amount.Should().Be(50m);
+
+            var unknownType = await repository.GetTransactionsPagedAsync(
+                number,
+                new PageRequest(),
+                transactionType: "TRANSFERENCIA"
+            );
+            unknownType.TotalCount.Should().Be(0);
+        });
+    }
+
     private static SavingsAccount Open(
         AccountType type,
         string number,

@@ -13,6 +13,8 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
+using ArtemisBankingPro.Infrastructure.Identity.Entities;
+using Microsoft.AspNetCore.Identity;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -54,11 +56,33 @@ public sealed class HermesPayTransactionsQueryTests(SqlServerFixture fixture)
     }
 
     private async Task<(int MerchantId, int OtherMerchantId, int InactiveMerchantId)> SeedMerchantsAsync() {
+        await using (var identityScope = Fixture.Services.CreateAsyncScope()) {
+            var roleManager = identityScope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            if (!await roleManager.RoleExistsAsync("Comercio")) {
+                (await roleManager.CreateAsync(new IdentityRole("Comercio"))).Succeeded.Should().BeTrue();
+            }
+
+            var userManager = identityScope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var user = new AppUser {
+                Id = "commerce-user-1",
+                UserName = "comercio1",
+                Email = "uno@example.com",
+                FirstName = "Comercio",
+                LastName = "Uno",
+                IdentityDocument = "101000099",
+                Active = true,
+                CreatedAt = IssuedAt,
+            };
+            (await userManager.CreateAsync(user, "Strong1!password")).Succeeded.Should().BeTrue();
+            (await userManager.AddToRoleAsync(user, "Comercio")).Succeeded.Should().BeTrue();
+        }
+
         int merchantId = 0;
         int otherMerchantId = 0;
         int inactiveMerchantId = 0;
         await WithContextAsync(async context => {
             var merchant = NewMerchant("Comercio Uno", "uno@example.com", "101000099");
+            merchant.AssociateUser("commerce-user-1", IssuedAt.AddHours(-1)).IsSuccess.Should().BeTrue();
             var other = NewMerchant("Comercio Dos", "dos@example.com", "101000088");
             var inactive = NewMerchant("Comercio Inactivo", "inactivo@example.com", "101000077", active: false);
             context.Merchants.AddRange(merchant, other, inactive);
@@ -138,6 +162,7 @@ public sealed class HermesPayTransactionsQueryTests(SqlServerFixture fixture)
         new(
             provider.GetRequiredService<IMerchantRepository>(),
             provider.GetRequiredService<ICreditCardRepository>(),
+            provider.GetRequiredService<IUserRepository>(),
             provider.GetRequiredService<ICurrentUserService>()
         );
 

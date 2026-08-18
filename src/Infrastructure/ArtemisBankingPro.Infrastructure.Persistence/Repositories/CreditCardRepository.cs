@@ -175,6 +175,39 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
             .OrderByDescending(card => card.Id)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<CreditCardSummaryDto>> GetActiveSummariesByCustomerAsync(
+        string customerUserId,
+        CancellationToken ct = default
+    ) {
+        var rows = await DbSet
+            .AsNoTracking()
+            .Where(card => card.CustomerUserId == customerUserId && card.Status == CreditCardStatus.Active)
+            .OrderByDescending(card => card.Id)
+            .Select(card => new {
+                card.LastFour,
+                card.CreditLimit,
+                card.CurrentDebt,
+                card.Expiration,
+            })
+            .ToListAsync(ct);
+
+        return rows
+            .Select(card => new CreditCardSummaryDto(
+                0,
+                $"************{card.LastFour}",
+                card.LastFour,
+                customerUserId,
+                string.Empty,
+                card.CreditLimit.Amount,
+                card.CreditLimit.Amount - card.CurrentDebt.Amount,
+                card.CurrentDebt.Amount,
+                card.Expiration.ToString(),
+                nameof(CreditCardStatus.Active),
+                default
+            ))
+            .ToList();
+    }
+
     public async Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default) {
         // El converter de Money impide navegar .Amount dentro de Sum en SQL
         // materializar solo las columnas necesarias y sumar en memoria es

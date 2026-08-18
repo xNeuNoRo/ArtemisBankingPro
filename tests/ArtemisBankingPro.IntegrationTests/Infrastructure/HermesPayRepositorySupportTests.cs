@@ -98,7 +98,7 @@ public sealed class HermesPayRepositorySupportTests(SqlServerFixture fixture)
 
         var account = await repository.GetPrincipalByCommerceIdAsync(int.MaxValue);
 
-        account.Should().BeNull();
+        Assert.Null(account);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public sealed class HermesPayRepositorySupportTests(SqlServerFixture fixture)
 
         var account = await repository.GetPrincipalByCommerceIdAsync(merchantId);
 
-        account.Should().BeNull();
+        Assert.Null(account);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class HermesPayRepositorySupportTests(SqlServerFixture fixture)
 
         var account = await repository.GetPrincipalByCommerceIdAsync(merchantId);
 
-        account.Should().BeNull();
+        Assert.Null(account);
     }
 
     [Fact]

@@ -80,20 +80,48 @@ public sealed class SavingsAccountRepository
     public async Task<PageResult<AccountTransactionDto>> GetTransactionsPagedAsync(
         AccountNumber accountNumber,
         PageRequest page,
+        DateTimeOffset? dateFrom = null,
+        DateTimeOffset? dateTo = null,
+        string? transactionType = null,
         CancellationToken ct = default
     ) {
+        TransactionDirection? direction = null;
+        if (!string.IsNullOrWhiteSpace(transactionType)) {
+            direction = transactionType.Trim().ToUpperInvariant() switch {
+                "DÉBITO" or "DEBITO" => TransactionDirection.Debit,
+                "CRÉDITO" or "CREDITO" => TransactionDirection.Credit,
+                _ => null,
+            };
+        }
+
+        if (direction is null && !string.IsNullOrWhiteSpace(transactionType)) {
+            return new PageResult<AccountTransactionDto>([], 0, page.Page, page.PageSize);
+        }
+
         IQueryable<AccountTransaction> query = Context
             .Set<AccountTransaction>()
             .AsNoTracking()
             .Where(transaction => transaction.AccountNumber == accountNumber);
-        int totalCount = await query.CountAsync(ct);
-        List<AccountTransactionDto> items = await query
-            .Join(
-                Context.Set<FinancialOperation>(),
-                transaction => transaction.FinancialOperationId,
-                operation => operation.Id,
-                (transaction, operation) => new { transaction, operation }
-            )
+        if (direction.HasValue) {
+            query = query.Where(transaction => transaction.Direction == direction.Value);
+        }
+
+        var joined = query.Join(
+            Context.Set<FinancialOperation>(),
+            transaction => transaction.FinancialOperationId,
+            operation => operation.Id,
+            (transaction, operation) => new { transaction, operation }
+        );
+        if (dateFrom.HasValue) {
+            joined = joined.Where(item => item.operation.OccurredAt >= dateFrom.Value);
+        }
+
+        if (dateTo.HasValue) {
+            joined = joined.Where(item => item.operation.OccurredAt <= dateTo.Value);
+        }
+
+        int totalCount = await joined.CountAsync(ct);
+        List<AccountTransactionDto> items = await joined
             .OrderByDescending(item => item.operation.OccurredAt)
             .ThenByDescending(item => item.transaction.Id)
             .Skip(page.Skip)
@@ -122,6 +150,15 @@ public sealed class SavingsAccountRepository
         AccountNumber number,
         CancellationToken ct = default
     ) => DbSet.FirstOrDefaultAsync(account => account.Number == number, ct);
+
+    public async Task<IReadOnlyList<SavingsAccount>> GetByIdsAsync(
+        IReadOnlyList<int> ids,
+        CancellationToken ct = default
+    ) =>
+        await DbSet
+            .AsNoTracking()
+            .Where(account => ids.Contains(account.Id))
+            .ToListAsync(ct);
 
     public Task<SavingsAccount?> GetPrincipalByOwnerAsync(
         string ownerUserId,
@@ -161,6 +198,16 @@ public sealed class SavingsAccountRepository
                 account.OwnerUserId == ownerUserId
                 && account.Type == AccountType.Primary
                 && account.Status == AccountStatus.Active,
+            ct
+        );
+
+    public Task<int> CountActiveByOwnerAsync(
+        string ownerUserId,
+        CancellationToken ct = default
+    ) =>
+        DbSet.CountAsync(
+            account =>
+                account.OwnerUserId == ownerUserId && account.Status == AccountStatus.Active,
             ct
         );
 

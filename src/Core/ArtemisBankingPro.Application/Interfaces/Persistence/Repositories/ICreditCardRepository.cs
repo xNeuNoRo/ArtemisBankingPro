@@ -48,6 +48,15 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard> {
         CancellationToken ct = default
     );
 
+    /// <summary>
+    /// Resúmenes de tarjetas activas del cliente para el Home sin materializar
+    /// entidades completas (huella del PAN ni digesto del CVC).
+    /// </summary>
+    Task<IReadOnlyList<CreditCardSummaryDto>> GetActiveSummariesByCustomerAsync(
+        string customerUserId,
+        CancellationToken ct = default
+    );
+
     /// <summary>Suma de la deuda de todas las tarjetas activas.</summary>
     Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default);
 

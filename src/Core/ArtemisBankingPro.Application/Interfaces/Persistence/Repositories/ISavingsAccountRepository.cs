@@ -18,10 +18,18 @@ public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount> 
     Task<PageResult<AccountTransactionDto>> GetTransactionsPagedAsync(
         AccountNumber accountNumber,
         PageRequest page,
+        DateTimeOffset? dateFrom = null,
+        DateTimeOffset? dateTo = null,
+        string? transactionType = null,
         CancellationToken ct = default
     );
 
     Task<SavingsAccount?> GetByNumberAsync(AccountNumber number, CancellationToken ct = default);
+
+    Task<IReadOnlyList<SavingsAccount>> GetByIdsAsync(
+        IReadOnlyList<int> ids,
+        CancellationToken ct = default
+    );
 
     Task<SavingsAccount?> GetPrincipalByOwnerAsync(
         string ownerUserId,
@@ -40,6 +48,8 @@ public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount> 
     );
 
     Task<bool> ExistsActivePrincipalAsync(string ownerUserId, CancellationToken ct = default);
+
+    Task<int> CountActiveByOwnerAsync(string ownerUserId, CancellationToken ct = default);
 
     Task<IReadOnlyList<SavingsAccount>> GetByOwnerAsync(
         string ownerUserId,
