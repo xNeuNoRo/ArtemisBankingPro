@@ -107,7 +107,7 @@ public sealed class CancelCreditCardCommandHandlerTests {
 
         cardRepository.Verify(r => r.Update(card), Times.Once);
 
-        added().Should().NotBeNull();
+        Assert.NotNull(added());
         added()!.Kind.Should().Be(FinancialOperationKind.CardCancelled);
         added()!.Status.Should().Be(FinancialOperationStatus.Approved);
         added()!.RequestedAmount.Should().Be(Money.Zero);
@@ -117,7 +117,7 @@ public sealed class CancelCreditCardCommandHandlerTests {
         added()!.InitiatedByUserId.Should().Be("admin-1");
         added()!.OccurredAt.Should().Be(FixedNow);
         added()!.AccountTransactions.Should().BeEmpty();
-        added()!.CardConsumption.Should().BeNull();
+        Assert.Null(added()!.CardConsumption);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class CancelCreditCardCommandHandlerTests {
         result.Error!.Code.Should().Be("Card.NotFound");
         result.Error.Category.Should().Be(ErrorCategory.NotFound);
         cardRepository.Verify(r => r.Update(It.IsAny<CreditCardEntity>()), Times.Never);
-        added().Should().BeNull();
+        Assert.Null(added());
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class CancelCreditCardCommandHandlerTests {
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
         card.Status.Should().Be(CreditCardStatus.Active);
         cardRepository.Verify(r => r.Update(It.IsAny<CreditCardEntity>()), Times.Never);
-        added().Should().BeNull();
+        Assert.Null(added());
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public sealed class CancelCreditCardCommandHandlerTests {
         result.Error!.Code.Should().Be("Card.NotActive");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
         cardRepository.Verify(r => r.Update(It.IsAny<CreditCardEntity>()), Times.Never);
-        added().Should().BeNull();
+        Assert.Null(added());
     }
 
     [Fact]
@@ -224,9 +224,11 @@ public sealed class CancelCreditCardCommandHandlerTests {
 
     [Fact]
     public void Command_ImplementsIdempotencyWithStableKeyAndFingerprint() {
-        var command = new CancelCreditCardCommand(42);
+        var command = new CancelCreditCardCommand(42) {
+            IdempotencyKey = "card-cancel-key",
+        };
 
-        command.IdempotencyKey.Should().Be("cancel-card-42");
+        command.IdempotencyKey.Should().Be("card-cancel-key");
         command.RequestFingerprint.Should().Be("42");
     }
 

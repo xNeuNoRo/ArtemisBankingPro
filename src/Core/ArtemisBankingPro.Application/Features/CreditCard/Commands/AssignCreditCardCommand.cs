@@ -15,12 +15,11 @@ namespace ArtemisBankingPro.Application.Features.CreditCard.Commands;
 /// </summary>
 public sealed record AssignCreditCardCommand(
     string CustomerUserId,
-    decimal CreditLimit,
-    bool ConfirmHighRisk = false
+    decimal CreditLimit
 ) : IRequest<Result<AssignCreditCardResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"assign-card-{CustomerUserId}-{CreditLimit}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{CustomerUserId}|{CreditLimit}";
 }
