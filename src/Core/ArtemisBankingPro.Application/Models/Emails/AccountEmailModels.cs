@@ -21,40 +21,6 @@ public sealed record TransferCompletedModel(
     public string OccurredAtText => EmailFormatting.FormatDateTime(OccurredAt, BusinessTimeZone);
 }
 
-/// <summary>Correo de depósito realizado a una cuenta de ahorro.</summary>
-public sealed record DepositCompletedModel(
-    string CustomerName,
-    string AccountLastFour,
-    Money Amount,
-    DateTimeOffset OccurredAt,
-    TimeZoneInfo BusinessTimeZone
-) : IEmailModel {
-    public string Subject => $"Depósito realizado a su cuenta {AccountLastFour}";
-
-    public string TemplateName => "DepositCompleted";
-
-    public string AmountText => EmailFormatting.FormatMoney(Amount);
-
-    public string OccurredAtText => EmailFormatting.FormatDateTime(OccurredAt, BusinessTimeZone);
-}
-
-/// <summary>Correo de retiro realizado desde una cuenta de ahorro.</summary>
-public sealed record WithdrawalCompletedModel(
-    string CustomerName,
-    string AccountLastFour,
-    Money Amount,
-    DateTimeOffset OccurredAt,
-    TimeZoneInfo BusinessTimeZone
-) : IEmailModel {
-    public string Subject => $"Retiro realizado desde su cuenta {AccountLastFour}";
-
-    public string TemplateName => "WithdrawalCompleted";
-
-    public string AmountText => EmailFormatting.FormatMoney(Amount);
-
-    public string OccurredAtText => EmailFormatting.FormatDateTime(OccurredAt, BusinessTimeZone);
-}
-
 /// <summary>
 /// Notificación al dueño de la cuenta origen cuando se debita su cuenta para
 /// pagar la tarjeta de otro cliente.

@@ -106,7 +106,9 @@ public sealed class EmailRenderingTests {
             "Juan Pérez",
             "1234",
             Money.Create(25_000m).Value,
-            "08/29"
+            "08/29",
+            OccurredAt,
+            SantoDomingo
         );
 
         string body = await _renderer.RenderAsync(model);
@@ -114,6 +116,7 @@ public sealed class EmailRenderingTests {
         body.Should().Contain("terminada en: 1234");
         body.Should().Contain("RD$ 25000.00");
         body.Should().Contain("08/29");
+        body.Should().Contain("Fecha de asignación: 06/08/2026 12:30");
         body.Should().NotContain("4111 1111");
         body.Should().NotContain("CVC");
     }
@@ -123,13 +126,16 @@ public sealed class EmailRenderingTests {
         var model = new CardLimitChangedModel(
             "Juan Pérez",
             "1234",
-            Money.Create(30_000m).Value
+            Money.Create(30_000m).Value,
+            OccurredAt,
+            SantoDomingo
         );
 
         string body = await _renderer.RenderAsync(model);
 
         body.Should().Contain("RD$ 30000.00");
         body.Should().Contain("comuníquese con la entidad bancaria");
+        body.Should().Contain("Fecha de modificación: 06/08/2026 12:30");
     }
 
     [Fact]
@@ -171,36 +177,6 @@ public sealed class EmailRenderingTests {
         body.Should().Contain("Cuenta destino terminada en: 2222");
         body.Should().Contain("RD$ 250.50");
         body.Should().Contain("06/08/2026 12:30");
-    }
-
-    [Fact]
-    public async Task DepositCompleted_RendersSpecBody() {
-        var model = new DepositCompletedModel(
-            "Juan Pérez",
-            "3333",
-            Money.Create(500m).Value,
-            OccurredAt,
-            SantoDomingo
-        );
-
-        string body = await _renderer.RenderAsync(model);
-
-        body.Should().Contain("RD$ 500.00");
-    }
-
-    [Fact]
-    public async Task WithdrawalCompleted_RendersSpecBody() {
-        var model = new WithdrawalCompletedModel(
-            "Juan Pérez",
-            "3333",
-            Money.Create(200m).Value,
-            OccurredAt,
-            SantoDomingo
-        );
-
-        string body = await _renderer.RenderAsync(model);
-
-        body.Should().Contain("RD$ 200.00");
     }
 
     [Fact]
@@ -288,7 +264,7 @@ public sealed class EmailRenderingTests {
 
     [Fact]
     public async Task CashierTransferSent_RendersSpecBody() {
-        var model = new CashierTransferSentModel(
+        var model = new ThirdPartyTransferSenderModel(
             "Juan Pérez",
             Money.Create(1_500m).Value,
             "1111",
@@ -307,7 +283,7 @@ public sealed class EmailRenderingTests {
 
     [Fact]
     public async Task CashierTransferReceived_RendersSpecBody() {
-        var model = new CashierTransferReceivedModel(
+        var model = new ThirdPartyTransferReceiverModel(
             "María Gómez",
             Money.Create(1_500m).Value,
             "1111",
@@ -371,19 +347,19 @@ public sealed class EmailRenderingTests {
             new PasswordResetTokenModel("Juan", "token-2"),
             new LoanApprovedModel("Juan", "300000001", Money.Create(1_000m).Value, 12, 18m, Money.Create(100m).Value),
             new LoanRateChangedModel("Juan", "300000001", 15.5m, Money.Create(100m).Value, new DateOnly(2026, 9, 6)),
-            new CardAssignedModel("Juan", "1234", Money.Create(1_000m).Value, "08/29"),
-            new CardLimitChangedModel("Juan", "1234", Money.Create(1_000m).Value),
+            new CardAssignedModel("Juan", "1234", Money.Create(1_000m).Value, "08/29", OccurredAt, SantoDomingo),
+            new CardLimitChangedModel("Juan", "1234", Money.Create(1_000m).Value, OccurredAt, SantoDomingo),
             new CashAdvanceCompletedModel("Juan", "1234", Money.Create(100m).Value, Money.Create(6.25m).Value, Money.Create(106.25m).Value, "5678", OccurredAt, SantoDomingo),
             new TransferCompletedModel("Juan", Money.Create(100m).Value, "1111", "2222", OccurredAt, SantoDomingo),
-            new DepositCompletedModel("Juan", "3333", Money.Create(100m).Value, OccurredAt, SantoDomingo),
-            new WithdrawalCompletedModel("Juan", "3333", Money.Create(100m).Value, OccurredAt, SantoDomingo),
             new CardPaymentCompletedModel("Juan", "1234", Money.Create(100m).Value, "3333", OccurredAt, SantoDomingo),
             new LoanPaymentCompletedModel("Juan", "300000001", Money.Create(100m).Value, "3333", OccurredAt, SantoDomingo),
             new LoanDelinquentModel("Juan", "300000001", Money.Create(100m).Value, new DateOnly(2026, 8, 14)),
             new CardConsumptionMadeModel("Juan", "1234", "Comercio", Money.Create(100m).Value, OccurredAt, SantoDomingo),
             new PaymentReceivedByCommerceModel("Comercio", "1234", Money.Create(100m).Value, OccurredAt, SantoDomingo),
-            new CashierTransferSentModel("Juan", Money.Create(100m).Value, "1111", "2222", OccurredAt, SantoDomingo),
-            new CashierTransferReceivedModel("Juan", Money.Create(100m).Value, "1111", "2222", OccurredAt, SantoDomingo),
+            new ThirdPartyTransferSenderModel("Juan", Money.Create(100m).Value, "1111", "2222", OccurredAt, SantoDomingo),
+            new ThirdPartyTransferReceiverModel("Juan", Money.Create(100m).Value, "1111", "2222", OccurredAt, SantoDomingo),
+            new DepositModel("Juan", "3333", Money.Create(100m).Value, OccurredAt, SantoDomingo),
+            new WithdrawalModel("Juan", "3333", Money.Create(100m).Value, OccurredAt, SantoDomingo),
             new AccountDebitedForCardPaymentModel("Juan", Money.Create(100m).Value, "3333", "1234", OccurredAt, SantoDomingo),
             new AccountDebitedForLoanPaymentModel("Juan", Money.Create(100m).Value, "3333", "300000001", OccurredAt, SantoDomingo),
         ];
