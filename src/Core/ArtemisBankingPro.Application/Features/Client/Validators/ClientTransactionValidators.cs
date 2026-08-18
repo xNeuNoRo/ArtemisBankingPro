@@ -30,7 +30,7 @@ public sealed class ProcessExpressTransactionCommandValidator
 
         RuleFor(x => x.DestinationAccountNumber)
             .NotEqual(x => x.SourceAccountNumber)
-            .WithMessage("La cuenta destino debe ser diferente a la cuenta origen.");
+            .WithMessage("La cuenta destino no puede ser la misma cuenta de origen.");
         RuleFor(x => x.Amount)
             .GreaterThan(0)
             .WithMessage("El monto a transferir debe ser mayor que cero.");
@@ -121,7 +121,7 @@ public sealed class ProcessOwnAccountsTransferCommandValidator
 
         RuleFor(x => x.DestinationAccountNumber)
             .NotEqual(x => x.SourceAccountNumber)
-            .WithMessage("La cuenta destino debe ser diferente a la cuenta origen.");
+            .WithMessage("La cuenta de origen y la cuenta de destino no pueden ser la misma.");
         RuleFor(x => x.Amount)
             .GreaterThan(0)
             .WithMessage("El monto a transferir debe ser mayor que cero.");

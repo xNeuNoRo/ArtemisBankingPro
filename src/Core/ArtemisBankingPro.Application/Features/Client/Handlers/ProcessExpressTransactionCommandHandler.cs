@@ -1,20 +1,15 @@
 using ArtemisBankingPro.Application.Common.Exceptions;
 using ArtemisBankingPro.Application.Features.Client.Commands;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
-using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Application.Models.Emails;
-using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Entities;
-using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.Errors;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Operations.Entities;
-using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Errors;
 using Mediator;
 using Microsoft.Extensions.Logging;
@@ -23,29 +18,26 @@ namespace ArtemisBankingPro.Application.Features.Client.Handlers;
 
 public sealed class ProcessExpressTransactionCommandHandler
     : IRequestHandler<ProcessExpressTransactionCommand, Result<Unit>> {
+    private readonly ITransferProcessor _processor;
     private readonly ISavingsAccountRepository _savingsAccountRepository;
-    private readonly IFinancialOperationRepository _financialOperationRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IBusinessClock _clock;
     private readonly ICurrentUserService _currentUser;
     private readonly IEmailService _emailService;
     private readonly ILogger<ProcessExpressTransactionCommandHandler> _logger;
 
     public ProcessExpressTransactionCommandHandler(
+        ITransferProcessor processor,
         ISavingsAccountRepository savingsAccountRepository,
-        IFinancialOperationRepository financialOperationRepository,
         IUserRepository userRepository,
-        IUnitOfWork unitOfWork,
         IBusinessClock clock,
         ICurrentUserService currentUser,
         IEmailService emailService,
         ILogger<ProcessExpressTransactionCommandHandler> logger
     ) {
+        _processor = processor;
         _savingsAccountRepository = savingsAccountRepository;
-        _financialOperationRepository = financialOperationRepository;
         _userRepository = userRepository;
-        _unitOfWork = unitOfWork;
         _clock = clock;
         _currentUser = currentUser;
         _emailService = emailService;
@@ -98,84 +90,30 @@ public sealed class ProcessExpressTransactionCommandHandler
             return Result.Failure<Unit>(AccountErrors.DestinationNotFound);
         }
 
-        if (source.Status != AccountStatus.Active || destination.Status != AccountStatus.Active) {
-            return Result.Failure<Unit>(AccountErrors.NotActive);
-        }
-
         if (destination.OwnerUserId == source.OwnerUserId) {
             return Result.Failure<Unit>(OperationErrors.DestinationMustBeThirdParty);
         }
 
-        Money amount = amountResult.Value;
-        Result canDebit = source.CanDebit(amount);
-        if (canDebit.IsFailure) {
-            Result rejection = await PersistRejectionAsync(
-                source,
-                destination,
-                amount,
-                canDebit.Error!,
-                cancellationToken
-            );
-            if (rejection.IsFailure) {
-                return Result.Failure<Unit>(rejection.Error!);
-            }
-
-            return Result.Failure<Unit>(canDebit.Error!);
-        }
-
-        Result canCredit = destination.CanCredit(amount);
-        if (canCredit.IsFailure) {
-            return Result.Failure<Unit>(canCredit.Error!);
-        }
-
-        Guid operationId = Guid.NewGuid();
-        DateTimeOffset occurredAt = _clock.Now;
-        Result operationResult = await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                Result<FinancialOperation> operation = FinancialOperation.Approve(
-                    operationId,
-                    FinancialOperationKind.ExpressTransfer,
-                    amount,
-                    amount,
-                    Money.Zero,
-                    actorId,
-                    occurredAt,
-                    CreateTransactions(source, destination, amount)
-                );
-                if (operation.IsFailure) {
-                    return Result.Failure(operation.Error!);
-                }
-
-                Result debit = source.Debit(amount);
-                if (debit.IsFailure) {
-                    return debit;
-                }
-
-                Result credit = destination.Credit(amount);
-                if (credit.IsFailure) {
-                    return credit;
-                }
-
-                foreach (SavingsAccount account in new[] { source, destination }.OrderBy(x => x.Id)) {
-                    _savingsAccountRepository.Update(account);
-                }
-
-                await _financialOperationRepository.AddAsync(operation.Value, ct);
-                return Result.Success();
-            },
-            ct: cancellationToken
+        Result<FinancialOperationOutcome> outcomeResult = await _processor.TransferAsync(
+            source,
+            destination,
+            amountResult.Value,
+            TransferFlow.Express,
+            actorId,
+            cancellationToken
         );
-        if (operationResult.IsFailure) {
-            return Result.Failure<Unit>(operationResult.Error!);
+        if (outcomeResult.IsFailure) {
+            return Result.Failure<Unit>(outcomeResult.Error!);
         }
 
+        FinancialOperationOutcome outcome = outcomeResult.Value;
         try {
             await SendNotificationsAsync(
                 source,
                 destination,
-                amount,
-                occurredAt,
-                operationId,
+                outcome.AppliedAmount,
+                outcome.OccurredAt,
+                outcome.OperationId,
                 CancellationToken.None
             );
         }
@@ -183,60 +121,12 @@ public sealed class ProcessExpressTransactionCommandHandler
             _logger.LogWarning(
                 ex,
                 "No se pudieron completar las notificaciones de la transferencia express {OperationId}.",
-                operationId
+                outcome.OperationId
             );
         }
 
         return Result.Success(Unit.Value);
     }
-
-    private async Task<Result> PersistRejectionAsync(
-        SavingsAccount source,
-        SavingsAccount destination,
-        Money amount,
-        DomainError error,
-        CancellationToken cancellationToken
-    ) {
-        Result<FinancialOperation> operation = FinancialOperation.Reject(
-            Guid.NewGuid(),
-            FinancialOperationKind.ExpressTransfer,
-            amount,
-            Money.Zero,
-            _currentUser.UserId!,
-            _clock.Now,
-            error.Code,
-            [
-                new AccountTransactionDetails(
-                    source.Number,
-                    TransactionDirection.Debit,
-                    amount,
-                    source.Number.Value,
-                    destination.Number.Value
-                ),
-            ]
-        );
-        if (operation.IsFailure) {
-            return Result.Failure(operation.Error!);
-        }
-
-        return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                await _financialOperationRepository.AddAsync(operation.Value, ct);
-                return Result.Success();
-            },
-            ct: cancellationToken
-        );
-    }
-
-    private static IReadOnlyCollection<AccountTransactionDetails> CreateTransactions(
-        SavingsAccount source,
-        SavingsAccount destination,
-        Money amount
-    ) =>
-        [
-            new(source.Number, TransactionDirection.Debit, amount, source.Number.Value, destination.Number.Value),
-            new(destination.Number, TransactionDirection.Credit, amount, source.Number.Value, destination.Number.Value),
-        ];
 
     private async Task SendNotificationsAsync(
         SavingsAccount source,

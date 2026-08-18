@@ -50,51 +50,15 @@ public sealed class GetMyAccountTransactionsQueryHandler
             throw new ForbiddenAccessException("La cuenta no pertenece al cliente autenticado.");
         }
 
-        List<AccountTransactionDto> transactions = [];
-        int sourcePage = PageRequest.DefaultPage;
-        while (true) {
-            PageResult<AccountTransactionDto> result =
-                await _savingsAccountRepository.GetTransactionsPagedAsync(
-                    numberResult.Value,
-                    new PageRequest(sourcePage, PageRequest.MaxPageSize),
-                    cancellationToken
-                );
-            transactions.AddRange(result.Items);
-            if (transactions.Count >= result.TotalCount) {
-                break;
-            }
-
-            sourcePage++;
-        }
-
-        IEnumerable<AccountTransactionDto> filtered = transactions;
-        if (message.DateFrom.HasValue) {
-            filtered = filtered.Where(item => item.Date >= message.DateFrom.Value);
-        }
-
-        if (message.DateTo.HasValue) {
-            filtered = filtered.Where(item => item.Date <= message.DateTo.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(message.TransactionType)) {
-            filtered = filtered.Where(item =>
-                string.Equals(
-                    item.TransactionType,
-                    message.TransactionType,
-                    StringComparison.OrdinalIgnoreCase
-                )
+        PageResult<AccountTransactionDto> result =
+            await _savingsAccountRepository.GetTransactionsPagedAsync(
+                numberResult.Value,
+                new PageRequest(message.Page, message.PageSize),
+                message.DateFrom,
+                message.DateTo,
+                message.TransactionType,
+                cancellationToken
             );
-        }
-
-        List<AccountTransactionDto> filteredItems = filtered.ToList();
-        var page = new PageRequest(message.Page, message.PageSize);
-        return Result.Success(
-            new PageResult<AccountTransactionDto>(
-                filteredItems.Skip(page.Skip).Take(page.PageSize).ToList(),
-                filteredItems.Count,
-                page.Page,
-                page.PageSize
-            )
-        );
+        return Result.Success(result);
     }
 }

@@ -18,7 +18,8 @@ public sealed class AddBeneficiaryCommandHandler
     : IRequestHandler<AddBeneficiaryCommand, Result<Unit>> {
     private static readonly DomainError OwnAccount = DomainError.Validation(
         "Beneficiary.OwnAccount",
-        "No puede agregar una cuenta propia como beneficiario."
+        "No puede agregar una cuenta propia como beneficiario. Utilice la opción "
+            + "Transferencia para mover fondos entre sus cuentas."
     );
     private static readonly DomainError AlreadyExists = DomainError.Conflict(
         "Beneficiary.AlreadyExists",

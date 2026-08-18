@@ -65,11 +65,18 @@ public sealed class GetMyLoanDetailQueryHandler
                         item.DueDate,
                         item.ScheduledAmount.Amount,
                         item.PaidAmount.Amount,
-                        item.Status.ToString(),
+                        ToSpanish(item.Status),
                         item.Status != InstallmentStatus.Paid && item.DueDate < _clock.Today
                     ))
                     .ToList()
             )
         );
     }
+
+    private static string ToSpanish(InstallmentStatus status) =>
+        status switch {
+            InstallmentStatus.Paid => "PAGADA",
+            InstallmentStatus.PartiallyPaid => "PARCIALMENTE PAGADA",
+            _ => "PENDIENTE",
+        };
 }

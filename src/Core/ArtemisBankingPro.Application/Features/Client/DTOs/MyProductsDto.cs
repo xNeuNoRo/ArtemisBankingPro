@@ -17,7 +17,13 @@ public sealed record MyLoanDto(
     decimal AnnualRate,
     int TermMonths,
     bool IsDelinquent
-);
+) {
+    /// <summary>
+    /// Internal resource identifier used by authorized detail and payment flows.
+    /// It is not a substitute for the ownership check performed by the handler.
+    /// </summary>
+    public int LoanId { get; init; }
+}
 
 public sealed record MyCardDto(
     string LastFour,
@@ -25,4 +31,10 @@ public sealed record MyCardDto(
     decimal AvailableCredit,
     decimal CurrentDebt,
     string Expiration
-);
+) {
+    /// <summary>
+    /// Internal resource identifier used by authorized detail and payment flows.
+    /// It is not a substitute for the ownership check performed by the handler.
+    /// </summary>
+    public int CardId { get; init; }
+}

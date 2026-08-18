@@ -4,8 +4,8 @@ using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Accounts.Beneficiaries.Entities;
 using ArtemisBankingPro.Domain.Accounts.Entities;
+using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using Mediator;
 
 namespace ArtemisBankingPro.Application.Features.Client.Handlers;
@@ -38,16 +38,17 @@ public sealed class GetMyBeneficiariesQueryHandler
                 _currentUser.UserId!,
                 cancellationToken
             );
-        List<(Beneficiary Beneficiary, SavingsAccount Account)> resolved = [];
-        foreach (Beneficiary beneficiary in beneficiaries) {
-            SavingsAccount? account = await _savingsAccountRepository.GetByIdAsync(
-                beneficiary.DestinationAccountId,
-                cancellationToken
-            );
-            if (account is not null) {
-                resolved.Add((beneficiary, account));
-            }
-        }
+        IReadOnlyList<SavingsAccount> accounts = await _savingsAccountRepository.GetByIdsAsync(
+            beneficiaries.Select(beneficiary => beneficiary.DestinationAccountId).ToList(),
+            cancellationToken
+        );
+        var accountsById = accounts
+            .Where(account => account.Status == AccountStatus.Active)
+            .ToDictionary(account => account.Id);
+        List<(Beneficiary Beneficiary, SavingsAccount Account)> resolved = beneficiaries
+            .Where(beneficiary => accountsById.ContainsKey(beneficiary.DestinationAccountId))
+            .Select(beneficiary => (beneficiary, accountsById[beneficiary.DestinationAccountId]))
+            .ToList();
 
         var users = await _userRepository.GetByIdsAsync(
             resolved.Select(item => item.Account.OwnerUserId).Distinct().ToList(),

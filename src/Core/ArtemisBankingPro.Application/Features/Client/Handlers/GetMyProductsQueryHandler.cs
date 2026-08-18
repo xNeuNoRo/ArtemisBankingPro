@@ -4,7 +4,6 @@ using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Accounts.Enums;
-using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Enums;
@@ -43,7 +42,10 @@ public sealed class GetMyProductsQueryHandler
             userId,
             cancellationToken
         );
-        var cards = await _creditCardRepository.GetByCustomerAsync(userId, cancellationToken);
+        var cards = await _creditCardRepository.GetActiveSummariesByCustomerAsync(
+            userId,
+            cancellationToken
+        );
         Loan? activeLoan = await _loanRepository.GetActiveByCustomerAsync(
             userId,
             cancellationToken
@@ -69,7 +71,7 @@ public sealed class GetMyProductsQueryHandler
                     loan.Installments.Any(item =>
                         item.Status != InstallmentStatus.Paid && item.DueDate < _clock.Today
                     )
-                ),
+                ) { LoanId = loan.Id },
             ];
 
         return Result.Success(
@@ -81,19 +83,18 @@ public sealed class GetMyProductsQueryHandler
                     .Select(account => new MyAccountDto(
                         account.Number.Value,
                         account.Balance.Amount,
-                        account.Type.ToString()
+                        account.Type == AccountType.Primary ? "Principal" : "Secundaria"
                     ))
                     .ToList(),
                 loans,
                 cards
-                    .Where(card => card.Status == CreditCardStatus.Active)
                     .Select(card => new MyCardDto(
                         card.LastFour,
-                        card.CreditLimit.Amount,
-                        card.AvailableCredit.Amount,
-                        card.CurrentDebt.Amount,
-                        card.Expiration.ToString()
-                    ))
+                        card.CreditLimit,
+                        card.AvailableCredit,
+                        card.CurrentDebt,
+                        card.Expiration
+                    ) { CardId = card.Id })
                     .ToList()
             )
         );

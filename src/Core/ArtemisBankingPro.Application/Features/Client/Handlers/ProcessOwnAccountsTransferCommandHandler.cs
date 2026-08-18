@@ -1,20 +1,15 @@
 using ArtemisBankingPro.Application.Common.Exceptions;
 using ArtemisBankingPro.Application.Features.Client.Commands;
+using ArtemisBankingPro.Application.Features.FinancialProcessors;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
-using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Application.Models.Emails;
-using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Entities;
-using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.Errors;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Operations.Entities;
-using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Domain.Operations.Errors;
 using Mediator;
 using Microsoft.Extensions.Logging;
@@ -23,29 +18,26 @@ namespace ArtemisBankingPro.Application.Features.Client.Handlers;
 
 public sealed class ProcessOwnAccountsTransferCommandHandler
     : IRequestHandler<ProcessOwnAccountsTransferCommand, Result<Unit>> {
+    private readonly ITransferProcessor _processor;
     private readonly ISavingsAccountRepository _savingsAccountRepository;
-    private readonly IFinancialOperationRepository _financialOperationRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IBusinessClock _clock;
     private readonly ICurrentUserService _currentUser;
     private readonly IEmailService _emailService;
     private readonly ILogger<ProcessOwnAccountsTransferCommandHandler> _logger;
 
     public ProcessOwnAccountsTransferCommandHandler(
+        ITransferProcessor processor,
         ISavingsAccountRepository savingsAccountRepository,
-        IFinancialOperationRepository financialOperationRepository,
         IUserRepository userRepository,
-        IUnitOfWork unitOfWork,
         IBusinessClock clock,
         ICurrentUserService currentUser,
         IEmailService emailService,
         ILogger<ProcessOwnAccountsTransferCommandHandler> logger
     ) {
+        _processor = processor;
         _savingsAccountRepository = savingsAccountRepository;
-        _financialOperationRepository = financialOperationRepository;
         _userRepository = userRepository;
-        _unitOfWork = unitOfWork;
         _clock = clock;
         _currentUser = currentUser;
         _emailService = emailService;
@@ -57,13 +49,13 @@ public sealed class ProcessOwnAccountsTransferCommandHandler
         CancellationToken cancellationToken
     ) {
         Result<AccountNumber> sourceNumber = AccountNumber.Create(message.SourceAccountNumber);
-        Result<AccountNumber> destinationNumber = AccountNumber.Create(
-            message.DestinationAccountNumber
-        );
         if (sourceNumber.IsFailure) {
             return Result.Failure<Unit>(sourceNumber.Error!);
         }
 
+        Result<AccountNumber> destinationNumber = AccountNumber.Create(
+            message.DestinationAccountNumber
+        );
         if (destinationNumber.IsFailure) {
             return Result.Failure<Unit>(destinationNumber.Error!);
         }
@@ -94,77 +86,32 @@ public sealed class ProcessOwnAccountsTransferCommandHandler
         }
 
         string actorId = _currentUser.UserId!;
+        if (await _savingsAccountRepository.CountActiveByOwnerAsync(actorId, cancellationToken) < 2) {
+            return Result.Failure<Unit>(
+                DomainError.Validation(
+                    "Account.MinimumActiveAccounts",
+                    "El cliente debe tener al menos dos cuentas activas para transferir entre cuentas propias."
+                )
+            );
+        }
+
         if (source.OwnerUserId != actorId || destination.OwnerUserId != actorId) {
             throw new ForbiddenAccessException("Ambas cuentas deben pertenecer al cliente autenticado.");
         }
 
-        if (source.Status != AccountStatus.Active || destination.Status != AccountStatus.Active) {
-            return Result.Failure<Unit>(AccountErrors.NotActive);
-        }
-
-        Money amount = amountResult.Value;
-        Result canDebit = source.CanDebit(amount);
-        if (canDebit.IsFailure) {
-            Result rejection = await PersistRejectionAsync(
-                source,
-                destination,
-                amount,
-                canDebit.Error!,
-                cancellationToken
-            );
-            if (rejection.IsFailure) {
-                return Result.Failure<Unit>(rejection.Error!);
-            }
-
-            return Result.Failure<Unit>(canDebit.Error!);
-        }
-
-        Result canCredit = destination.CanCredit(amount);
-        if (canCredit.IsFailure) {
-            return Result.Failure<Unit>(canCredit.Error!);
-        }
-
-        Guid operationId = Guid.NewGuid();
-        DateTimeOffset occurredAt = _clock.Now;
-        Result persistResult = await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                Result<FinancialOperation> operation = FinancialOperation.Approve(
-                    operationId,
-                    FinancialOperationKind.OwnAccountTransfer,
-                    amount,
-                    amount,
-                    Money.Zero,
-                    actorId,
-                    occurredAt,
-                    CreateTransactions(source, destination, amount)
-                );
-                if (operation.IsFailure) {
-                    return Result.Failure(operation.Error!);
-                }
-
-                Result debit = source.Debit(amount);
-                if (debit.IsFailure) {
-                    return debit;
-                }
-
-                Result credit = destination.Credit(amount);
-                if (credit.IsFailure) {
-                    return credit;
-                }
-
-                foreach (SavingsAccount account in new[] { source, destination }.OrderBy(x => x.Id)) {
-                    _savingsAccountRepository.Update(account);
-                }
-
-                await _financialOperationRepository.AddAsync(operation.Value, ct);
-                return Result.Success();
-            },
-            ct: cancellationToken
+        Result<FinancialOperationOutcome> outcomeResult = await _processor.TransferAsync(
+            source,
+            destination,
+            amountResult.Value,
+            TransferFlow.OwnAccounts,
+            actorId,
+            cancellationToken
         );
-        if (persistResult.IsFailure) {
-            return Result.Failure<Unit>(persistResult.Error!);
+        if (outcomeResult.IsFailure) {
+            return Result.Failure<Unit>(outcomeResult.Error!);
         }
 
+        FinancialOperationOutcome outcome = outcomeResult.Value;
         try {
             var user = await _userRepository.GetByIdAsync(actorId, CancellationToken.None);
             if (user is not null) {
@@ -172,10 +119,10 @@ public sealed class ProcessOwnAccountsTransferCommandHandler
                     user.Email,
                     new TransferCompletedModel(
                         $"{user.FirstName} {user.LastName}".Trim(),
-                        amount,
+                        outcome.AppliedAmount,
                         source.Number.Value[^4..],
                         destination.Number.Value[^4..],
-                        occurredAt,
+                        outcome.OccurredAt,
                         _clock.BusinessTimeZone
                     ),
                     CancellationToken.None
@@ -186,52 +133,10 @@ public sealed class ProcessOwnAccountsTransferCommandHandler
             _logger.LogWarning(
                 ex,
                 "No se pudo enviar el correo de la transferencia propia {OperationId}.",
-                operationId
+                outcome.OperationId
             );
         }
 
         return Result.Success(Unit.Value);
     }
-
-    private async Task<Result> PersistRejectionAsync(
-        SavingsAccount source,
-        SavingsAccount destination,
-        Money amount,
-        DomainError error,
-        CancellationToken cancellationToken
-    ) {
-        Result<FinancialOperation> operation = FinancialOperation.Reject(
-            Guid.NewGuid(),
-            FinancialOperationKind.OwnAccountTransfer,
-            amount,
-            Money.Zero,
-            _currentUser.UserId!,
-            _clock.Now,
-            error.Code,
-            [
-                new(source.Number, TransactionDirection.Debit, amount, source.Number.Value, destination.Number.Value),
-            ]
-        );
-        if (operation.IsFailure) {
-            return Result.Failure(operation.Error!);
-        }
-
-        return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                await _financialOperationRepository.AddAsync(operation.Value, ct);
-                return Result.Success();
-            },
-            ct: cancellationToken
-        );
-    }
-
-    private static IReadOnlyCollection<AccountTransactionDetails> CreateTransactions(
-        SavingsAccount source,
-        SavingsAccount destination,
-        Money amount
-    ) =>
-        [
-            new(source.Number, TransactionDirection.Debit, amount, source.Number.Value, destination.Number.Value),
-            new(destination.Number, TransactionDirection.Credit, amount, source.Number.Value, destination.Number.Value),
-        ];
 }
