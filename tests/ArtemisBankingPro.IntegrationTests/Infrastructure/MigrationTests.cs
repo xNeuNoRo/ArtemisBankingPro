@@ -26,6 +26,7 @@ public sealed class MigrationTests(SqlServerFixture fixture) : SqlServerTestBase
                 "AccountTransactions",
                 "Beneficiaries",
                 "CardConsumptions",
+                "ConfirmationTokens",
                 "CreditCards",
                 "FinancialOperations",
                 "IdempotencyRecords",
