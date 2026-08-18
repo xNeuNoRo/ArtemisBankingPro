@@ -1,7 +1,7 @@
 using ArtemisBankingPro.Application.Common.Behaviors;
 using ArtemisBankingPro.Application.Common.Mapping;
 using FluentValidation;
-using Mapster;
+using MapsterMapper;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ArtemisBankingPro.Application;
@@ -23,8 +23,9 @@ public static class ServicesRegistration {
 
         services.AddValidatorsFromAssembly(typeof(ServicesRegistration).Assembly);
 
-        services.AddMapster();
-        MapsterConfig.Configure();
+        // Mapster composes explicit feature mappings and validates them during startup.
+        services.AddSingleton(MapsterConfig.Create());
+        services.AddScoped<IMapper, ServiceMapper>();
 
         return services;
     }
