@@ -19,9 +19,7 @@ public sealed class CreateLoanCommandValidator : AbstractValidator<CreateLoanCom
 
         RuleFor(x => x.TermMonths)
             .Must(AmortizationCalculator.IsValidTerm)
-            .WithMessage(
-                "El plazo seleccionado no es válido. Debe ser un valor entre 6 y 60 meses en intervalos de 6."
-            );
+            .WithMessage("El plazo seleccionado no es válido.");
 
         RuleFor(x => x.AnnualInterestRate)
             .GreaterThanOrEqualTo(0)

@@ -71,7 +71,10 @@ public sealed class CreateLoanCommandValidatorTests {
         );
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "TermMonths");
+        result.Errors.Should().ContainSingle(e =>
+            e.PropertyName == "TermMonths"
+            && e.ErrorMessage == "El plazo seleccionado no es válido."
+        );
     }
 
     [Fact]
