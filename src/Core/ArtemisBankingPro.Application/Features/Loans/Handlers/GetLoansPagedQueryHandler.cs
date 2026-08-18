@@ -3,7 +3,6 @@ using ArtemisBankingPro.Application.Features.Loans.Queries;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Enums;
 using Mediator;
@@ -78,7 +77,7 @@ public sealed class GetLoansPagedQueryHandler
 
     private static LoanListDto ToDto(
         Loan loan,
-        Dictionary<string, Domain.Interfaces.Persistence.Repositories.UserListDto> customerMap
+        Dictionary<string, UserListDto> customerMap
     ) {
         customerMap.TryGetValue(loan.CustomerUserId, out var customer);
 

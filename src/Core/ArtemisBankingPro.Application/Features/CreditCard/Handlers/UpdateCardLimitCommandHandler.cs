@@ -6,7 +6,6 @@ using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
@@ -112,7 +111,7 @@ public sealed class UpdateCardLimitCommandHandler
         }
 
         // 5. Correo post-commit (fallo no revierte el cambio).
-        await SendLimitChangedEmailAsync(card, moneyResult.Value, cancellationToken);
+        await SendLimitChangedEmailAsync(card, moneyResult.Value, _clock.Now, cancellationToken);
 
         return Result.Success(Unit.Value);
     }
@@ -120,6 +119,7 @@ public sealed class UpdateCardLimitCommandHandler
     private async Task SendLimitChangedEmailAsync(
         CreditCardEntity card,
         Money newLimit,
+        DateTimeOffset modifiedAt,
         CancellationToken cancellationToken
     ) {
         var customer = await _userRepository.GetByIdAsync(
@@ -136,7 +136,9 @@ public sealed class UpdateCardLimitCommandHandler
                 new CardLimitChangedModel(
                     $"{customer.FirstName} {customer.LastName}".Trim(),
                     card.LastFour,
-                    newLimit
+                    newLimit,
+                    modifiedAt,
+                    _clock.BusinessTimeZone
                 ),
                 cancellationToken
             );

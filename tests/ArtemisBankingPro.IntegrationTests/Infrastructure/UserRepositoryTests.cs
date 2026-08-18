@@ -1,6 +1,6 @@
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 

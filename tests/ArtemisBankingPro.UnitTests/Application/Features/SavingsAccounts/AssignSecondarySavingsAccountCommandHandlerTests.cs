@@ -9,7 +9,6 @@ using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.Events;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using Moq;
 
@@ -32,10 +31,9 @@ public sealed class AssignSecondarySavingsAccountCommandHandlerTests {
         result.Value.Balance.Should().Be(1_500m);
         result.Value.Type.Should().Be("Secondary");
         result.Value.Status.Should().Be("Active");
-        fixture.AddedAccount.Should().NotBeNull();
-        fixture.AddedAccount.DomainEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<SecondaryAccountOpenedEvent>();
-        fixture.AddedOperation.Should().NotBeNull();
+        Assert.NotNull(fixture.AddedAccount);
+        Assert.IsType<SecondaryAccountOpenedEvent>(fixture.AddedAccount.DomainEvents.Single());
+        Assert.NotNull(fixture.AddedOperation);
         fixture.AddedOperation.AccountTransactions.Should().ContainSingle();
         fixture.AddedOperation.AccountTransactions.Single().Amount.Amount.Should().Be(1_500m);
     }
@@ -51,7 +49,7 @@ public sealed class AssignSecondarySavingsAccountCommandHandlerTests {
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Balance.Should().Be(0m);
-        fixture.AddedOperation.Should().BeNull();
+        Assert.Null(fixture.AddedOperation);
     }
 
     [Fact]

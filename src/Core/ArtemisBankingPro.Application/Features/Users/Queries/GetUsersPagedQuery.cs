@@ -1,6 +1,6 @@
 using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Domain.Common.Pagination;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Mediator;
 

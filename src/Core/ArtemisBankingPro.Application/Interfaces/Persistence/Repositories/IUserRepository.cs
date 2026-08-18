@@ -1,6 +1,6 @@
 using ArtemisBankingPro.Domain.Common.Pagination;
 
-namespace ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
 /// <summary>
 /// Consultas de usuarios gestionadas por Identity.
@@ -43,4 +43,25 @@ public interface IUserRepository {
 
     /// <summary>Cantidad de usuarios con rol Cliente y estado activo.</summary>
     Task<int> CountActiveClientsAsync(CancellationToken ct = default);
+
+    /// <summary>Conteos de usuarios con rol Cliente por estado (dashboard administrativo).</summary>
+    Task<ClientStatusCounts> GetClientStatusCountsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Identificadores de usuarios con rol Cliente y estado activo, para
+    /// calcular la deuda promedio solo sobre clientes activos (spec §559-569).
+    /// </summary>
+    Task<IReadOnlyList<string>> GetActiveClientIdsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Página de clientes activos elegibles por identificación y por un conjunto
+    /// de IDs previamente calculado por Application/Persistence.
+    /// </summary>
+    Task<PageResult<UserListDto>> GetActiveClientsPagedAsync(
+        IReadOnlyCollection<string> clientIds,
+        string? identification,
+        PageRequest page,
+        CancellationToken ct = default
+    );
+
 }

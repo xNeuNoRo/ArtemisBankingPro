@@ -8,7 +8,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using FluentValidation.TestHelper;
 using Moq;
 
@@ -117,6 +116,9 @@ public sealed class SavingsAccountQueryTests {
             .Setup(repository => repository.GetTransactionsPagedAsync(
                 AccountNumber.Create("123456789").Value,
                 It.IsAny<PageRequest>(),
+                It.IsAny<DateTimeOffset?>(),
+                It.IsAny<DateTimeOffset?>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()
             ))
             .ReturnsAsync(transactions);

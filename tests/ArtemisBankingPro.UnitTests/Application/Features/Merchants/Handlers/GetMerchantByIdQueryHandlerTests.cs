@@ -1,8 +1,9 @@
+using ArtemisBankingPro.Application.Common.Mapping;
 using ArtemisBankingPro.Application.Features.Merchants.Handlers;
 using ArtemisBankingPro.Application.Features.Merchants.Queries;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Merchants.Entities;
+using MapsterMapper;
 using Moq;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Merchants.Handlers;
@@ -67,7 +68,11 @@ public sealed class GetMerchantByIdQueryHandlerTests {
                 userId == "user-10" ? User("user-10") : null
             );
 
-        return new GetMerchantByIdQueryHandler(merchantRepository.Object, userRepository.Object);
+        return new GetMerchantByIdQueryHandler(
+            merchantRepository.Object,
+            userRepository.Object,
+            new ServiceMapper(null!, MapsterConfig.Create())
+        );
     }
 
     [Fact]
@@ -87,7 +92,7 @@ public sealed class GetMerchantByIdQueryHandlerTests {
         result.Value.Name.Should().Be("Tienda Demo");
         result.Value.Email.Should().Be("contacto@tiendademo.com");
         result.Value.IsActive.Should().BeTrue();
-        result.Value.AssociatedUser.Should().NotBeNull();
+        Assert.NotNull(result.Value.AssociatedUser);
         result.Value.AssociatedUser.Id.Should().Be("user-10");
         result.Value.AssociatedUser.UserName.Should().Be("commerce01");
         result.Value.AssociatedUser.IsActive.Should().BeTrue();

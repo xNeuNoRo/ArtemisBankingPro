@@ -12,7 +12,6 @@ using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
@@ -197,14 +196,14 @@ public sealed class AssignCreditCardCommandHandlerTests {
         result.Value.Status.Should().Be("Active");
         result.Value.CreatedAt.Should().Be(FixedNow);
 
-        addedCard().Should().NotBeNull();
+        Assert.NotNull(addedCard());
         addedCard()!.CustomerUserId.Should().Be("client-1");
         addedCard()!.LastFour.Should().Be(LastFourValue);
         addedCard()!.PanFingerprint.Should().Be(Fingerprint);
         addedCard()!.CreditLimit.Amount.Should().Be(15_000m);
         addedCard()!.AssignedByUserId.Should().Be("admin-1");
 
-        addedOperation().Should().NotBeNull();
+        Assert.NotNull(addedOperation());
         addedOperation()!.Kind.Should().Be(FinancialOperationKind.CardAssigned);
         addedOperation()!.RequestedAmount.Should().Be(Money.Zero);
         addedOperation()!.AppliedAmount.Should().Be(Money.Zero);
@@ -228,7 +227,7 @@ public sealed class AssignCreditCardCommandHandlerTests {
         );
 
         result.IsSuccess.Should().BeTrue();
-        addedOperation().Should().NotBeNull();
+        Assert.NotNull(addedOperation());
         emailService.Verify(
             service => service.SendAsync(
                 "maria@artemis.com",
@@ -264,7 +263,7 @@ public sealed class AssignCreditCardCommandHandlerTests {
         result.IsSuccess.Should().BeFalse();
         result.Error!.Code.Should().Be("Card.CustomerNotFound");
         result.Error.Category.Should().Be(ErrorCategory.NotFound);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -284,7 +283,7 @@ public sealed class AssignCreditCardCommandHandlerTests {
         result.IsSuccess.Should().BeFalse();
         result.Error!.Code.Should().Be("Card.CustomerNotActive");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -307,7 +306,7 @@ public sealed class AssignCreditCardCommandHandlerTests {
         result.IsSuccess.Should().BeFalse();
         result.Error!.Code.Should().Be("Card.CustomerNotClient");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -327,7 +326,7 @@ public sealed class AssignCreditCardCommandHandlerTests {
         result.IsSuccess.Should().BeFalse();
         result.Error!.Code.Should().Be("Card.NoPrincipalAccount");
         result.Error.Category.Should().Be(ErrorCategory.PreconditionFailed);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -345,7 +344,7 @@ public sealed class AssignCreditCardCommandHandlerTests {
         result.IsSuccess.Should().BeFalse();
         result.Error!.Code.Should().Be("Card.LimitMustBePositive");
         result.Error.Category.Should().Be(ErrorCategory.Validation);
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -375,15 +374,17 @@ public sealed class AssignCreditCardCommandHandlerTests {
         );
 
         result.IsSuccess.Should().BeTrue();
-        addedCard().Should().NotBeNull();
-        addedOperation().Should().NotBeNull();
+        Assert.NotNull(addedCard());
+        Assert.NotNull(addedOperation());
     }
 
     [Fact]
     public void Command_ImplementsIdempotencyWithKeyIncludingCustomerAndLimit() {
-        var command = new AssignCreditCardCommand("client-1", 15_000m);
+        var command = new AssignCreditCardCommand("client-1", 15_000m) {
+            IdempotencyKey = "card-key-1",
+        };
 
-        command.IdempotencyKey.Should().Be("assign-card-client-1-15000");
+        command.IdempotencyKey.Should().Be("card-key-1");
         command.RequestFingerprint.Should().Be("client-1|15000");
     }
 

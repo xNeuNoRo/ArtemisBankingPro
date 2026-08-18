@@ -2,7 +2,6 @@ using ArtemisBankingPro.Application.Features.Loans.DTOs;
 using ArtemisBankingPro.Application.Features.Loans.Queries;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using Mediator;
 
 namespace ArtemisBankingPro.Application.Features.Loans.Handlers;

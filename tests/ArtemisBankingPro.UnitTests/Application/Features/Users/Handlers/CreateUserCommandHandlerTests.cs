@@ -9,7 +9,6 @@ using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using FinancialOperationEntity = ArtemisBankingPro.Domain.Operations.Entities.FinancialOperation;
 using SavingsAccountEntity = ArtemisBankingPro.Domain.Accounts.Entities.SavingsAccount;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -115,7 +114,9 @@ public sealed class CreateUserCommandHandlerTests {
     private static CreateUserCommandHandler CreateHandler(
         Mock<IUserRepository>? userRepository = null,
         Mock<IEmailService>? emailService = null,
-        Mock<ISavingsAccountRepository>? accountRepository = null
+        Mock<ISavingsAccountRepository>? accountRepository = null,
+        Mock<IUnitOfWork>? unitOfWork = null,
+        Mock<IUserAccountService>? userService = null
     ) {
         var numberGenerator = new Mock<INumberGenerator>();
         numberGenerator
@@ -128,14 +129,14 @@ public sealed class CreateUserCommandHandlerTests {
             .Returns((FinancialOperationEntity op, CancellationToken _) => Task.FromResult(op));
 
         return new CreateUserCommandHandler(
-            UserService().Object,
+            (userService ?? UserService()).Object,
             (userRepository ?? UserRepository()).Object,
             (accountRepository ?? new Mock<ISavingsAccountRepository>()).Object,
             financialRepository.Object,
             TokenService().Object,
             (emailService ?? new Mock<IEmailService>()).Object,
             numberGenerator.Object,
-            UnitOfWork().Object,
+            (unitOfWork ?? UnitOfWork()).Object,
             Clock().Object,
             CurrentUser().Object,
             NullLogger<CreateUserCommandHandler>.Instance
@@ -213,6 +214,63 @@ public sealed class CreateUserCommandHandlerTests {
         result.Value.MainAccountNumber.Should().BeNull();
         accountRepository.Verify(
             r => r.AddAsync(It.IsAny<SavingsAccountEntity>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task Handle_AccountCreationFails_DeletesUserAndReturnsFailure() {
+        var failingUnitOfWork = new Mock<IUnitOfWork>();
+        failingUnitOfWork
+            .Setup(u => u.ExecuteInTransactionAsync(
+                It.IsAny<Func<CancellationToken, Task<Result<string>>>>(),
+                It.IsAny<System.Data.IsolationLevel>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync(
+                Result.Failure<string>(
+                    DomainError.Conflict("Concurrency.Conflict", "conflicto al persistir la cuenta")
+                )
+            );
+        var userService = UserService();
+        var handler = CreateHandler(
+            unitOfWork: failingUnitOfWork,
+            userService: userService
+        );
+
+        var result = await handler.Handle(ValidClientCommand(), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        userService.Verify(
+            s => s.DeleteUserAsync("user-1", It.IsAny<CancellationToken>()),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task Handle_EmailFails_StillReturnsSuccessAndKeepsUser() {
+        var emailService = new Mock<IEmailService>();
+        emailService
+            .Setup(s => s.SendAsync(
+                It.IsAny<string>(),
+                It.IsAny<IEmailModel>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ThrowsAsync(
+                new EmailSendException(
+                    "Correo de activación",
+                    new InvalidOperationException("smtp down")
+                )
+            );
+        var userService = UserService();
+        var handler = CreateHandler(emailService: emailService);
+
+        var result = await handler.Handle(ValidClientCommand(), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.MainAccountNumber.Should().Be("123456789");
+        userService.Verify(
+            s => s.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never
         );
     }

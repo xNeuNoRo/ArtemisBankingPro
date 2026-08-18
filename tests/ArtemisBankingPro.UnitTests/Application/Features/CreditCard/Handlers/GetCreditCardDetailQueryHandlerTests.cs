@@ -7,7 +7,6 @@ using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Moq;
 
@@ -178,7 +177,7 @@ public sealed class GetCreditCardDetailQueryHandlerTests {
         var first = await handler.Handle(new GetCreditCardDetailQuery(1), CancellationToken.None);
         var second = await handler.Handle(new GetCreditCardDetailQuery(1), CancellationToken.None);
 
-        second.Value.Should().BeEquivalentTo(first.Value);
+        Assert.Equivalent(first.Value, second.Value);
         card.CurrentDebt.Should().Be(Money.Zero);
         cardRepository.Verify(
             r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()),

@@ -1,13 +1,14 @@
 using ArtemisBankingPro.Application.Features.Merchants.DTOs;
 using ArtemisBankingPro.Application.Features.Merchants.Handlers;
 using ArtemisBankingPro.Application.Features.Merchants.Queries;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
+using MapsterMapper;
 using Microsoft.AspNetCore.Identity;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
@@ -74,7 +75,8 @@ public sealed class MerchantDetailQueryTests(SqlServerFixture fixture)
         var context = scope.ServiceProvider.GetRequiredService<BankingDbContext>();
         var handler = new GetMerchantByIdQueryHandler(
             new MerchantRepository(context),
-            scope.ServiceProvider.GetRequiredService<IUserRepository>()
+            scope.ServiceProvider.GetRequiredService<IUserRepository>(),
+            new ServiceMapper(null!, ArtemisBankingPro.Application.Common.Mapping.MapsterConfig.Create())
         );
 
         return await handler.Handle(new GetMerchantByIdQuery(merchantId), default);
@@ -105,7 +107,7 @@ public sealed class MerchantDetailQueryTests(SqlServerFixture fixture)
         result.Value.Rnc.Should().Be("101000121");
         result.Value.IsActive.Should().BeTrue();
         result.Value.CreatedAt.Should().Be(merchant.CreatedAt);
-        result.Value.AssociatedUser.Should().NotBeNull();
+        Assert.NotNull(result.Value.AssociatedUser);
         result.Value.AssociatedUser.Id.Should().Be(user.Id);
         result.Value.AssociatedUser.UserName.Should().Be(user.UserName);
         result.Value.AssociatedUser.Email.Should().Be(user.Email);
@@ -123,7 +125,7 @@ public sealed class MerchantDetailQueryTests(SqlServerFixture fixture)
         Result<MerchantDetailDto> result = await QueryAsync(merchant.Id);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.AssociatedUser.Should().BeNull();
+        Assert.Null(result.Value.AssociatedUser);
     }
 
     [Fact]

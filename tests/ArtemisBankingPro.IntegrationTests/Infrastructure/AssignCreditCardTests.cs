@@ -12,7 +12,6 @@ using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -181,7 +180,7 @@ public sealed partial class AssignCreditCardTests(SqlServerFixture fixture)
         // Correo post-commit con los datos de la tarjeta.
         (string Recipient, object Model) sent = emailService.Sent.Should().ContainSingle().Subject;
         sent.Recipient.Should().Be(client.Email);
-        var model = sent.Model.Should().BeOfType<CardAssignedModel>().Subject;
+        var model = Assert.IsType<CardAssignedModel>(sent.Model);
         model.CustomerName.Should().Be("Cliente Prueba");
         model.LastFour.Should().Be(result.Value.LastFour);
         model.CreditLimit.Amount.Should().Be(15_000m);

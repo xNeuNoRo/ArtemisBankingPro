@@ -1,5 +1,7 @@
 using ArtemisBankingPro.Application.Features.Loans.Commands;
+using ArtemisBankingPro.Application.Features.Loans.DTOs;
 using ArtemisBankingPro.Application.Features.Loans.Handlers;
+using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
@@ -7,10 +9,11 @@ using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
+using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -95,7 +98,9 @@ public sealed class LoanManagementIntegrationTests(SqlServerFixture fixture) : S
             provider.GetRequiredService<INumberGenerator>(),
             provider.GetRequiredService<IUnitOfWork>(),
             provider.GetRequiredService<IBusinessClock>(),
-            provider.GetRequiredService<ICurrentUserService>()
+            provider.GetRequiredService<ICurrentUserService>(),
+            provider.GetRequiredService<IEmailService>(),
+            provider.GetRequiredService<ILogger<CreateLoanCommandHandler>>()
         );
 
     [Fact]
@@ -152,6 +157,37 @@ public sealed class LoanManagementIntegrationTests(SqlServerFixture fixture) : S
 
         second.IsFailure.Should().BeTrue();
         second.Error!.Code.Should().Be("Loan.ActiveLoanExists");
+    }
+
+    [Fact]
+    public async Task CreateLoan_ConcurrentRequests_AllowOneAndMapUniqueConflict() {
+        AppUser client = await CreateClientWithPrincipalAccountAsync("loanrace", 5000m);
+
+        await using var providerA = BuildProvider();
+        await using var providerB = BuildProvider();
+        await using var scopeA = providerA.CreateAsyncScope();
+        await using var scopeB = providerB.CreateAsyncScope();
+        var handlerA = CreateLoanHandler(scopeA.ServiceProvider);
+        var handlerB = CreateLoanHandler(scopeB.ServiceProvider);
+
+        Result<CreateLoanResponse>[] outcomes = await Task.WhenAll(
+            handlerA.Handle(
+                new CreateLoanCommand(client.Id, 50000m, 12, 10m, ConfirmHighRisk: true),
+                CancellationToken.None
+            ).AsTask(),
+            handlerB.Handle(
+                new CreateLoanCommand(client.Id, 50000m, 12, 10m, ConfirmHighRisk: true),
+                CancellationToken.None
+            ).AsTask()
+        );
+
+        outcomes.Count(result => result.IsSuccess).Should().Be(1);
+        Result<CreateLoanResponse> conflict = outcomes.Single(result => result.IsFailure);
+        conflict.Error!.Code.Should().Be("Concurrency.Conflict");
+
+        await using var verificationScope = Fixture.Services.CreateAsyncScope();
+        var loans = verificationScope.ServiceProvider.GetRequiredService<ILoanRepository>();
+        Assert.NotNull(await loans.GetActiveByCustomerAsync(client.Id));
     }
 
     [Fact]

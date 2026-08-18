@@ -5,7 +5,6 @@ using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using Mediator;
 
 namespace ArtemisBankingPro.Application.Features.SavingsAccounts.Handlers;
@@ -50,6 +49,9 @@ public sealed class GetAccountTransactionsQueryHandler
             await _savingsAccountRepository.GetTransactionsPagedAsync(
                 numberResult.Value,
                 new PageRequest(message.Page, message.PageSize),
+                dateFrom: null,
+                dateTo: null,
+                transactionType: null,
                 cancellationToken
             );
 

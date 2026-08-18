@@ -2,8 +2,7 @@ using ArtemisBankingPro.Application.Features.Merchants.DTOs;
 using ArtemisBankingPro.Application.Features.Merchants.Queries;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Merchants.Enums;
+using MapsterMapper;
 using Mediator;
 
 namespace ArtemisBankingPro.Application.Features.Merchants.Handlers;
@@ -16,13 +15,16 @@ public sealed class GetMerchantByIdQueryHandler
     : IRequestHandler<GetMerchantByIdQuery, Result<MerchantDetailDto>> {
     private readonly IMerchantRepository _merchantRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IMapper _mapper;
 
     public GetMerchantByIdQueryHandler(
         IMerchantRepository merchantRepository,
-        IUserRepository userRepository
+        IUserRepository userRepository,
+        IMapper mapper
     ) {
         _merchantRepository = merchantRepository;
         _userRepository = userRepository;
+        _mapper = mapper;
     }
 
     public async ValueTask<Result<MerchantDetailDto>> Handle(
@@ -58,18 +60,11 @@ public sealed class GetMerchantByIdQueryHandler
             }
         }
 
+        // Mapeo Entities → DTO con Mapster (requerimiento del documento
+        // funcional, ADR-011); el usuario asociado se compone aparte por ser
+        // una consulta adicional.
         return Result.Success(
-            new MerchantDetailDto(
-                merchant.Id,
-                merchant.Name,
-                merchant.Description,
-                merchant.Email,
-                merchant.PhoneNumber,
-                merchant.Rnc,
-                merchant.Status == MerchantStatus.Active,
-                merchant.CreatedAt,
-                associatedUser
-            )
+            _mapper.Map<MerchantDetailDto>(merchant) with { AssociatedUser = associatedUser }
         );
     }
 }

@@ -1,7 +1,7 @@
 using ArtemisBankingPro.Application.Features.Users.Queries;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using Mediator;
 
 namespace ArtemisBankingPro.Application.Features.Users.Handlers;

@@ -9,7 +9,6 @@ using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
@@ -141,7 +140,7 @@ public sealed class UpdateCardLimitCommandHandlerTests {
 
         cardRepository.Verify(r => r.Update(card), Times.Once);
 
-        added().Should().NotBeNull();
+        Assert.NotNull(added());
         added()!.Kind.Should().Be(FinancialOperationKind.CardLimitChanged);
         added()!.RequestedAmount.Should().Be(Money.Zero);
         added()!.AppliedAmount.Should().Be(Money.Zero);
@@ -190,7 +189,7 @@ public sealed class UpdateCardLimitCommandHandlerTests {
         result.Error!.Code.Should().Be("Card.NotFound");
         result.Error.Category.Should().Be(ErrorCategory.NotFound);
         cardRepository.Verify(r => r.Update(It.IsAny<CreditCardEntity>()), Times.Never);
-        added().Should().BeNull();
+        Assert.Null(added());
     }
 
     [Fact]
@@ -220,7 +219,7 @@ public sealed class UpdateCardLimitCommandHandlerTests {
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
         card.CreditLimit.Amount.Should().Be(10_000m);
         cardRepository.Verify(r => r.Update(It.IsAny<CreditCardEntity>()), Times.Never);
-        added().Should().BeNull();
+        Assert.Null(added());
     }
 
     [Fact]
@@ -250,7 +249,7 @@ public sealed class UpdateCardLimitCommandHandlerTests {
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
         card.CreditLimit.Amount.Should().Be(10_000m);
         cardRepository.Verify(r => r.Update(It.IsAny<CreditCardEntity>()), Times.Never);
-        added().Should().BeNull();
+        Assert.Null(added());
     }
 
     [Fact]
@@ -279,7 +278,7 @@ public sealed class UpdateCardLimitCommandHandlerTests {
         result.Error.Category.Should().Be(ErrorCategory.Validation);
         card.CreditLimit.Amount.Should().Be(10_000m);
         cardRepository.Verify(r => r.Update(It.IsAny<CreditCardEntity>()), Times.Never);
-        added().Should().BeNull();
+        Assert.Null(added());
     }
 
     [Fact]
@@ -319,14 +318,16 @@ public sealed class UpdateCardLimitCommandHandlerTests {
         result.IsSuccess.Should().BeTrue();
         card.CreditLimit.Amount.Should().Be(15_000m);
         cardRepository.Verify(r => r.Update(card), Times.Once);
-        added().Should().NotBeNull();
+        Assert.NotNull(added());
     }
 
     [Fact]
     public void Command_ImplementsIdempotencyWithKeyIncludingCardAndLimit() {
-        var command = new UpdateCardLimitCommand(42, 15_000m);
+        var command = new UpdateCardLimitCommand(42, 15_000m) {
+            IdempotencyKey = "card-limit-key",
+        };
 
-        command.IdempotencyKey.Should().Be("update-card-limit-42-15000");
+        command.IdempotencyKey.Should().Be("card-limit-key");
         command.RequestFingerprint.Should().Be("42|15000");
     }
 

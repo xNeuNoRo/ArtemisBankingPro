@@ -6,7 +6,6 @@ using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Cards.Enums;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 using ArtemisBankingPro.Domain.Common.Pagination;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using Moq;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.CreditCard.Handlers;
@@ -162,7 +161,7 @@ public sealed class GetCreditCardsPagedQueryHandlerTests {
         var first = await handler.Handle(new GetCreditCardsPagedQuery(), CancellationToken.None);
         var second = await handler.Handle(new GetCreditCardsPagedQuery(), CancellationToken.None);
 
-        second.Value.Should().BeEquivalentTo(first.Value);
+        Assert.Equivalent(first.Value, second.Value);
         cardRepository.Verify(
             r => r.GetPagedAsync(It.IsAny<string?>(), It.IsAny<CreditCardStatus?>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()),
             Times.Exactly(2)

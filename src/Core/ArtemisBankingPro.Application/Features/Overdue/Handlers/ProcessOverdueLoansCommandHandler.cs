@@ -5,33 +5,51 @@ using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Enums;
 using Mediator;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ArtemisBankingPro.Application.Features.Overdue.Handlers;
 
+/// <summary>
+/// Recalcula la mora de los préstamos activos por lotes acotados y
+/// secuenciales (cada préstamo en su propia transacción, para que un fallo no
+/// revierta el trabajo ya confirmado).
+/// </summary>
+/// <remarks>
+/// Sin service locator: las dependencias se inyectan y cada
+/// <see cref="IUnitOfWork.ExecuteInTransactionAsync"/> es una transacción
+/// aislada (el UnitOfWork revierte y limpia el estado ante fallos, ADR-002).
+/// Los fallos individuales no se silencian: se registran con su contexto y se
+/// devuelven en <see cref="OverdueProcessingResult.FailedCount"/> para que el
+/// host decida reintentar. La cancelación se propaga a consultas y correos.
+/// </remarks>
+/// <summary>
+/// Resultado de la transacción por préstamo: el préstamo recalculado y si
+/// pasó a moroso en esta ejecución (para notificar solo la transición).
+/// </summary>
+public sealed record ProcessedLoanOutcome(Loan Loan, bool BecameDelinquent);
+
 public sealed class ProcessOverdueLoansCommandHandler
     : IRequestHandler<ProcessOverdueLoansCommand, Result<OverdueProcessingResult>> {
+
     private readonly ILoanRepository _loanRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IEmailService _emailService;
     private readonly ILogger<ProcessOverdueLoansCommandHandler> _logger;
 
     public ProcessOverdueLoansCommandHandler(
         ILoanRepository loanRepository,
         IUserRepository userRepository,
-        IServiceScopeFactory scopeFactory,
+        IUnitOfWork unitOfWork,
         IEmailService emailService,
         ILogger<ProcessOverdueLoansCommandHandler> logger
     ) {
         _loanRepository = loanRepository;
         _userRepository = userRepository;
-        _scopeFactory = scopeFactory;
+        _unitOfWork = unitOfWork;
         _emailService = emailService;
         _logger = logger;
     }
@@ -42,6 +60,7 @@ public sealed class ProcessOverdueLoansCommandHandler
     ) {
         int totalProcessed = 0;
         int newDelinquent = 0;
+        int failedCount = 0;
         Money totalDelinquentAmount = Money.Zero;
         int afterLoanId = 0;
 
@@ -60,49 +79,46 @@ public sealed class ProcessOverdueLoansCommandHandler
 
             foreach (int loanId in loanIds) {
                 cancellationToken.ThrowIfCancellationRequested();
-                Loan? processedLoan = null;
-                bool becameDelinquent = false;
-                await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
-                ILoanRepository scopedLoanRepository =
-                    scope.ServiceProvider.GetRequiredService<ILoanRepository>();
-                IUnitOfWork scopedUnitOfWork =
-                    scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-                Result processResult = await scopedUnitOfWork.ExecuteInTransactionAsync(
-                    async ct => {
-                        Loan? loan = await scopedLoanRepository.GetWithInstallmentsByIdAsync(
-                            loanId,
-                            ct
-                        );
-                        if (loan is null || loan.Status != LoanStatus.Active) {
-                            return Result.Success();
-                        }
+                Result<ProcessedLoanOutcome> processResult =
+                    await _unitOfWork.ExecuteInTransactionAsync<ProcessedLoanOutcome>(
+                        async ct => {
+                            Loan? loan = await _loanRepository.GetWithInstallmentsByIdAsync(
+                                loanId,
+                                ct
+                            );
+                            if (loan is null || loan.Status != LoanStatus.Active) {
+                                return Result.Success<ProcessedLoanOutcome>(null!);
+                            }
 
-                        bool wasDelinquent = loan.IsDelinquent;
-                        loan.RefreshDelinquency(message.BusinessDate);
-                        becameDelinquent = !wasDelinquent && loan.IsDelinquent;
-                        processedLoan = loan;
-                        return Result.Success();
-                    },
-                    ct: cancellationToken
-                );
+                            bool wasDelinquent = loan.IsDelinquent;
+                            loan.RefreshDelinquency(message.BusinessDate);
+                            return Result.Success(
+                                new ProcessedLoanOutcome(loan, !wasDelinquent && loan.IsDelinquent)
+                            );
+                        },
+                        ct: cancellationToken
+                    );
 
                 if (processResult.IsFailure) {
+                    failedCount++;
                     _logger.LogWarning(
-                        "No se pudo actualizar la mora del préstamo {LoanId}: {ErrorCode}.",
+                        "No se pudo actualizar la mora del préstamo {LoanId} en {BusinessDate}: {ErrorCode}.",
                         loanId,
+                        message.BusinessDate,
                         processResult.Error!.Code
                     );
                     continue;
                 }
 
-                if (processedLoan is null) {
+                ProcessedLoanOutcome? info = processResult.Value;
+                if (info is null) {
                     continue;
                 }
 
                 totalProcessed++;
-                if (processedLoan.IsDelinquent) {
+                if (info.Loan.IsDelinquent) {
                     foreach (
-                        Installment installment in processedLoan.Installments.Where(item =>
+                        Installment installment in info.Loan.Installments.Where(item =>
                             item.IsOverdue
                         )
                     ) {
@@ -112,10 +128,10 @@ public sealed class ProcessOverdueLoansCommandHandler
                     }
                 }
 
-                if (becameDelinquent) {
+                if (info.BecameDelinquent) {
                     newDelinquent++;
                     await TrySendNotificationAsync(
-                        processedLoan,
+                        info.Loan,
                         message.BusinessDate,
                         cancellationToken
                     );
@@ -129,10 +145,11 @@ public sealed class ProcessOverdueLoansCommandHandler
         }
 
         _logger.LogInformation(
-            "Procesamiento de mora completado para {BusinessDate}: {TotalProcessed} préstamos, {NewDelinquent} nuevos morosos, monto moroso {TotalDelinquentAmount}.",
+            "Procesamiento de mora completado para {BusinessDate}: {TotalProcessed} préstamos, {NewDelinquent} nuevos morosos, {FailedCount} fallos, monto moroso {TotalDelinquentAmount}.",
             message.BusinessDate,
             totalProcessed,
             newDelinquent,
+            failedCount,
             totalDelinquentAmount.Amount
         );
 
@@ -140,7 +157,8 @@ public sealed class ProcessOverdueLoansCommandHandler
             new OverdueProcessingResult(
                 totalProcessed,
                 newDelinquent,
-                totalDelinquentAmount.Amount
+                totalDelinquentAmount.Amount,
+                failedCount
             )
         );
     }
@@ -157,7 +175,7 @@ public sealed class ProcessOverdueLoansCommandHandler
         try {
             UserListDto? customer = await _userRepository.GetByIdAsync(
                 loan.CustomerUserId,
-                CancellationToken.None
+                cancellationToken
             );
             if (customer is null) {
                 return;
@@ -171,10 +189,10 @@ public sealed class ProcessOverdueLoansCommandHandler
                     loan.OutstandingAmount,
                     businessDate
                 ),
-                CancellationToken.None
+                cancellationToken
             );
         }
-        catch (Exception ex) {
+        catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
                 "No se pudo enviar la notificación de mora del préstamo {LoanNumber}.",

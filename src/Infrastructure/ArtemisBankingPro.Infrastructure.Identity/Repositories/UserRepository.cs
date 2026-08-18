@@ -1,6 +1,6 @@
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -119,25 +119,89 @@ public sealed class UserRepository : IUserRepository {
             ))
             .FirstOrDefaultAsync(ct);
 
-    public async Task<int> CountActiveClientsAsync(CancellationToken ct = default) {
-        var clientRoleId = await _context
+    public async Task<int> CountActiveClientsAsync(CancellationToken ct = default) =>
+        (await GetClientStatusCountsAsync(ct)).Active;
+
+    public async Task<ClientStatusCounts> GetClientStatusCountsAsync(CancellationToken ct = default) {
+        var clientRoleId = await ClientRoleIdAsync(ct);
+
+        if (clientRoleId is null) {
+            return new ClientStatusCounts(Active: 0, Inactive: 0);
+        }
+
+        int active = await _context.Users.CountAsync(
+            user =>
+                user.Active
+                && _context.UserRoles.Any(userRole =>
+                    userRole.UserId == user.Id && userRole.RoleId == clientRoleId
+                ),
+            ct
+        );
+        int inactive = await _context.Users.CountAsync(
+            user =>
+                !user.Active
+                && _context.UserRoles.Any(userRole =>
+                    userRole.UserId == user.Id && userRole.RoleId == clientRoleId
+                ),
+            ct
+        );
+
+        return new ClientStatusCounts(Active: active, Inactive: inactive);
+    }
+
+    public async Task<IReadOnlyList<string>> GetActiveClientIdsAsync(CancellationToken ct = default) {
+        return await _context
+            .Users.Where(user =>
+                user.Active
+                && _context
+                    .UserRoles.Where(userRole => userRole.UserId == user.Id)
+                    .Join(
+                        _context.Roles,
+                        userRole => userRole.RoleId,
+                        role => role.Id,
+                        (_, role) => role.Name!
+                    )
+                    .Contains(nameof(Roles.Cliente))
+            )
+            .Select(user => user.Id)
+            .ToListAsync(ct);
+    }
+
+    public async Task<PageResult<UserListDto>> GetActiveClientsPagedAsync(
+        IReadOnlyCollection<string> clientIds,
+        string? identification,
+        PageRequest page,
+        CancellationToken ct = default
+    ) {
+        if (clientIds.Count == 0) {
+            return new PageResult<UserListDto>([], 0, page.Page, page.PageSize);
+        }
+
+        IQueryable<AppUser> query = _context.Users.Where(user =>
+            clientIds.Contains(user.Id)
+            && user.Active
+            && _context.UserRoles.Where(userRole => userRole.UserId == user.Id)
+                .Join(
+                    _context.Roles,
+                    userRole => userRole.RoleId,
+                    role => role.Id,
+                    (_, role) => role.Name!
+                )
+                .Contains(nameof(Roles.Cliente))
+        );
+
+        if (!string.IsNullOrWhiteSpace(identification)) {
+            query = query.Where(user => user.IdentityDocument == identification);
+        }
+
+        return await ToPageAsync(query, page, ct);
+    }
+
+    private async Task<string?> ClientRoleIdAsync(CancellationToken ct = default) =>
+        await _context
             .Roles.Where(role => role.Name == nameof(Roles.Cliente))
             .Select(role => role.Id)
             .FirstOrDefaultAsync(ct);
-
-        if (clientRoleId is null) {
-            return 0;
-        }
-
-        return await _context
-            .Users.CountAsync(
-                user => user.Active
-                    && _context.UserRoles.Any(userRole =>
-                        userRole.UserId == user.Id && userRole.RoleId == clientRoleId
-                    ),
-                ct
-            );
-    }
 
     public Task<UserListDto?> GetByIdAsync(string userId, CancellationToken ct = default) =>
         _context

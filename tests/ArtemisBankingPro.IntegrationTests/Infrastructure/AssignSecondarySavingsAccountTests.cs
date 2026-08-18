@@ -10,7 +10,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -59,7 +58,7 @@ public sealed class AssignSecondarySavingsAccountTests(SqlServerFixture fixture)
                 .SingleAsync(item => item.Kind == FinancialOperationKind.InitialFunding);
             operation.AppliedAmount.Amount.Should().Be(1_500m);
             operation.AccountTransactions.Should().ContainSingle();
-            operation.AccountTransactions.Single().AccountNumber.Should().Be(account.Number);
+            Assert.Equal(account.Number, operation.AccountTransactions.Single().AccountNumber);
             operation.AccountTransactions.Single().Direction.Should().Be(TransactionDirection.Credit);
         });
     }
@@ -171,5 +170,94 @@ public sealed class AssignSecondarySavingsAccountTests(SqlServerFixture fixture)
         public string? UserName => "secondaryadmin";
         public string? Role => nameof(Roles.Administrador);
         public int? CommerceId => null;
+    }
+
+    private async Task<string> CreateSecondaryWithBalanceAsync(string ownerUserId, decimal balance) {
+        string accountNumber = "";
+        await using var scope = Fixture.Services.CreateAsyncScope();
+        var generator = scope.ServiceProvider.GetRequiredService<INumberGenerator>();
+        var repository = scope.ServiceProvider.GetRequiredService<ISavingsAccountRepository>();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+        string rawNumber = await generator.NextAccountNumberAsync();
+        var account = SavingsAccount.OpenSecondary(
+            ownerUserId,
+            AccountNumber.Create(rawNumber).Value,
+            Money.Zero,
+            AdminId,
+            DateTimeOffset.UtcNow
+        ).Value;
+        account.Credit(Money.Create(balance).Value).IsSuccess.Should().BeTrue();
+
+        await unitOfWork.ExecuteInTransactionAsync(async ct => {
+            await repository.AddAsync(account, ct);
+            return Result.Success();
+        });
+
+        accountNumber = account.Number.Value;
+        return accountNumber;
+    }
+
+    private static CancelSecondarySavingsAccountCommandHandler CreateCancelHandler(
+        IServiceProvider provider
+    ) =>
+        new(
+            provider.GetRequiredService<ISavingsAccountRepository>(),
+            provider.GetRequiredService<IFinancialOperationRepository>(),
+            provider.GetRequiredService<IUnitOfWork>(),
+            provider.GetRequiredService<ICurrentUserService>(),
+            provider.GetRequiredService<IBusinessClock>()
+        );
+
+    [Fact]
+    public async Task DoubleCancellation_TransfersBalanceExactlyOnce() {
+        AppUser client = await CreateClientAsync("cancelrace1");
+        await CreatePrincipalAccountAsync(client.Id);
+        string secondaryNumber = await CreateSecondaryWithBalanceAsync(client.Id, 300m);
+
+        await using var providerA = BuildProvider(services =>
+            services.AddScoped<ICurrentUserService>(_ => new FixedCurrentUser())
+        );
+        await using var providerB = BuildProvider(services =>
+            services.AddScoped<ICurrentUserService>(_ => new FixedCurrentUser())
+        );
+        await using var scopeA = providerA.CreateAsyncScope();
+        await using var scopeB = providerB.CreateAsyncScope();
+        var handlerA = CreateCancelHandler(scopeA.ServiceProvider);
+        var handlerB = CreateCancelHandler(scopeB.ServiceProvider);
+
+        var outcomes = await Task.WhenAll(
+            handlerA.Handle(
+                new CancelSecondarySavingsAccountCommand(secondaryNumber),
+                CancellationToken.None
+            ).AsTask(),
+            handlerB.Handle(
+                new CancelSecondarySavingsAccountCommand(secondaryNumber),
+                CancellationToken.None
+            ).AsTask()
+        );
+
+        // Una sola cancelación transfiere el saldo: el perdedor obtiene
+        // conflicto de concurrencia (rowversion) y el saldo nunca se
+        // transfiere dos veces.
+        outcomes.Count(outcome => outcome.IsSuccess).Should().Be(1);
+        outcomes.Count(outcome => outcome.IsFailure).Should().Be(1);
+
+        await WithContextAsync(async context => {
+            var secondary = await context.SavingsAccounts.AsNoTracking()
+                .SingleAsync(item => item.Number == AccountNumber.Create(secondaryNumber).Value);
+            secondary.Status.Should().Be(AccountStatus.Cancelled);
+            secondary.Balance.Amount.Should().Be(0m);
+
+            var principal = await context.SavingsAccounts.AsNoTracking()
+                .SingleAsync(item => item.OwnerUserId == client.Id && item.Type == AccountType.Primary);
+            principal.Balance.Amount.Should().Be(300m);
+
+            int transferCount = await context.FinancialOperations.CountAsync(operation =>
+                operation.Kind == FinancialOperationKind.SecondaryAccountClosureTransfer
+                && operation.Status == FinancialOperationStatus.Approved
+            );
+            transferCount.Should().Be(1);
+        });
     }
 }

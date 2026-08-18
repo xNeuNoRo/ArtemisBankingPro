@@ -12,7 +12,6 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
@@ -223,13 +222,15 @@ public sealed class AssignCreditCardCommandHandler
     ) {
         try {
             await _emailService.SendAsync(
-                customer.Email,
-                new CardAssignedModel(
-                    $"{customer.FirstName} {customer.LastName}".Trim(),
-                    card.LastFour,
-                    card.CreditLimit,
-                    card.Expiration.ToString()
-                ),
+                    customer.Email,
+                    new CardAssignedModel(
+                        $"{customer.FirstName} {customer.LastName}".Trim(),
+                        card.LastFour,
+                        card.CreditLimit,
+                        card.Expiration.ToString(),
+                        card.IssuedAt,
+                        _clock.BusinessTimeZone
+                    ),
                 cancellationToken
             );
         }

@@ -1,8 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text.Json;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Settings;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Identity.Repositories;
@@ -102,7 +104,7 @@ public static class ServicesRegistration {
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
             })
             .AddJwtBearer(options => {
-                options.RequireHttpsMetadata = false;
+                options.RequireHttpsMetadata = true;
                 options.SaveToken = false;
                 options.TokenValidationParameters = new TokenValidationParameters {
                     ValidateIssuerSigningKey = true,
@@ -116,8 +118,28 @@ public static class ServicesRegistration {
                     IssuerSigningKey = new SymmetricSecurityKey(
                         Convert.FromBase64String(jwtSettings.SecretKey!)
                     ),
+                    RequireExpirationTime = true,
+                    ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
                 };
                 options.Events = new JwtBearerEvents {
+                    OnTokenValidated = async context => {
+                        string? userId = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
+                            ?? context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+                        if (string.IsNullOrWhiteSpace(userId)) {
+                            context.Fail("El token no contiene un identificador de usuario válido.");
+                            return;
+                        }
+
+                        IUserRepository userRepository = context.HttpContext.RequestServices
+                            .GetRequiredService<IUserRepository>();
+                        UserListDto? user = await userRepository.GetByIdAsync(
+                            userId,
+                            context.HttpContext.RequestAborted
+                        );
+                        if (user is null || !user.IsActive) {
+                            context.Fail("El usuario no está activo.");
+                        }
+                    },
                     OnChallenge = context => {
                         context.HandleResponse();
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
