@@ -240,7 +240,7 @@ public sealed class FinancialOperationTests {
         operation.InterestAmount.Should().Be(Money.Zero);
         operation.CreditCardId.Should().Be(5);
         operation.AccountTransactions.Should().BeEmpty();
-        operation.CardConsumption.Should().BeNull();
+        Assert.Null(operation.CardConsumption);
     }
 
     [Fact]
@@ -331,7 +331,7 @@ public sealed class FinancialOperationTests {
         operation.AppliedAmount.Should().Be(Money.Zero);
         operation.CreditCardId.Should().Be(7);
         operation.AccountTransactions.Should().BeEmpty();
-        operation.CardConsumption.Should().BeNull();
+        Assert.Null(operation.CardConsumption);
     }
 
     [Fact]
@@ -422,7 +422,7 @@ public sealed class FinancialOperationTests {
         operation.InterestAmount.Should().Be(Money.Zero);
         operation.CreditCardId.Should().BeNull();
         operation.AccountTransactions.Should().BeEmpty();
-        operation.CardConsumption.Should().BeNull();
+        Assert.Null(operation.CardConsumption);
     }
 
     [Fact]

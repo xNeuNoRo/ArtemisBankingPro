@@ -405,7 +405,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
 
         if (
             kind == FinancialOperationKind.CashAdvance
-                ? interestAmount.Amount <= 0m
+                ? interestAmount.Amount < 0m
                 : interestAmount != Money.Zero
         ) {
             return Result.Failure(OperationErrors.InvalidAmountEquation);
