@@ -81,6 +81,7 @@ public sealed class SqlServerFixture : IAsyncLifetime {
 
         string[] dboTables =
         [
+            "ConfirmationTokens",
             "IdempotencyRecords",
             "AccountTransactions",
             "CardConsumptions",

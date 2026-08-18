@@ -48,6 +48,7 @@ public static class ServicesRegistration {
         services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
         services.AddScoped<IFinancialOperationRepository, FinancialOperationRepository>();
         services.AddScoped<ICashierRepository, CashierRepository>();
+        services.AddScoped<IConfirmationTokenRepository, ConfirmationTokenRepository>();
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();

@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Interfaces.Events;
+using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Domain.Accounts.Beneficiaries.Entities;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Cards.Entities;
@@ -51,6 +52,10 @@ public sealed class BankingDbContext : DbContext {
 
     public DbSet<FinancialOperation> FinancialOperations => Set<FinancialOperation>();
 
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+
+    public DbSet<ConfirmationToken> ConfirmationTokens => Set<ConfirmationToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasDefaultSchema("dbo");
@@ -73,6 +78,7 @@ public sealed class BankingDbContext : DbContext {
         modelBuilder.ApplyConfiguration(new MerchantConfiguration());
         modelBuilder.ApplyConfiguration(new FinancialOperationConfiguration());
         modelBuilder.ApplyConfiguration(new IdempotencyRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new ConfirmationTokenConfiguration());
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
