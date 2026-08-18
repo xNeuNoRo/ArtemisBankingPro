@@ -33,6 +33,19 @@ public sealed class ProcessOverdueLoansCommandValidatorTests {
     }
 
     [Fact]
+    public void Validate_BatchAboveMaximum_Fails() {
+        var result = CreateValidator().Validate(
+            new ProcessOverdueLoansCommand(
+                new DateOnly(2026, 8, 14),
+                ProcessOverdueLoansCommandValidator.MaxBatchSize + 1
+            )
+        );
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error => error.PropertyName == "BatchSize");
+    }
+
+    [Fact]
     public void Validate_FutureDate_Fails() {
         var result = CreateValidator().Validate(
             new ProcessOverdueLoansCommand(new DateOnly(2026, 8, 15))
