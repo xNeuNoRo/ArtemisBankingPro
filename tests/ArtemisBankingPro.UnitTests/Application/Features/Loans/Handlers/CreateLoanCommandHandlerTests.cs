@@ -1,6 +1,9 @@
 using Moq;
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Loans.Commands;
 using ArtemisBankingPro.Application.Features.Loans.Handlers;
+using ArtemisBankingPro.Application.Interfaces.Email;
+using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
@@ -10,10 +13,10 @@ using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.ValueObjects;
 using FinancialOperationEntity = ArtemisBankingPro.Domain.Operations.Entities.FinancialOperation;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Loans.Handlers;
 
@@ -23,6 +26,11 @@ public sealed class CreateLoanCommandHandlerTests {
 
     private static readonly UserListDto ActiveClient =
         new("client-1", "cliente01", "00187654321", "María", "Gómez", "maria@artemis.com", "Cliente", true, FixedNow);
+
+    private sealed class NoopEmailService : IEmailService {
+        public Task SendAsync<T>(string recipient, T model, CancellationToken ct = default)
+            where T : IEmailModel => Task.CompletedTask;
+    }
 
     private static Mock<IUserRepository> UserRepository() {
         var repository = new Mock<IUserRepository>();
@@ -124,7 +132,8 @@ public sealed class CreateLoanCommandHandlerTests {
     private static CreateLoanCommandHandler CreateHandler(
         Mock<IUserRepository>? userRepository = null,
         Mock<ILoanRepository>? loanRepository = null,
-        Mock<ICreditCardRepository>? creditCardRepository = null
+        Mock<ICreditCardRepository>? creditCardRepository = null,
+        Mock<IEmailService>? emailService = null
     ) {
         var financialRepository = new Mock<IFinancialOperationRepository>();
         financialRepository
@@ -140,7 +149,9 @@ public sealed class CreateLoanCommandHandlerTests {
             NumberGenerator().Object,
             UnitOfWork().Object,
             Clock().Object,
-            CurrentUser().Object
+            CurrentUser().Object,
+            emailService?.Object ?? new NoopEmailService(),
+            NullLogger<CreateLoanCommandHandler>.Instance
         );
     }
 
@@ -159,6 +170,56 @@ public sealed class CreateLoanCommandHandlerTests {
         result.Value.MonthlyInstallment.Should().BeGreaterThan(0);
         result.Value.TotalAmountToPay.Should().BeGreaterThan(100000m);
         result.Value.Status.Should().Be("Active");
+    }
+
+    [Fact]
+    public async Task Handle_ApprovedLoan_SendsApprovalEmailAfterPersistence() {
+        var emailService = new Mock<IEmailService>();
+        emailService
+            .Setup(service => service.SendAsync(
+                "maria@artemis.com",
+                It.IsAny<LoanApprovedModel>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .Returns(Task.CompletedTask);
+        var handler = CreateHandler(emailService: emailService);
+
+        var result = await handler.Handle(
+            new CreateLoanCommand("client-1", 100000m, 12, 12m),
+            CancellationToken.None
+        );
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.NotificationWarning.Should().BeNull();
+        emailService.Verify(service => service.SendAsync(
+            "maria@artemis.com",
+            It.Is<LoanApprovedModel>(model =>
+                model.LoanNumber == "987654321"
+                && model.ApprovedAmount.Amount == 100000m
+            ),
+            It.IsAny<CancellationToken>()
+        ), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_EmailFailure_DoesNotUndoLoanAndReturnsWarning() {
+        var emailService = new Mock<IEmailService>();
+        emailService
+            .Setup(service => service.SendAsync(
+                It.IsAny<string>(),
+                It.IsAny<LoanApprovedModel>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ThrowsAsync(new EmailSendException("Préstamo aprobado", new InvalidOperationException()));
+        var handler = CreateHandler(emailService: emailService);
+
+        var result = await handler.Handle(
+            new CreateLoanCommand("client-1", 100000m, 12, 12m),
+            CancellationToken.None
+        );
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.NotificationWarning.Should().Be(NotificationMessages.EmailFailed);
     }
 
     [Fact]
@@ -221,6 +282,12 @@ public sealed class CreateLoanCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Loan.HighRisk");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
+        result.Error.Message.Should().Be(
+            "Este cliente se considera de alto riesgo, ya que su deuda actual supera el promedio del sistema."
+        );
+        result.Error.Extensions.Should().ContainKey("riskType");
+        ((string)result.Error.Extensions!["riskType"]!).Should().Be("CurrentHighRisk");
+        ((decimal)result.Error.Extensions["currentDebt"]!).Should().Be(55_000m);
     }
 
     [Fact]

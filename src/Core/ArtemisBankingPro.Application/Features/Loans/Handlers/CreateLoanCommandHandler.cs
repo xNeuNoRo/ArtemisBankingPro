@@ -1,5 +1,8 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Loans.Commands;
 using ArtemisBankingPro.Application.Features.Loans.DTOs;
+using ArtemisBankingPro.Application.Interfaces.Email;
+using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
@@ -9,7 +12,6 @@ using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Lending.Details;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Policies;
@@ -17,6 +19,7 @@ using ArtemisBankingPro.Domain.Lending.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
+using Microsoft.Extensions.Logging;
 
 namespace ArtemisBankingPro.Application.Features.Loans.Handlers;
 
@@ -36,6 +39,8 @@ public sealed class CreateLoanCommandHandler
     private readonly IUnitOfWork _unitOfWork;
     private readonly IBusinessClock _clock;
     private readonly ICurrentUserService _currentUser;
+    private readonly IEmailService _emailService;
+    private readonly ILogger<CreateLoanCommandHandler> _logger;
 
     public CreateLoanCommandHandler(
         IUserRepository userRepository,
@@ -46,7 +51,9 @@ public sealed class CreateLoanCommandHandler
         INumberGenerator numberGenerator,
         IUnitOfWork unitOfWork,
         IBusinessClock clock,
-        ICurrentUserService currentUser
+        ICurrentUserService currentUser,
+        IEmailService emailService,
+        ILogger<CreateLoanCommandHandler> logger
     ) {
         _userRepository = userRepository;
         _loanRepository = loanRepository;
@@ -57,6 +64,8 @@ public sealed class CreateLoanCommandHandler
         _unitOfWork = unitOfWork;
         _clock = clock;
         _currentUser = currentUser;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     public async ValueTask<Result<CreateLoanResponse>> Handle(
@@ -157,10 +166,18 @@ public sealed class CreateLoanCommandHandler
             return Result.Failure<CreateLoanResponse>(
                 new DomainError(
                     "Loan.HighRisk",
-                    risk.ProjectedDebtExceedsAverage
-                        ? "Asignar este préstamo convertirá al cliente en un cliente de alto riesgo, ya que su deuda superará el umbral promedio del sistema."
-                        : "Este cliente se considera de alto riesgo, ya que su deuda actual supera el promedio del sistema.",
-                    Domain.Common.Enums.ErrorCategory.Conflict
+                    risk.CurrentDebtExceedsAverage
+                        ? "Este cliente se considera de alto riesgo, ya que su deuda actual supera el promedio del sistema."
+                        : "Asignar este préstamo convertirá al cliente en un cliente de alto riesgo, ya que su deuda superará el umbral promedio del sistema.",
+                    Domain.Common.Enums.ErrorCategory.Conflict,
+                    new Dictionary<string, object?> {
+                        ["riskType"] = risk.CurrentDebtExceedsAverage
+                            ? "CurrentHighRisk"
+                            : "ProjectedHighRisk",
+                        ["currentDebt"] = risk.CurrentDebt.Amount,
+                        ["projectedDebt"] = risk.ProjectedDebt.Amount,
+                        ["averageDebt"] = risk.AverageDebt.Amount,
+                    }
                 )
             );
         }
@@ -180,6 +197,12 @@ public sealed class CreateLoanCommandHandler
             return Result.Failure<CreateLoanResponse>(persistResult.Error!);
         }
 
+        string? notificationWarning = await SendApprovedEmailAsync(
+            customer,
+            loan,
+            cancellationToken
+        );
+
         return Result.Success(
             new CreateLoanResponse(
                 loan.Id,
@@ -192,7 +215,8 @@ public sealed class CreateLoanCommandHandler
                 monthlyInstallment,
                 totalAmountToPay,
                 loan.Status.ToString(),
-                loan.IssuedAt
+                loan.IssuedAt,
+                notificationWarning
             )
         );
     }
@@ -279,5 +303,35 @@ public sealed class CreateLoanCommandHandler
             },
             ct: cancellationToken
         );
+    }
+
+    private async Task<string?> SendApprovedEmailAsync(
+        UserListDto customer,
+        Loan loan,
+        CancellationToken cancellationToken
+    ) {
+        try {
+            await _emailService.SendAsync(
+                customer.Email,
+                new LoanApprovedModel(
+                    $"{customer.FirstName} {customer.LastName}".Trim(),
+                    loan.Number.Value,
+                    loan.ApprovedPrincipal,
+                    loan.TermMonths,
+                    loan.AnnualInterestRate.AnnualPercentage,
+                    loan.Installments.First().ScheduledAmount
+                ),
+                cancellationToken
+            );
+            return null;
+        }
+        catch (EmailSendException ex) {
+            _logger.LogWarning(
+                ex,
+                "No se pudo enviar el correo de préstamo aprobado para {LoanNumber}.",
+                loan.Number.Value
+            );
+            return NotificationMessages.EmailFailed;
+        }
     }
 }

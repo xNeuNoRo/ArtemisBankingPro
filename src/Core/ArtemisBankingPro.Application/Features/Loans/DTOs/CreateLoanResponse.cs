@@ -12,5 +12,6 @@ public sealed record CreateLoanResponse(
     decimal MonthlyInstallment,
     decimal TotalAmountToPay,
     string Status,
-    DateTimeOffset IssuedAt
+    DateTimeOffset IssuedAt,
+    string? NotificationWarning = null
 );
