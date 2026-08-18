@@ -1,4 +1,4 @@
-namespace ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 
 /// <summary>
 /// Proyección de usuario para consultas.
