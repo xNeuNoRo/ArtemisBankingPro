@@ -7,6 +7,7 @@ using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
+using ArtemisBankingPro.Infrastructure.Persistence.Common;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +35,10 @@ public sealed class CashierRepository : ICashierRepository {
         DateOnly date,
         CancellationToken ct = default
     ) {
-        (DateTimeOffset startUtc, DateTimeOffset endUtc) = ToUtcRange(date);
+        (DateTimeOffset startUtc, DateTimeOffset endUtc) = BusinessDateRange.ToUtcRange(
+            _clock.BusinessTimeZone,
+            date
+        );
 
         IQueryable<FinancialOperation> dayOperations = DbSet
             .AsNoTracking()
@@ -125,8 +129,8 @@ public sealed class CashierRepository : ICashierRepository {
                     .AccountTransactions.OrderBy(transaction =>
                         transaction.Direction == TransactionDirection.Debit ? 0 : 1
                     )
-                    .ThenBy(transaction => transaction.AccountNumber.Value)
-                    .Select(transaction => transaction.AccountNumber.Value)
+                    .ThenBy(transaction => transaction.AccountNumber)
+                    .Select(transaction => transaction.AccountNumber)
                     .FirstOrDefault(),
             })
             .ToListAsync(ct);
@@ -153,7 +157,7 @@ public sealed class CashierRepository : ICashierRepository {
                 row.Status.ToString(),
                 AmountForDisplay(row.Status, row.RequestedAmount, row.AppliedAmount),
                 row.OccurredAt,
-                row.AccountNumber is null ? null : row.AccountNumber[^4..],
+                row.AccountNumber is null ? null : row.AccountNumber.Value[^4..],
                 row.CreditCardId is null
                     ? null
                     : cardLastFours.GetValueOrDefault(row.CreditCardId.Value),
@@ -173,21 +177,4 @@ public sealed class CashierRepository : ICashierRepository {
         Money appliedAmount
     ) =>
         status == FinancialOperationStatus.Approved ? appliedAmount.Amount : requestedAmount.Amount;
-
-    /// <summary>
-    /// Convierte una fecha de negocio a un rango [inicio, fin) en UTC usando
-    /// la zona horaria empresarial configurada.
-    /// </summary>
-    private (DateTimeOffset StartUtc, DateTimeOffset EndUtc) ToUtcRange(DateOnly date) {
-        TimeZoneInfo timeZone = _clock.BusinessTimeZone;
-        DateTime startLocal = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
-        DateTime endLocal = startLocal.AddDays(1);
-
-        DateTimeOffset startUtc = new DateTimeOffset(startLocal, timeZone.GetUtcOffset(startLocal))
-            .ToUniversalTime();
-        DateTimeOffset endUtc = new DateTimeOffset(endLocal, timeZone.GetUtcOffset(endLocal))
-            .ToUniversalTime();
-
-        return (startUtc, endUtc);
-    }
 }
