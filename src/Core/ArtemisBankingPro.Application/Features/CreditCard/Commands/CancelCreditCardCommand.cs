@@ -14,7 +14,7 @@ public sealed record CancelCreditCardCommand(int CardId)
     : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"cancel-card-{CardId}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{CardId}";
 }

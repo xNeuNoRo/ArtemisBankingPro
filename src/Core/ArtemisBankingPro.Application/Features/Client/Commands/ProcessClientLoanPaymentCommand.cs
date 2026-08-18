@@ -12,12 +12,10 @@ namespace ArtemisBankingPro.Application.Features.Client.Commands;
 public sealed record ProcessClientLoanPaymentCommand(
     int LoanId,
     string AccountNumber,
-    decimal Amount
+    decimal Amount,
+    string IdempotencyKey
 ) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Cliente"];
-
-    public string IdempotencyKey =>
-        $"client-loan-payment-{LoanId}-{AccountNumber}-{FormatAmount()}-{TimeProvider.System.GetUtcNow():yyyyMMddHHmm}";
 
     public string RequestFingerprint => $"{LoanId}|{AccountNumber}|{FormatAmount()}";
 

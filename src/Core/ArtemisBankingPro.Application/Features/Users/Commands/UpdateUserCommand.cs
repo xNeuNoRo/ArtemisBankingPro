@@ -26,7 +26,7 @@ public sealed record UpdateUserCommand(
 ) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand, IOwnershipCheck {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"update-user-{UserId}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
         $"{FirstName}|{LastName}|{Identification}|{Email}|{UserName}|{AdditionalAmount}";

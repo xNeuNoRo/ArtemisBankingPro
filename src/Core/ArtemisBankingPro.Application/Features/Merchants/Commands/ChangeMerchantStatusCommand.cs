@@ -13,7 +13,7 @@ public sealed record ChangeMerchantStatusCommand(int MerchantId, bool IsActive)
     : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"change-merchant-status-{MerchantId}-{IsActive}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{MerchantId}|{IsActive}";
 }

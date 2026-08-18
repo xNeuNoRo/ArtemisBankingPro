@@ -12,12 +12,10 @@ namespace ArtemisBankingPro.Application.Features.Client.Commands;
 public sealed record ProcessCashAdvanceCommand(
     int CardId,
     string DestinationAccountNumber,
-    decimal Amount
+    decimal Amount,
+    string IdempotencyKey
 ) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Cliente"];
-
-    public string IdempotencyKey =>
-        $"cash-advance-{CardId}-{DestinationAccountNumber}-{FormatAmount()}-{TimeProvider.System.GetUtcNow():yyyyMMddHHmm}";
 
     public string RequestFingerprint =>
         $"{CardId}|{DestinationAccountNumber}|{FormatAmount()}";

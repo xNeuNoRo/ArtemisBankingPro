@@ -21,7 +21,7 @@ public sealed record CreateLoanCommand(
 ) : IRequest<Result<CreateLoanResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"create-loan-{CustomerUserId}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
         $"{CustomerUserId}|{CapitalAmount}|{TermMonths}|{AnnualInterestRate}|{ConfirmHighRisk}";

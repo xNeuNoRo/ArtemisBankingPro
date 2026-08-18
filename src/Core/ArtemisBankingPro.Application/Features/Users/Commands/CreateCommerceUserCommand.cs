@@ -25,7 +25,7 @@ public sealed record CreateCommerceUserCommand(
 ) : IRequest<Result<CreateCommerceUserResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"create-commerce-user-{CommerceId}-{UserName}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
         $"{CommerceId}|{FirstName}|{LastName}|{Identification}|{Email}|{UserName}|{InitialAmount}";

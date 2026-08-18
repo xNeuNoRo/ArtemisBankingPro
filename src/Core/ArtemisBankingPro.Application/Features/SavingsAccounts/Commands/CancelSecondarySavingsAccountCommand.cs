@@ -8,7 +8,7 @@ public sealed record CancelSecondarySavingsAccountCommand(string AccountNumber)
     : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"cancel-secondary-{AccountNumber}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => AccountNumber;
 }

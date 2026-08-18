@@ -18,7 +18,7 @@ public sealed record UpdateMerchantCommand(
 ) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"update-merchant-{MerchantId}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{Name}|{Description}|{Email}|{PhoneNumber}|{Rnc}";
 }

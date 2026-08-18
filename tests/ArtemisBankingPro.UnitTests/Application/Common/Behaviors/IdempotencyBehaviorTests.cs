@@ -1,5 +1,3 @@
-using ArtemisBankingPro.Domain.Common.ValueObjects;
-using Moq;
 using ArtemisBankingPro.Application.Common.Behaviors;
 using ArtemisBankingPro.Application.Common.Exceptions;
 using ArtemisBankingPro.Application.Common.Interfaces;
@@ -7,7 +5,12 @@ using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
+using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Mediator;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ArtemisBankingPro.UnitTests.Application.Common.Behaviors;
 
@@ -23,8 +26,16 @@ public sealed record SystemIdempotentRequest(string Payload)
     public string? IdempotencyActorId => "system:test";
 }
 
+public sealed record MissingKeyRequest(string Payload) : IRequest<Result<Unit>>, IIdempotentCommand {
+    public string IdempotencyKey => string.Empty;
+    public string RequestFingerprint => Payload;
+}
+
 public sealed class IdempotencyBehaviorTests {
     private static readonly DateTimeOffset FixedNow = new(2026, 8, 7, 12, 0, 0, TimeSpan.Zero);
+
+    private static string Fingerprint(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
     private static Mock<IBusinessClock> Clock() {
         var clock = new Mock<IBusinessClock>();
@@ -57,6 +68,20 @@ public sealed class IdempotencyBehaviorTests {
         return uow;
     }
 
+    private static IdempotencyBehavior<IdempotentRequest, Result<Unit>> Behavior(
+        IIdempotencyRecordRepository repository,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService user,
+        IBusinessClock clock
+    ) =>
+        new(
+            repository,
+            unitOfWork,
+            user,
+            clock,
+            NullLogger<IdempotencyBehavior<IdempotentRequest, Result<Unit>>>.Instance
+        );
+
     private static MessageHandlerDelegate<IdempotentRequest, Result<Unit>> SuccessDelegate() =>
         (_, _) => ValueTask.FromResult(Result.Success(Unit.Value));
 
@@ -68,21 +93,21 @@ public sealed class IdempotencyBehaviorTests {
     private static MessageHandlerDelegate<IdempotentRequest, Result<Unit>> ThrowingDelegate() =>
         (_, _) => throw new InvalidOperationException("Handler failed.");
 
-    [Fact]
-    public async Task Handle_FirstExecution_CreatesRecordAndCompletesIt() {
+    private static Mock<IIdempotencyRecordRepository> EmptyRepository() {
         var repository = new Mock<IIdempotencyRecordRepository>();
         repository
             .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IdempotencyRecord?)null);
+        return repository;
+    }
 
-        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<Unit>>(
-            repository.Object,
-            UnitOfWork().Object,
-            User().Object,
-            Clock().Object
-        );
+    [Fact]
+    public async Task Handle_FirstExecution_ClaimsAndCompletesRecord() {
+        var repository = EmptyRepository();
 
-        var result = await behavior.Handle(
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
+
+        Result<Unit> result = await behavior.Handle(
             new IdempotentRequest("abc"),
             SuccessDelegate(),
             CancellationToken.None
@@ -96,7 +121,13 @@ public sealed class IdempotencyBehaviorTests {
 
     [Fact]
     public async Task Handle_DuplicateCompletedKey_ThrowsIdempotencyConflict() {
-        var completed = new IdempotencyRecord("test-key-abc", "actor-1", "IdempotentRequest", "abc", FixedNow);
+        var completed = new IdempotencyRecord(
+            "test-key-abc",
+            "actor-1",
+            "IdempotentRequest",
+            Fingerprint("abc"),
+            FixedNow
+        );
         completed.Complete("test-key-abc", FixedNow);
 
         var repository = new Mock<IIdempotencyRecordRepository>();
@@ -104,12 +135,33 @@ public sealed class IdempotencyBehaviorTests {
             .Setup(r => r.GetAsync("test-key-abc", "actor-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(completed);
 
-        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<Unit>>(
-            repository.Object,
-            UnitOfWork().Object,
-            User().Object,
-            Clock().Object
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
+
+        Func<Task> act = () => behavior
+            .Handle(new IdempotentRequest("abc"), SuccessDelegate(), CancellationToken.None)
+            .AsTask();
+
+        await act.Should().ThrowAsync<IdempotencyConflictException>();
+        repository.Verify(r => r.AddAsync(It.IsAny<IdempotencyRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_DuplicateRejectedKey_ThrowsIdempotencyConflict() {
+        var rejected = new IdempotencyRecord(
+            "test-key-abc",
+            "actor-1",
+            "IdempotentRequest",
+            Fingerprint("abc"),
+            FixedNow
         );
+        rejected.Reject("Test.Declined", FixedNow);
+
+        var repository = new Mock<IIdempotencyRecordRepository>();
+        repository
+            .Setup(r => r.GetAsync("test-key-abc", "actor-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rejected);
+
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
 
         Func<Task> act = () => behavior
             .Handle(new IdempotentRequest("abc"), SuccessDelegate(), CancellationToken.None)
@@ -121,19 +173,20 @@ public sealed class IdempotencyBehaviorTests {
 
     [Fact]
     public async Task Handle_SameKeyDifferentFingerprint_ThrowsIdempotencyConflict() {
-        var existing = new IdempotencyRecord("test-key-abc", "actor-1", "IdempotentRequest", "original", FixedNow);
+        var existing = new IdempotencyRecord(
+            "test-key-abc",
+            "actor-1",
+            "IdempotentRequest",
+            Fingerprint("original"),
+            FixedNow
+        );
 
         var repository = new Mock<IIdempotencyRecordRepository>();
         repository
             .Setup(r => r.GetAsync("test-key-abc", "actor-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
 
-        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<Unit>>(
-            repository.Object,
-            UnitOfWork().Object,
-            User().Object,
-            Clock().Object
-        );
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
 
         Func<Task> act = () => behavior
             .Handle(new IdempotentRequest("abc"), SuccessDelegate(), CancellationToken.None)
@@ -144,19 +197,20 @@ public sealed class IdempotencyBehaviorTests {
 
     [Fact]
     public async Task Handle_InProgressKey_ThrowsIdempotencyConflict() {
-        var inProgress = new IdempotencyRecord("test-key-abc", "actor-1", "IdempotentRequest", "abc", FixedNow);
+        var inProgress = new IdempotencyRecord(
+            "test-key-abc",
+            "actor-1",
+            "IdempotentRequest",
+            Fingerprint("abc"),
+            FixedNow
+        );
 
         var repository = new Mock<IIdempotencyRecordRepository>();
         repository
             .Setup(r => r.GetAsync("test-key-abc", "actor-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(inProgress);
 
-        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<Unit>>(
-            repository.Object,
-            UnitOfWork().Object,
-            User().Object,
-            Clock().Object
-        );
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
 
         Func<Task> act = () => behavior
             .Handle(new IdempotentRequest("abc"), SuccessDelegate(), CancellationToken.None)
@@ -166,20 +220,38 @@ public sealed class IdempotencyBehaviorTests {
     }
 
     [Fact]
-    public async Task Handle_BusinessFailure_DeletesRecordAndReturnsFailure() {
-        var repository = new Mock<IIdempotencyRecordRepository>();
-        repository
-            .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IdempotencyRecord?)null);
-
-        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<Unit>>(
-            repository.Object,
-            UnitOfWork().Object,
-            User().Object,
-            Clock().Object
+    public async Task Handle_ExpiredInProgressKey_MarksRejectedAndThrows() {
+        DateTimeOffset old = FixedNow.AddMinutes(-11);
+        var inProgress = new IdempotencyRecord(
+            "test-key-abc",
+            "actor-1",
+            "IdempotentRequest",
+            Fingerprint("abc"),
+            old
         );
 
-        var result = await behavior.Handle(
+        var repository = new Mock<IIdempotencyRecordRepository>();
+        repository
+            .Setup(r => r.GetAsync("test-key-abc", "actor-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(inProgress);
+
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
+
+        Func<Task> act = () => behavior
+            .Handle(new IdempotentRequest("abc"), SuccessDelegate(), CancellationToken.None)
+            .AsTask();
+
+        await act.Should().ThrowAsync<IdempotencyConflictException>();
+        repository.Verify(r => r.Update(It.Is<IdempotencyRecord>(rec => rec.Status == IdempotencyStatus.Rejected)), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_BusinessFailure_MarksRejectedAndReturnsFailure() {
+        var repository = EmptyRepository();
+
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
+
+        Result<Unit> result = await behavior.Handle(
             new IdempotentRequest("abc"),
             FailureDelegate(),
             CancellationToken.None
@@ -187,45 +259,30 @@ public sealed class IdempotencyBehaviorTests {
 
         result.IsFailure.Should().BeTrue();
         repository.Verify(r => r.AddAsync(It.IsAny<IdempotencyRecord>(), It.IsAny<CancellationToken>()), Times.Once);
-        repository.Verify(r => r.Delete(It.IsAny<IdempotencyRecord>()), Times.Once);
-        repository.Verify(r => r.Update(It.IsAny<IdempotencyRecord>()), Times.Never);
+        repository.Verify(r => r.Update(It.Is<IdempotencyRecord>(rec => rec.Status == IdempotencyStatus.Rejected)), Times.Once);
+        repository.Verify(r => r.Delete(It.IsAny<IdempotencyRecord>()), Times.Never);
     }
 
     [Fact]
-    public async Task Handle_HandlerThrows_DeletesRecordAndRethrows() {
-        var repository = new Mock<IIdempotencyRecordRepository>();
-        repository
-            .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IdempotencyRecord?)null);
+    public async Task Handle_HandlerThrows_MarksRejectedAndRethrows() {
+        var repository = EmptyRepository();
 
-        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<Unit>>(
-            repository.Object,
-            UnitOfWork().Object,
-            User().Object,
-            Clock().Object
-        );
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User().Object, Clock().Object);
 
         Func<Task> act = () => behavior
             .Handle(new IdempotentRequest("abc"), ThrowingDelegate(), CancellationToken.None)
             .AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>();
-        repository.Verify(r => r.Delete(It.IsAny<IdempotencyRecord>()), Times.Once);
+        repository.Verify(r => r.Update(It.Is<IdempotencyRecord>(rec => rec.Status == IdempotencyStatus.Rejected)), Times.Once);
+        repository.Verify(r => r.Delete(It.IsAny<IdempotencyRecord>()), Times.Never);
     }
 
     [Fact]
     public async Task Handle_WithoutAuthenticatedActor_ThrowsUnauthenticated() {
-        var repository = new Mock<IIdempotencyRecordRepository>();
-        repository
-            .Setup(r => r.GetAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IdempotencyRecord?)null);
+        var repository = EmptyRepository();
 
-        var behavior = new IdempotencyBehavior<IdempotentRequest, Result<Unit>>(
-            repository.Object,
-            UnitOfWork().Object,
-            User(userId: null!).Object,
-            Clock().Object
-        );
+        var behavior = Behavior(repository.Object, UnitOfWork().Object, User(userId: null!).Object, Clock().Object);
 
         Func<Task> act = () => behavior
             .Handle(new IdempotentRequest("abc"), SuccessDelegate(), CancellationToken.None)
@@ -236,16 +293,41 @@ public sealed class IdempotencyBehaviorTests {
     }
 
     [Fact]
+    public async Task Handle_WithoutCallerSuppliedKey_ThrowsValidationError() {
+        var repository = EmptyRepository();
+        var behavior = new IdempotencyBehavior<MissingKeyRequest, Result<Unit>>(
+            repository.Object,
+            UnitOfWork().Object,
+            User().Object,
+            Clock().Object,
+            NullLogger<IdempotencyBehavior<MissingKeyRequest, Result<Unit>>>.Instance
+        );
+
+        Func<Task> act = () => behavior
+            .Handle(
+                new MissingKeyRequest("abc"),
+                (_, _) => ValueTask.FromResult(Result.Success(Unit.Value)),
+                CancellationToken.None
+            )
+            .AsTask();
+
+        await act.Should().ThrowAsync<FluentValidation.ValidationException>();
+        repository.Verify(r => r.AddAsync(It.IsAny<IdempotencyRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_SystemActor_DoesNotRequireAuthenticatedUser() {
         var repository = new Mock<IIdempotencyRecordRepository>();
         repository
             .Setup(r => r.GetAsync("system-key-abc", "system:test", It.IsAny<CancellationToken>()))
             .ReturnsAsync((IdempotencyRecord?)null);
+
         var behavior = new IdempotencyBehavior<SystemIdempotentRequest, Result<Unit>>(
             repository.Object,
             UnitOfWork().Object,
             User(userId: null!).Object,
-            Clock().Object
+            Clock().Object,
+            NullLogger<IdempotencyBehavior<SystemIdempotentRequest, Result<Unit>>>.Instance
         );
 
         Result<Unit> result = await behavior.Handle(

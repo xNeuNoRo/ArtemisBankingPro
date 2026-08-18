@@ -11,7 +11,7 @@ public sealed record AssignSecondarySavingsAccountCommand(
 ) : IRequest<Result<SavingsAccountResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"open-secondary-{CustomerUserId}-{InitialAmount}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{CustomerUserId}|{InitialAmount}";
 }

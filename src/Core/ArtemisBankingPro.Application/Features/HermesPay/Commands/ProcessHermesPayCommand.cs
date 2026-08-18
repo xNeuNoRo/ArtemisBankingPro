@@ -25,21 +25,14 @@ public sealed record ProcessHermesPayCommand(
     string MonthExpirationCard,
     string YearExpirationCard,
     string Cvc,
-    decimal TransactionAmount
+    decimal TransactionAmount,
+    string IdempotencyKey
 ) : IRequest<Result<ProcessHermesPayResponse>>, IIdempotentCommand {
-    /// <summary>
-    /// Clave de idempotencia por operación, actor y minuto:
-    /// hermes-pay-{commerceId}-{huellaPan}-{monto}-{yyyyMMddHHmm}. La huella
-    /// del PAN es SHA-256 no cifrado porque la clave debe poder calcularse en
-    /// la capa de Application (sin acceso a la clave HMAC de infraestructura);
-    /// nunca se persiste el PAN ni el CVC en texto plano.
-    /// </summary>
-    public string IdempotencyKey =>
-        $"hermes-pay-{CommerceId}-{ComputeSha256Hex(CardNumber)}-{TransactionAmount.ToString("0.00", CultureInfo.InvariantCulture)}-{TimeProvider.System.GetUtcNow():yyyyMMddHHmm}";
-
     /// <summary>
     /// Huella SHA-256 del payload canónico: el payload contiene PAN y CVC, por
     /// lo que nunca se persiste en texto plano (columna de 64 caracteres).
+    /// La clave de idempotencia la suministra el caller (header Idempotency-Key);
+    /// no deriva del PAN ni del reloj.
     /// </summary>
     public string RequestFingerprint =>
         ComputeSha256Hex(

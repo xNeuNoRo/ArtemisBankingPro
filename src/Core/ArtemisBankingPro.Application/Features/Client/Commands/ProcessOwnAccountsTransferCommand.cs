@@ -12,12 +12,10 @@ namespace ArtemisBankingPro.Application.Features.Client.Commands;
 public sealed record ProcessOwnAccountsTransferCommand(
     string SourceAccountNumber,
     string DestinationAccountNumber,
-    decimal Amount
+    decimal Amount,
+    string IdempotencyKey
 ) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Cliente"];
-
-    public string IdempotencyKey =>
-        $"own-transfer-{SourceAccountNumber}-{DestinationAccountNumber}-{FormatAmount()}-{TimeProvider.System.GetUtcNow():yyyyMMddHHmm}";
 
     public string RequestFingerprint =>
         $"{SourceAccountNumber}|{DestinationAccountNumber}|{FormatAmount()}";

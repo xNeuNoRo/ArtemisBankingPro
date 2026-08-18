@@ -15,7 +15,7 @@ public sealed record UpdateLoanRateCommand(
 ) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"update-loan-rate-{LoanId}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{LoanId}|{AnnualInterestRate}";
 }

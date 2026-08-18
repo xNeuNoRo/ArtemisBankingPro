@@ -3,6 +3,7 @@ namespace ArtemisBankingPro.Application.Interfaces.Persistence;
 public enum IdempotencyStatus {
     InProgress = 1,
     Completed = 2,
+    Rejected = 3,
 }
 
 /// <summary>
@@ -54,6 +55,18 @@ public sealed class IdempotencyRecord {
     public void Complete(string resultReference, DateTimeOffset completedAt) {
         ArgumentException.ThrowIfNullOrWhiteSpace(resultReference);
         Status = IdempotencyStatus.Completed;
+        ResultReference = resultReference;
+        CompletedAt = completedAt;
+    }
+
+    /// <summary>
+    /// Marca el registro como rechazado (estado terminal). Un rechazo persistido
+    /// no se elimina: repetir la misma clave devuelve un resultado determinista
+    /// sin re-ejecutar la operación.
+    /// </summary>
+    public void Reject(string resultReference, DateTimeOffset completedAt) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resultReference);
+        Status = IdempotencyStatus.Rejected;
         ResultReference = resultReference;
         CompletedAt = completedAt;
     }

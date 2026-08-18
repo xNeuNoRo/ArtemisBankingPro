@@ -12,7 +12,7 @@ public sealed record AddBeneficiaryCommand(string DestinationAccountNumber)
     : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Cliente"];
 
-    public string IdempotencyKey => $"add-beneficiary-{DestinationAccountNumber}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => DestinationAccountNumber;
 }

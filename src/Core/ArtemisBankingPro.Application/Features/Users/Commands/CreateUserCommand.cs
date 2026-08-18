@@ -25,7 +25,7 @@ public sealed record CreateUserCommand(
 ) : IRequest<Result<CreateUserResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"create-user-{UserName}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
         $"{FirstName}|{LastName}|{Identification}|{Email}|{UserName}|{Role}|{InitialAmount}";

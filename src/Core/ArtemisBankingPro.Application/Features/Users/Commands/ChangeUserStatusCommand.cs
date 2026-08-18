@@ -16,7 +16,7 @@ public sealed record ChangeUserStatusCommand(
 ) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand, IOwnershipCheck {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"change-status-{UserId}-{IsActive}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{UserId}|{IsActive}";
 

@@ -15,7 +15,7 @@ public sealed record UpdateCardLimitCommand(int CardId, decimal NewLimit)
     : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"update-card-limit-{CardId}-{NewLimit}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{CardId}|{NewLimit}";
 }

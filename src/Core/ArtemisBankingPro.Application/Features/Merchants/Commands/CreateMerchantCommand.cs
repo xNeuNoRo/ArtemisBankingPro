@@ -19,7 +19,7 @@ public sealed record CreateMerchantCommand(
 ) : IRequest<Result<CreateMerchantResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
-    public string IdempotencyKey => $"create-merchant-{Rnc}";
+    public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint => $"{Name}|{Description}|{Email}|{PhoneNumber}|{Rnc}";
 }
