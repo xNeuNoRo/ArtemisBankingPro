@@ -24,7 +24,7 @@ public sealed class MerchantTests {
         MerchantCreatedEvent? domainEvent = merchant.DomainEvents
             .OfType<MerchantCreatedEvent>()
             .SingleOrDefault();
-        domainEvent.Should().NotBeNull();
+        Assert.NotNull(domainEvent);
         domainEvent.Name.Should().Be("Store");
         domainEvent.Rnc.Should().Be("123456789");
         domainEvent.CreatedAt.Should().Be(Now);
