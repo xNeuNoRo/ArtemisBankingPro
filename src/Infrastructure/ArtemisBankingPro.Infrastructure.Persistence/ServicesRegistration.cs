@@ -27,11 +27,10 @@ public static class ServicesRegistration {
                 configuration.GetConnectionString("ArtemisDb"),
                 sql => {
                     sql.MigrationsAssembly(typeof(BankingDbContext).Assembly.FullName);
-                    sql.EnableRetryOnFailure(
-                        maxRetryCount: 3,
-                        maxRetryDelay: TimeSpan.FromSeconds(5),
-                        errorNumbersToAdd: null
-                    );
+                    // Sin EnableRetryOnFailure: las escrituras financieras no se
+                    // reintentan a ciegas. El reintento lo resuelve la
+                    // idempotencia con clave estable; los conflictos de
+                    // concurrencia se traducen a un resultado estable.
                     sql.CommandTimeout(30);
                 }
             )
@@ -47,10 +46,10 @@ public static class ServicesRegistration {
         services.AddScoped<IMerchantRepository, MerchantRepository>();
         services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
         services.AddScoped<IFinancialOperationRepository, FinancialOperationRepository>();
-        services.AddScoped<IAdminRepository, AdminRepository>();
         services.AddScoped<ICashierRepository, CashierRepository>();
-        services.AddScoped<IConfirmationTokenRepository, ConfirmationTokenRepository>();
+        services.AddScoped<IAdminRepository, AdminRepository>();
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
+        services.AddScoped<IConfirmationTokenRepository, ConfirmationTokenRepository>();
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
         services.AddScoped<INumberGenerator, NumberGenerator>();
