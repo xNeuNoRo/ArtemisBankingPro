@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Application.Features.HermesPay.Commands;
 using ArtemisBankingPro.Application.Features.HermesPay.DTOs;
@@ -17,7 +18,6 @@ using ArtemisBankingPro.Domain.Cards.Errors;
 using ArtemisBankingPro.Domain.Cards.Security;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Domain.Merchants.Enums;
 using ArtemisBankingPro.Domain.Operations.Entities;
@@ -151,6 +151,34 @@ public sealed class ProcessHermesPayCommandHandler
             );
         }
 
+        // 3b. Para rol Comercio, el vínculo vigente y el usuario activo se
+        // revalidan contra el JWT actual (no solo contra CommerceId): un JWT
+        // emitido antes de una reasignación o de una inactivación no sigue
+        // operando sobre el comercio (spec §41, ADR-002 §3).
+        if (isCommerceRole) {
+            if (merchant.AssociatedUserId != _currentUser.UserId) {
+                return Result.Failure<ProcessHermesPayResponse>(
+                    DomainError.Forbidden(
+                        "Commerce.NotAssociated",
+                        "El usuario de comercio no tiene un comercio asociado."
+                    )
+                );
+            }
+
+            var commerceUser = await _userRepository.GetByIdAsync(
+                _currentUser.UserId,
+                cancellationToken
+            );
+            if (commerceUser is null || !commerceUser.IsActive) {
+                return Result.Failure<ProcessHermesPayResponse>(
+                    DomainError.Forbidden(
+                        "Auth.InactiveUser",
+                        "El usuario de comercio está inactivo."
+                    )
+                );
+            }
+        }
+
         // 4. Cuenta principal activa del comercio.
         var account = await _savingsAccountRepository.GetPrincipalByCommerceIdAsync(
             resolvedCommerceId.Value,
@@ -184,8 +212,18 @@ public sealed class ProcessHermesPayCommandHandler
             return Result.Failure<ProcessHermesPayResponse>(cvcResult.Error!);
         }
 
-        // 7. Expiración y estado (se revalidan dentro de la transacción).
+        // 7. Expiración y estado (se revalidan dentro de la transacción). La
+        // fecha enviada debe coincidir con la de la tarjeta: un PAN/CVC válido
+        // con mes/año incorrecto se rechaza con el mismo mensaje genérico.
         if (card.Expiration.IsExpired(_clock.Today)) {
+            return Result.Failure<ProcessHermesPayResponse>(
+                DomainError.Validation("Card.Expired", CardDataInvalidMessage)
+            );
+        }
+
+        if (!int.TryParse(message.MonthExpirationCard, out int expirationMonth)
+            || !int.TryParse(message.YearExpirationCard, out int expirationYear)
+            || !card.Expiration.Matches(expirationMonth, expirationYear)) {
             return Result.Failure<ProcessHermesPayResponse>(
                 DomainError.Validation("Card.Expired", CardDataInvalidMessage)
             );
@@ -216,6 +254,36 @@ public sealed class ProcessHermesPayCommandHandler
         var occurredAt = _clock.Now;
         Guid operationId = Guid.NewGuid();
 
+        // 9a. Rechazo por crédito insuficiente: se persiste en su propia
+        // transacción confirmada (ADR-002 §2) y se devuelve el error fuera de
+        // ella. Un Result.Failure nunca confirma la transacción, por lo que el
+        // consumo RECHAZADO no puede vivir dentro del bloque atómico.
+        var canChargeResult = card.CanAuthorizeCharge(amount, _clock.Today);
+        if (canChargeResult.IsFailure) {
+            if (canChargeResult.Error!.Code == CardErrors.InsufficientCredit.Code) {
+                Result rejectionPersisted = await RecordRejectedConsumptionAsync(
+                    operationId,
+                    merchant,
+                    card,
+                    amount,
+                    occurredAt,
+                    cancellationToken
+                );
+                if (rejectionPersisted.IsFailure) {
+                    return Result.Failure<ProcessHermesPayResponse>(rejectionPersisted.Error!);
+                }
+
+                return Result.Failure<ProcessHermesPayResponse>(
+                    DomainError.Declined(
+                        "Card.InsufficientCredit",
+                        "El monto de la transacción excede el crédito disponible de la tarjeta."
+                    )
+                );
+            }
+
+            return Result.Failure<ProcessHermesPayResponse>(canChargeResult.Error);
+        }
+
         var persistResult = await ExecutePaymentAsync(
             operationId,
             merchant,
@@ -230,9 +298,21 @@ public sealed class ProcessHermesPayCommandHandler
         }
 
         // 10. Correos post-commit (fallo no revierte el pago).
-        await SendNotificationsAsync(card, merchant, amount, occurredAt, cancellationToken);
+        bool notificationsOk = await SendNotificationsAsync(
+            card,
+            merchant,
+            amount,
+            occurredAt,
+            cancellationToken
+        );
 
-        return Result.Success(new ProcessHermesPayResponse(operationId, "Approved"));
+        return Result.Success(
+            new ProcessHermesPayResponse(
+                operationId,
+                "Approved",
+                NotificationWarning: notificationsOk ? null : NotificationMessages.EmailFailed
+            )
+        );
     }
 
     private async Task<Result> ExecutePaymentAsync(
@@ -246,21 +326,13 @@ public sealed class ProcessHermesPayCommandHandler
     ) {
         return await _unitOfWork.ExecuteInTransactionAsync(
             async ct => {
-                // 1. Revalidar el crédito disponible sin mutar: si no alcanza,
-                // registrar el consumo RECHAZADO y no tocar balances.
+                // 1. Revalidar el crédito disponible sin mutar. Una carrera de
+                // escritura entre dos pagos la resuelve el rowversion de la
+                // tarjeta (el perdedor recibe conflicto de concurrencia); la
+                // revalidación es la defensa en profundidad para el caso de
+                // lectura-escritura solapada.
                 var canChargeResult = card.CanAuthorizeCharge(amount, _clock.Today);
                 if (canChargeResult.IsFailure) {
-                    if (canChargeResult.Error!.Code == CardErrors.InsufficientCredit.Code) {
-                        return await RecordRejectedConsumptionAsync(
-                            operationId,
-                            merchant,
-                            card,
-                            amount,
-                            occurredAt,
-                            ct
-                        );
-                    }
-
                     return canChargeResult;
                 }
 
@@ -345,9 +417,9 @@ public sealed class ProcessHermesPayCommandHandler
         CancellationToken ct
     ) {
         // Rechazo por falta de crédito disponible (spec §41): consumo RECHAZADO
-        // sin modificar balances, deuda ni acreditar al comercio. La operación
-        // rechazada se persiste junto al consumo y la transacción se confirma
-        // aunque el Result devuelva el error de crédito.
+        // sin modificar balances, deuda ni acreditar al comercio. Se persiste en
+        // su propia transacción confirmada (ADR-002 §2: el rechazo nunca vive en
+        // el bloque atómico que mutaría estado, y un Result.Failure revierte).
         var rejectedOperation = FinancialOperation.Reject(
             operationId,
             FinancialOperationKind.HermesPayment,
@@ -371,17 +443,16 @@ public sealed class ProcessHermesPayCommandHandler
             return Result.Failure(rejectedOperation.Error!);
         }
 
-        await _financialOperationRepository.AddAsync(rejectedOperation.Value, ct);
-
-        return Result.Failure(
-            DomainError.Declined(
-                "Card.InsufficientCredit",
-                "El monto de la transacción excede el crédito disponible de la tarjeta."
-            )
+        return await _unitOfWork.ExecuteInTransactionAsync(
+            async token => {
+                await _financialOperationRepository.AddAsync(rejectedOperation.Value, token);
+                return Result.Success();
+            },
+            ct: ct
         );
     }
 
-    private async Task SendNotificationsAsync(
+    private async Task<bool> SendNotificationsAsync(
         CreditCardEntity card,
         Merchant merchant,
         Money amount,
@@ -389,12 +460,13 @@ public sealed class ProcessHermesPayCommandHandler
         CancellationToken cancellationToken
     ) {
         // 1. Correo al cliente propietario de la tarjeta (spec §41).
+        bool allSent = true;
         var cardOwner = await _userRepository.GetByIdAsync(
             card.CustomerUserId,
             cancellationToken
         );
         if (cardOwner is not null) {
-            await TrySendAsync(
+            allSent = (await TrySendAsync(
                 cardOwner.Email,
                 new CardConsumptionMadeModel(
                     $"{cardOwner.FirstName} {cardOwner.LastName}".Trim(),
@@ -406,11 +478,11 @@ public sealed class ProcessHermesPayCommandHandler
                 ),
                 card.LastFour,
                 cancellationToken
-            );
+            )) && allSent;
         }
 
         // 2. Correo al comercio receptor del pago (spec §41).
-        await TrySendAsync(
+        return (await TrySendAsync(
             merchant.Email,
             new PaymentReceivedByCommerceModel(
                 merchant.Name,
@@ -421,10 +493,10 @@ public sealed class ProcessHermesPayCommandHandler
             ),
             card.LastFour,
             cancellationToken
-        );
+        )) && allSent;
     }
 
-    private async Task TrySendAsync<T>(
+    private async Task<bool> TrySendAsync<T>(
         string recipient,
         T model,
         string cardLastFour,
@@ -433,6 +505,7 @@ public sealed class ProcessHermesPayCommandHandler
         where T : IEmailModel {
         try {
             await _emailService.SendAsync(recipient, model, cancellationToken);
+            return true;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
@@ -441,6 +514,7 @@ public sealed class ProcessHermesPayCommandHandler
                 model.TemplateName,
                 cardLastFour
             );
+            return false;
         }
     }
 }

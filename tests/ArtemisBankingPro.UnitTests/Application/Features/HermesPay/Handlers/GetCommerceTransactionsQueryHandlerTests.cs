@@ -40,6 +40,8 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
             merchant.Deactivate(CreatedAt.AddHours(1)).IsSuccess.Should().BeTrue();
         }
 
+        merchant.AssociateUser("commerce-user-1", CreatedAt.AddMinutes(1)).IsSuccess.Should().BeTrue();
+
         return merchant;
     }
 
@@ -49,6 +51,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
     private static GetCommerceTransactionsQueryHandler CreateHandler(
         out Mock<IMerchantRepository> merchantRepository,
         out Mock<ICreditCardRepository> creditCardRepository,
+        out Mock<IUserRepository> userRepository,
         ICurrentUserService currentUser,
         Merchant? merchant = null,
         Func<PageRequest, PageResult<CommerceTransactionDto>>? transactions = null
@@ -69,9 +72,17 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
                 (transactions ?? (request => Transactions()))(page)
             );
 
+        userRepository = new Mock<IUserRepository>();
+        userRepository
+            .Setup(r => r.GetByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserListDto(
+                "commerce-user-1", "comercio1", "101000099", "Demo", "Commerce",
+                "demo@example.com", "Comercio", true, CreatedAt));
+
         return new GetCommerceTransactionsQueryHandler(
             merchantRepository.Object,
             creditCardRepository.Object,
+            userRepository.Object,
             currentUser
         );
     }
@@ -83,6 +94,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
         var handler = CreateHandler(
             out _,
             out var creditCardRepository,
+            out _,
             currentUser,
             merchant,
             _ => Transactions(
@@ -113,6 +125,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
         var handler = CreateHandler(
             out _,
             out _,
+            out _,
             new FakeCurrentUser { Role = "Comercio", CommerceId = null }
         );
 
@@ -133,6 +146,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
         var handler = CreateHandler(
             out _,
             out var creditCardRepository,
+            out _,
             new FakeCurrentUser { Role = "Administrador", CommerceId = null },
             merchant
         );
@@ -156,6 +170,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
         var handler = CreateHandler(
             out _,
             out _,
+            out _,
             new FakeCurrentUser { Role = "Administrador", CommerceId = null }
         );
 
@@ -173,6 +188,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
     [Fact]
     public async Task Handle_UnknownCommerce_ReturnsNotFound() {
         var handler = CreateHandler(
+            out _,
             out _,
             out _,
             new FakeCurrentUser { Role = "Administrador", CommerceId = null },
@@ -193,6 +209,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
         var handler = CreateHandler(
             out _,
             out _,
+            out _,
             new FakeCurrentUser { Role = "Administrador", CommerceId = null },
             NewMerchant(id: 5, active: false)
         );
@@ -210,6 +227,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
     public async Task Handle_Success_ReturnsPaginationContract() {
         var merchant = NewMerchant(id: 5);
         var handler = CreateHandler(
+            out _,
             out _,
             out _,
             new FakeCurrentUser { Role = "Administrador", CommerceId = null },

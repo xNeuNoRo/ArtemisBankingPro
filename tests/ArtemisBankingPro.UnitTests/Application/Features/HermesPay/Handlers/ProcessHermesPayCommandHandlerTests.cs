@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Common;
 using System.Reflection;
 using ArtemisBankingPro.Application.Features.HermesPay.Commands;
 using ArtemisBankingPro.Application.Features.HermesPay.Handlers;
@@ -17,7 +18,6 @@ using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 using ArtemisBankingPro.Domain.Common.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
@@ -44,7 +44,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
 
     private sealed class MutableCurrentUser : ICurrentUserService {
         public bool IsAuthenticated => true;
-        public string? UserId => "actor-1";
+        public string? UserId { get; set; } = CommerceUserId;
         public string? UserName => "actor";
         public string? Role { get; set; } = "Comercio";
         public int? CommerceId { get; set; } = 5;
@@ -149,7 +149,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         return clock;
     }
 
-    private static Mock<IUserRepository> UserRepository() {
+    private static Mock<IUserRepository> UserRepository(bool commerceUserActive = true) {
         var repository = new Mock<IUserRepository>();
         repository
             .Setup(r => r.GetByIdAsync(CardOwnerId, It.IsAny<CancellationToken>()))
@@ -163,6 +163,21 @@ public sealed class ProcessHermesPayCommandHandlerTests {
                     "cliente@artemis.com",
                     "Cliente",
                     true,
+                    FixedNow
+                )
+            );
+        repository
+            .Setup(r => r.GetByIdAsync(CommerceUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+                new UserListDto(
+                    CommerceUserId,
+                    "comercio01",
+                    "101000099",
+                    "Comercio",
+                    "Uno",
+                    MerchantEmail,
+                    "Comercio",
+                    commerceUserActive,
                     FixedNow
                 )
             );
@@ -181,7 +196,9 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         Merchant? merchant = null,
         bool validCvc = true,
         string? role = "Comercio",
-        int? commerceId = 5
+        int? commerceId = 5,
+        string? currentUserId = CommerceUserId,
+        bool commerceUserActive = true
     ) {
         var cardSecurityService = new Mock<ICardSecurityService>();
         cardSecurityService
@@ -217,7 +234,11 @@ public sealed class ProcessHermesPayCommandHandlerTests {
 
         emailService = new Mock<IEmailService>();
 
-        var currentUser = new MutableCurrentUser { Role = role, CommerceId = commerceId };
+        var currentUser = new MutableCurrentUser {
+            Role = role,
+            CommerceId = commerceId,
+            UserId = currentUserId
+        };
 
         return new ProcessHermesPayCommandHandler(
             cardSecurityService.Object,
@@ -226,7 +247,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
             accountRepository.Object,
             cardRepository.Object,
             operationRepository.Object,
-            UserRepository().Object,
+            UserRepository(commerceUserActive).Object,
             UnitOfWork().Object,
             Clock().Object,
             currentUser,
@@ -238,7 +259,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
     private static ProcessHermesPayCommand Command(
         int? commerceId = 5,
         decimal amount = 689.25m
-    ) => new(commerceId, Pan, "02", "2028", "859", amount);
+    ) => new(commerceId, Pan, "08", "2029", "859", amount, "test-key");
 
     [Fact]
     public async Task Handle_ComercioRole_ApprovesPayment_CreditsCommerceAndIncreasesDebt() {
@@ -291,7 +312,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
             && transaction.Amount.Amount == 689.25m
         );
 
-        operation.CardConsumption.Should().NotBeNull();
+        Assert.NotNull(operation.CardConsumption);
         operation.CardConsumption.MerchantId.Should().Be(merchant.Id);
         operation.CardConsumption.MerchantDisplayName.Should().Be("Comercio Uno");
         operation.CardConsumption.Type.Should().Be(ConsumptionType.Purchase);
@@ -505,7 +526,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.NotFound");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -528,7 +549,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.InvalidCvc");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -550,7 +571,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.Expired");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -572,7 +593,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.NotActive");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        addedOperation().Should().BeNull();
+        Assert.Null(addedOperation());
     }
 
     [Fact]
@@ -621,7 +642,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         operation.RequestedAmount.Amount.Should().Be(689.25m);
         operation.AppliedAmount.Amount.Should().Be(0m);
         operation.AccountTransactions.Should().BeEmpty();
-        operation.CardConsumption.Should().NotBeNull();
+        Assert.NotNull(operation.CardConsumption);
         operation.CardConsumption.Type.Should().Be(ConsumptionType.Purchase);
         operation.CardConsumption.MerchantId.Should().Be(merchant.Id);
     }
@@ -667,21 +688,115 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var result = await handler.Handle(Command(), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+        result.Value.NotificationWarning.Should().Be(NotificationMessages.EmailFailed);
     }
 
     [Fact]
-    public void Command_BuildsStableIdempotencyKeyWithoutRawCardData() {
+    public void Command_CarriesCallerSuppliedKeyAndHashedFingerprintWithoutRawCardData() {
         var command = Command();
 
         string key = command.IdempotencyKey;
         string fingerprint = command.RequestFingerprint;
 
-        key.Should().MatchRegex(@"^hermes-pay-5-[0-9a-f]{64}-689\.25-\d{12}$");
+        key.Should().Be("test-key");
         key.Should().NotContain(Pan);
         key.Should().NotContain("859");
         fingerprint.Should().MatchRegex(@"^[0-9a-f]{64}$");
-        fingerprint.Should().NotBe(key);
         fingerprint.Should().NotContain(Pan);
         fingerprint.Should().NotContain("859");
+    }
+
+    [Fact]
+    public async Task Handle_WrongExpirationMonth_ReturnsGenericValidation() {
+        var handler = CreateHandler(
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out var addedOperation,
+            card: NewCard(),
+            account: NewAccount(),
+            merchant: NewMerchant()
+        );
+
+        var result = await handler.Handle(
+            Command() with { MonthExpirationCard = "05" },
+            CancellationToken.None
+        );
+
+        var error = result.Error!;
+        error.Code.Should().Be("Card.Expired");
+        error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
+        Assert.Null(addedOperation());
+    }
+
+    [Fact]
+    public async Task Handle_WrongExpirationYear_ReturnsGenericValidation() {
+        var handler = CreateHandler(
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out var addedOperation,
+            card: NewCard(),
+            account: NewAccount(),
+            merchant: NewMerchant()
+        );
+
+        var result = await handler.Handle(
+            Command() with { YearExpirationCard = "2030" },
+            CancellationToken.None
+        );
+
+        var error = result.Error!;
+        error.Code.Should().Be("Card.Expired");
+        error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
+        Assert.Null(addedOperation());
+    }
+
+    [Fact]
+    public async Task Handle_ComercioRole_ReassignedCommerceUser_ReturnsForbidden() {
+        var handler = CreateHandler(
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out var addedOperation,
+            card: NewCard(),
+            account: NewAccount(),
+            merchant: NewMerchant(),
+            currentUserId: "another-user"
+        );
+
+        var result = await handler.Handle(Command(), CancellationToken.None);
+
+        var error = result.Error!;
+        error.Code.Should().Be("Commerce.NotAssociated");
+        Assert.Null(addedOperation());
+    }
+
+    [Fact]
+    public async Task Handle_ComercioRole_InactiveUser_ReturnsForbidden() {
+        var handler = CreateHandler(
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out var addedOperation,
+            card: NewCard(),
+            account: NewAccount(),
+            merchant: NewMerchant(),
+            commerceUserActive: false
+        );
+
+        var result = await handler.Handle(Command(), CancellationToken.None);
+
+        var error = result.Error!;
+        error.Code.Should().Be("Auth.InactiveUser");
+        Assert.Null(addedOperation());
     }
 }

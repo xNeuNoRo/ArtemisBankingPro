@@ -7,7 +7,7 @@ public sealed class ProcessHermesPayCommandValidatorTests {
     private readonly ProcessHermesPayCommandValidator _validator = new();
 
     private static ProcessHermesPayCommand ValidCommand(decimal amount = 689.25m) =>
-        new(5, "1589963258467598", "02", "2028", "859", amount);
+        new(5, "1589963258467598", "02", "2028", "859", amount, "test-key");
 
     [Fact]
     public async Task Validate_ValidCommand_Passes() {

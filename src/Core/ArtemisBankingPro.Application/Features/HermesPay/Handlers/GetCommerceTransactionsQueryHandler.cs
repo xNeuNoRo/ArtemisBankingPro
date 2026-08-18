@@ -20,15 +20,18 @@ public sealed class GetCommerceTransactionsQueryHandler
     : IRequestHandler<GetCommerceTransactionsQuery, Result<GetCommerceTransactionsResponseDto>> {
     private readonly IMerchantRepository _merchantRepository;
     private readonly ICreditCardRepository _creditCardRepository;
+    private readonly IUserRepository _userRepository;
     private readonly ICurrentUserService _currentUser;
 
     public GetCommerceTransactionsQueryHandler(
         IMerchantRepository merchantRepository,
         ICreditCardRepository creditCardRepository,
+        IUserRepository userRepository,
         ICurrentUserService currentUser
     ) {
         _merchantRepository = merchantRepository;
         _creditCardRepository = creditCardRepository;
+        _userRepository = userRepository;
         _currentUser = currentUser;
     }
 
@@ -76,6 +79,30 @@ public sealed class GetCommerceTransactionsQueryHandler
                     "El comercio está inactivo y no puede consultar pagos."
                 )
             );
+        }
+
+        if (isCommerceRole) {
+            if (merchant.AssociatedUserId != _currentUser.UserId) {
+                return Result.Failure<GetCommerceTransactionsResponseDto>(
+                    DomainError.Forbidden(
+                        "Commerce.NotAssociated",
+                        "El usuario de comercio no tiene un comercio asociado."
+                    )
+                );
+            }
+
+            UserListDto? commerceUser = await _userRepository.GetByIdAsync(
+                _currentUser.UserId!,
+                cancellationToken
+            );
+            if (commerceUser is null || !commerceUser.IsActive) {
+                return Result.Failure<GetCommerceTransactionsResponseDto>(
+                    DomainError.Forbidden(
+                        "Auth.InactiveUser",
+                        "El usuario de comercio está inactivo."
+                    )
+                );
+            }
         }
 
         // 4. Consumos del comercio, paginados y más recientes primero.
