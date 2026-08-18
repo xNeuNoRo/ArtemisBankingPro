@@ -62,7 +62,7 @@ public sealed class CancelSecondarySavingsAccountCommandHandlerTests {
         );
 
         result.Error!.Code.Should().Be("Account.PrincipalCannotBeCancelled");
-        fixture.Operation.Should().BeNull();
+        Assert.Null(fixture.Operation);
     }
 
     [Fact]
@@ -80,13 +80,15 @@ public sealed class CancelSecondarySavingsAccountCommandHandlerTests {
 
     [Fact]
     public void CommandAndValidator_DefineAuthorizationIdempotencyAndNumberValidation() {
-        var command = new CancelSecondarySavingsAccountCommand("123456789");
+        var command = new CancelSecondarySavingsAccountCommand("123456789") {
+            IdempotencyKey = "account-cancel-key",
+        };
         var invalid = new CancelSecondarySavingsAccountCommandValidator().TestValidate(
             new CancelSecondarySavingsAccountCommand("123")
         );
 
         command.RequiredRoles.Should().Equal("Administrador");
-        command.IdempotencyKey.Should().Be("cancel-secondary-123456789");
+        command.IdempotencyKey.Should().Be("account-cancel-key");
         command.RequestFingerprint.Should().Be("123456789");
         invalid.ShouldHaveValidationErrorFor(item => item.AccountNumber);
     }

@@ -7,10 +7,12 @@ namespace ArtemisBankingPro.UnitTests.Application.Features.SavingsAccounts;
 public sealed class AssignSecondarySavingsAccountCommandTests {
     [Fact]
     public void Metadata_RequiresAdministratorAndDefinesStableIdempotencyValues() {
-        var command = new AssignSecondarySavingsAccountCommand("client-1", 1_500m);
+        var command = new AssignSecondarySavingsAccountCommand("client-1", 1_500m) {
+            IdempotencyKey = "account-key-1",
+        };
 
         command.RequiredRoles.Should().Equal("Administrador");
-        command.IdempotencyKey.Should().Be("open-secondary-client-1-1500");
+        command.IdempotencyKey.Should().Be("account-key-1");
         command.RequestFingerprint.Should().Be("client-1|1500");
     }
 
