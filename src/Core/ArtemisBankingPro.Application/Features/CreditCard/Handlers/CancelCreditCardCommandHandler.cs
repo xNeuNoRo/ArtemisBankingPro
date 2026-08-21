@@ -6,8 +6,8 @@ using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
-using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 using Mediator;
+using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 
 namespace ArtemisBankingPro.Application.Features.CreditCard.Handlers;
 
@@ -43,7 +43,7 @@ public sealed class CancelCreditCardCommandHandler
         CancelCreditCardCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. La tarjeta debe existir.
+        // La tarjeta debe existir.
         CreditCardEntity? card = await _creditCardRepository.GetByIdAsync(
             message.CardId,
             cancellationToken
@@ -57,13 +57,13 @@ public sealed class CancelCreditCardCommandHandler
             );
         }
 
-        // 2. Estado y deuda validados por el dominio.
+        // Estado y deuda validados por el dominio.
         Result cancelResult = card.Cancel(_clock.Now);
         if (cancelResult.IsFailure) {
             return Result.Failure<Unit>(cancelResult.Error!);
         }
 
-        // 3. Persistir tarjeta y operación de historial atómicamente.
+        // Persistimos la tarjeta y operación de historial atómicamente.
         var persistResult = await _unitOfWork.ExecuteInTransactionAsync(
             async ct => {
                 _creditCardRepository.Update(card);

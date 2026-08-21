@@ -4,9 +4,8 @@ using ArtemisBankingPro.Domain.Operations.Enums;
 namespace ArtemisBankingPro.Domain.Operations.Events;
 
 /// <summary>
-/// Se desencadena cuando una operación financiera se aprueba (se persiste y confirma
-/// atómicamente). El handler de notificaciones relée la operación por su Id
-/// para componer el correo correspondiente.
+/// Se despacha después de confirmar atómicamente la persistencia de una operación
+/// financiera aprobada. Su consumidor solo realiza observabilidad post-commit.
 /// </summary>
 public sealed record FinancialOperationApprovedEvent(Guid OperationId, FinancialOperationKind Kind)
     : IDomainEvent;

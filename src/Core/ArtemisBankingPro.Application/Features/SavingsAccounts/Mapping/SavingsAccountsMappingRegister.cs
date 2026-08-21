@@ -79,6 +79,11 @@ public sealed class SavingsAccountsMappingRegister : IRegister {
         Status = status,
         Type = type,
         Identification = identification,
+        StatusOptions = SavingsAccountListViewModel.BuildStatusOptions(
+            status,
+            !string.IsNullOrWhiteSpace(identification)
+        ),
+        TypeOptions = SavingsAccountListViewModel.BuildTypeOptions(type),
         Accounts = accounts.Select(mapper.Map<SavingsAccountSummaryViewModel>).ToArray(),
         Pagination = new PaginationViewModel {
             Page = page,

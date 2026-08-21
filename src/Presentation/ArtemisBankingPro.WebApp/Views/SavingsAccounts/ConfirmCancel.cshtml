@@ -1,0 +1,7 @@
+@model CancelSecondaryAccountViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<section class="page-header" aria-labelledby="account-cancel-title"><div class="page-header__content"><p class="page-header__eyebrow">Administración / Cuentas</p><h1 id="account-cancel-title" class="page-header__title">@Model.Title</h1><p class="page-header__description">Si tiene balance positivo, se transferirá atómicamente a la cuenta principal antes de cancelar.</p></div></section>
+<section class="ui-card admin-confirmation" aria-labelledby="account-cancel-card-title"><div class="ui-card__body"><partial name="_ValidationSummary" /><div class="ui-confirmation-panel"><div><p class="ui-section-label">Acción protegida</p><h2 id="account-cancel-card-title" class="ui-confirmation-panel__title">@Model.Message</h2><p class="ui-card__description">Cuenta secundaria: <strong>@Model.AccountNumber</strong>.</p></div><partial name="_StatusBadge" model='@("Activa")' /></div><form method="post" asp-action="ConfirmCancel" asp-route-accountNumber="@Model.AccountNumber" class="page-actions" data-submit-lock><input asp-for="ConfirmationToken" type="hidden" /><button class="ui-button ui-button--danger" type="submit" data-submitting-label="Cancelando…"><span data-submit-label>@Model.ConfirmButtonText</span></button><a class="ui-button ui-button--secondary" asp-action="Index">@Model.CancelButtonText</a></form></div></section>

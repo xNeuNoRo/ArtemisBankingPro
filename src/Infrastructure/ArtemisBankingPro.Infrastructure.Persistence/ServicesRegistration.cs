@@ -2,14 +2,18 @@ using ArtemisBankingPro.Application.Interfaces.Events;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Services;
+using ArtemisBankingPro.Application.Settings;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using ArtemisBankingPro.Infrastructure.Persistence.Events;
 using ArtemisBankingPro.Infrastructure.Persistence.Persistence;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Persistence.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Data.Common;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence;
 
@@ -22,9 +26,18 @@ public static class ServicesRegistration {
         this IServiceCollection services,
         IConfiguration configuration
     ) {
-        services.AddDbContext<BankingDbContext>(options =>
+        services.TryAddScoped<DbConnection>(_ =>
+            new SqlConnection(
+                configuration.GetConnectionString("ArtemisDb")
+                ?? throw new InvalidOperationException(
+                    "ConnectionStrings:ArtemisDb es obligatoria."
+                )
+            )
+        );
+
+        services.AddDbContext<BankingDbContext>((provider, options) =>
             options.UseSqlServer(
-                configuration.GetConnectionString("ArtemisDb"),
+                provider.GetRequiredService<DbConnection>(),
                 sql => {
                     sql.MigrationsAssembly(typeof(BankingDbContext).Assembly.FullName);
                     // Sin EnableRetryOnFailure: las escrituras financieras no se
@@ -37,6 +50,10 @@ public static class ServicesRegistration {
         );
 
         services.AddSingleton(TimeProvider.System);
+        services.Configure<DatabaseInitializationSettings>(
+            configuration.GetSection(DatabaseInitializationSettings.SectionName)
+        );
+        services.AddHostedService<BankingDatabaseInitializer>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));

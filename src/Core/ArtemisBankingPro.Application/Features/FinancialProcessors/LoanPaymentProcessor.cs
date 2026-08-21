@@ -48,15 +48,15 @@ public sealed class LoanPaymentProcessor : ILoanPaymentProcessor {
         CancellationToken ct = default
     ) {
         if (loan.Status != LoanStatus.Active) {
-            return Result.Failure<FinancialOperationOutcome>(LoanErrors.NotActive);
+            return await RejectAsync(loan, account, requestedAmount, LoanErrors.NotActive, initiatedByUserId, ct);
         }
 
         if (loan.OutstandingAmount == Money.Zero) {
-            return Result.Failure<FinancialOperationOutcome>(LoanErrors.NoPendingInstallments);
+            return await RejectAsync(loan, account, requestedAmount, LoanErrors.NoPendingInstallments, initiatedByUserId, ct);
         }
 
         if (account.Status != AccountStatus.Active) {
-            return Result.Failure<FinancialOperationOutcome>(AccountErrors.NotActive);
+            return await RejectAsync(loan, account, requestedAmount, AccountErrors.NotActive, initiatedByUserId, ct);
         }
 
         Money effectiveAmount = Money.Create(
@@ -179,5 +179,26 @@ public sealed class LoanPaymentProcessor : ILoanPaymentProcessor {
             },
             ct: ct
         );
+    }
+
+    private async Task<Result<FinancialOperationOutcome>> RejectAsync(
+        Loan loan,
+        SavingsAccount account,
+        Money amount,
+        DomainError error,
+        string initiatedByUserId,
+        CancellationToken ct
+    ) {
+        Result rejection = await PersistRejectionAsync(
+            loan,
+            account,
+            amount,
+            error,
+            initiatedByUserId,
+            ct
+        );
+        return rejection.IsFailure
+            ? Result.Failure<FinancialOperationOutcome>(rejection.Error!)
+            : Result.Failure<FinancialOperationOutcome>(error);
     }
 }

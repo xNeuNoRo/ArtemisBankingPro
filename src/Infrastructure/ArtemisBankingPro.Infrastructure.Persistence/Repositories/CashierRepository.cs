@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Common.Time;
 using ArtemisBankingPro.Application.Features.Cashier.DTOs;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
@@ -7,7 +8,6 @@ using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
-using ArtemisBankingPro.Infrastructure.Persistence.Common;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 

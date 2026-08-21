@@ -103,7 +103,7 @@ public sealed class ProcessCardPaymentCommandHandler
             account,
             outcome.AppliedAmount,
             outcome.OccurredAt,
-            cancellationToken
+            CancellationToken.None
         );
 
         return Result.Success(

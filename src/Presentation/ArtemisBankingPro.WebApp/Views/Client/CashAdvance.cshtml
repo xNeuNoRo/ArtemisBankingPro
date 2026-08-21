@@ -1,0 +1,35 @@
+@model ClientOperationPageViewModel<CashAdvanceViewModel>
+@{
+    ViewData["Title"] = Model.PageTitle;
+    bool canSubmit = Model.Form.CardOptions.Count > 0 && Model.Form.DestinationAccountOptions.Count > 0;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="cash-advance-title">
+    <div class="page-header__content"><p class="page-header__eyebrow">Cliente / Crédito</p><h1 id="cash-advance-title" class="page-header__title">Avance de efectivo</h1><p class="page-header__description">Reciba el monto solicitado en una cuenta propia; la tarjeta se cargará con el principal más el interés calculado por Application.</p></div>
+</section>
+
+@if (!canSubmit) {
+    ViewData["EmptyTitle"] = Model.Form.CardOptions.Count == 0 ? "No tiene tarjetas activas." : "No tiene cuentas activas para recibir el avance.";
+    ViewData["EmptyDescription"] = "El avance estará disponible cuando tenga productos activos compatibles.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="ui-card client-form-panel" aria-labelledby="cash-advance-form-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="cash-advance-form-title" class="ui-card__title">Datos del avance</h2><p class="ui-card__description">La tasa del avance es 6.25% y el crédito disponible se revisa nuevamente al confirmar.</p></div></div>
+        <div class="ui-card__body">
+            <partial name="_ValidationSummary" />
+            <form asp-controller="Client" asp-action="CashAdvanceQuote" method="post" data-submit-lock data-autofocus-error class="client-form">
+                <input asp-for="Form.SubmissionToken" type="hidden" />
+                <div class="client-form__grid">
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.CardId">Tarjeta de crédito</label><select class="ui-control" asp-for="Form.CardId" required><option value="0" disabled>Seleccione una tarjeta</option>@foreach (SelectOptionViewModel option in Model.Form.CardOptions) { <option value="@option.Value">@option.Text</option> }</select><span class="ui-error" asp-validation-for="Form.CardId"></span></div>
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.DestinationAccountNumber">Cuenta destino</label><select class="ui-control" asp-for="Form.DestinationAccountNumber" required><option value="" disabled>Seleccione una cuenta</option>@foreach (SelectOptionViewModel option in Model.Form.DestinationAccountOptions) { <option value="@option.Value">@option.Text</option> }</select><span class="ui-error" asp-validation-for="Form.DestinationAccountNumber"></span></div>
+                </div>
+                <div class="ui-field"><label class="ui-label" asp-for="Form.Amount">Monto del avance</label><input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required /><span class="ui-error" asp-validation-for="Form.Amount"></span></div>
+                @if (Model.Form.Quote is not null) {
+                    <div class="client-quote" aria-live="polite"><div><span>Principal</span><strong>@Money(Model.Form.Quote.PrincipalAmount)</strong></div><div><span>Interés</span><strong>@Money(Model.Form.Quote.InterestAmount)</strong></div><div><span>Total cargado</span><strong>@Money(Model.Form.Quote.TotalToCharge)</strong></div></div>
+                }
+                <div class="page-actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Cancelar</a><button class="ui-button ui-button--primary" type="submit"><span data-submit-label>Calcular y continuar</span></button></div>
+            </form>
+        </div>
+    </section>
+}

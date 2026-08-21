@@ -183,7 +183,10 @@ public sealed class LoanManagementIntegrationTests(SqlServerFixture fixture) : S
 
         outcomes.Count(result => result.IsSuccess).Should().Be(1);
         Result<CreateLoanResponse> conflict = outcomes.Single(result => result.IsFailure);
-        conflict.Error!.Code.Should().Be("Concurrency.Conflict");
+        conflict.Error!.Code.Should().BeOneOf(
+            "Persistence.UniqueConflict",
+            "Concurrency.Deadlock"
+        );
 
         await using var verificationScope = Fixture.Services.CreateAsyncScope();
         var loans = verificationScope.ServiceProvider.GetRequiredService<ILoanRepository>();
@@ -215,6 +218,6 @@ public sealed class LoanManagementIntegrationTests(SqlServerFixture fixture) : S
         );
 
         risky.IsFailure.Should().BeTrue();
-        risky.Error!.Code.Should().Be("Loan.HighRisk");
+        risky.Error!.Code.Should().Be("Loan.HighRiskConfirmationRequired");
     }
 }

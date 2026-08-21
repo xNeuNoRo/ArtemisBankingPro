@@ -1,0 +1,28 @@
+@model HomeViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+}
+<section class="page-header">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">@Model.RoleLabel</p>
+        <h1 class="page-header__title">@Model.Heading</h1>
+        <p class="page-header__description">@Model.Description</p>
+    </div>
+</section>
+
+<div class="ui-card">
+    <div class="ui-card__body">
+        <div class="ui-empty-state ui-empty-state--compact">
+            <span class="ui-empty-state__icon" aria-hidden="true">
+                <partial name="_Icon" model='@("home")' />
+            </span>
+            <div>
+                <h2 class="ui-empty-state__title">Su espacio de trabajo está listo</h2>
+                <p class="ui-empty-state__description">
+                    Las métricas y productos aparecerán aquí cuando se habilite la vertical correspondiente.
+                    No se cargan saldos ni deuda desde el layout.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>

@@ -35,10 +35,12 @@ public sealed class GetSavingsAccountsPagedQueryHandler
                 cancellationToken
             );
             if (customer is null) {
-                return Result.Failure<PageResult<SavingsAccountSummaryDto>>(
-                    DomainError.NotFound(
-                        "Account.CustomerNotFound",
-                        "No existe un cliente registrado con esta cédula."
+                return Result.Success(
+                    new PageResult<SavingsAccountSummaryDto>(
+                        [],
+                        0,
+                        message.Page,
+                        message.PageSize
                     )
                 );
             }
@@ -56,6 +58,11 @@ public sealed class GetSavingsAccountsPagedQueryHandler
             "secundaria" => AccountType.Secondary,
             _ => null,
         };
+
+        if (string.IsNullOrWhiteSpace(message.Status)
+            && string.IsNullOrWhiteSpace(message.Identification)) {
+            status = AccountStatus.Active;
+        }
 
         var page = new PageRequest(message.Page, message.PageSize);
         PageResult<SavingsAccountSummaryDto> paged =

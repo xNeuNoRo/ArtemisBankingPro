@@ -137,6 +137,10 @@ public sealed class Loan : AggregateRoot<int> {
             return Result.Failure<Money>(LoanErrors.PaymentMustBePositive);
         }
 
+        if (OutstandingAmount == Money.Zero) {
+            return Result.Failure<Money>(LoanErrors.NoPendingInstallments);
+        }
+
         if (paidAt < IssuedAt) {
             return Result.Failure<Money>(LoanErrors.InvalidPaymentDate);
         }
@@ -146,7 +150,9 @@ public sealed class Loan : AggregateRoot<int> {
         Money remainingPayment = appliedAmount;
 
         foreach (
-            Installment installment in _installments.OrderBy(installment => installment.Number)
+            Installment installment in _installments
+                .OrderBy(installment => installment.DueDate)
+                .ThenBy(installment => installment.Number)
         ) {
             Money installmentPayment = installment.ApplyPayment(remainingPayment);
             remainingPayment = remainingPayment.Subtract(installmentPayment).Value;
@@ -191,7 +197,8 @@ public sealed class Loan : AggregateRoot<int> {
                 && !installment.IsOverdue
                 && installment.DueDate > businessDate
             )
-            .OrderBy(installment => installment.Number)
+            .OrderBy(installment => installment.DueDate)
+            .ThenBy(installment => installment.Number)
             .ToArray();
 
         if (eligibleInstallments.Length == 0) {

@@ -6,7 +6,49 @@ namespace ArtemisBankingPro.Application.Features.Client.ViewModels;
 public sealed class ClientDashboardViewModel : BaseViewModel {
     public MyProductsViewModel Products { get; init; } = new();
 
+    public string? LoadErrorMessage { get; init; }
+
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
     public bool HasNoActiveProducts => Products.IsEmpty;
+}
+
+public abstract class ClientSubmissionViewModel {
+    [StringLength(256, ErrorMessage = "La confirmación de la operación no es válida.")]
+    public string SubmissionToken { get; set; } = string.Empty;
+}
+
+public sealed class ClientOperationPageViewModel<TForm> : BaseViewModel {
+    public TForm Form { get; init; } = default!;
+}
+
+public sealed class ClientBeneficiariesPageViewModel : BaseViewModel {
+    public IReadOnlyList<BeneficiaryItemViewModel> Beneficiaries { get; init; } = [];
+    public AddBeneficiaryViewModel AddForm { get; init; } = new();
+    public bool ShowAddForm { get; init; }
+}
+
+public sealed class ClientTransferTargetViewModel {
+    public string AccountNumber { get; init; } = string.Empty;
+    public string FirstName { get; init; } = string.Empty;
+    public string LastName { get; init; } = string.Empty;
+
+    public string FullName => $"{FirstName} {LastName}".Trim();
+}
+
+public sealed class ClientOperationConfirmationViewModel : ConfirmationViewModel {
+    public string ConfirmAction { get; init; } = string.Empty;
+    public string OperationLabel { get; init; } = "Operación financiera";
+    public string? TargetName { get; init; }
+    public string? SourceAccountNumber { get; set; }
+    public string? DestinationAccountNumber { get; set; }
+    public string? AccountNumber { get; set; }
+    public int? BeneficiaryId { get; set; }
+    public int? CardId { get; set; }
+    public int? LoanId { get; set; }
+    public decimal? Amount { get; set; }
+    public decimal? InterestAmount { get; set; }
+    public decimal? TotalToCharge { get; set; }
 }
 
 public sealed class MyProductsViewModel {
@@ -57,6 +99,7 @@ public sealed class MyAccountTransactionsViewModel : BaseViewModel, IValidatable
 
     [StringLength(50, ErrorMessage = "El tipo de transacción no debe exceder 50 caracteres.")]
     public string? TransactionType { get; set; }
+    public IReadOnlyList<SelectOptionViewModel> AccountOptions { get; init; } = [];
     public IReadOnlyList<SelectOptionViewModel> TransactionTypeOptions { get; init; } = [];
     public IReadOnlyList<ClientAccountTransactionItemViewModel> Transactions { get; init; } = [];
     public PaginationViewModel Pagination { get; init; } = new();
@@ -133,7 +176,7 @@ public sealed class BeneficiaryItemViewModel {
     public string AccountNumber { get; init; } = string.Empty;
 }
 
-public sealed class AddBeneficiaryViewModel {
+public sealed class AddBeneficiaryViewModel : ClientSubmissionViewModel {
     [Required(ErrorMessage = "El número de cuenta es requerido.")]
     [RegularExpression("^\\d{9}$", ErrorMessage = "La cuenta debe contener exactamente 9 dígitos.")]
     public string DestinationAccountNumber { get; set; } = string.Empty;
@@ -145,7 +188,7 @@ public sealed class RemoveBeneficiaryViewModel : ConfirmationViewModel {
     public string AccountNumber { get; init; } = string.Empty;
 }
 
-public sealed class ExpressTransactionViewModel : IValidatableObject {
+public sealed class ExpressTransactionViewModel : ClientSubmissionViewModel, IValidatableObject {
     [Required(ErrorMessage = "La cuenta de origen es requerida.")]
     [RegularExpression("^\\d{9}$", ErrorMessage = "La cuenta debe contener exactamente 9 dígitos.")]
     public string SourceAccountNumber { get; set; } = string.Empty;
@@ -178,7 +221,7 @@ public sealed class ExpressTransactionViewModel : IValidatableObject {
     }
 }
 
-public sealed class BeneficiaryTransferViewModel : IValidatableObject {
+public sealed class BeneficiaryTransferViewModel : ClientSubmissionViewModel, IValidatableObject {
     [Range(1, int.MaxValue, ErrorMessage = "El beneficiario es requerido.")]
     public int BeneficiaryId { get; set; }
 
@@ -202,7 +245,7 @@ public sealed class BeneficiaryTransferViewModel : IValidatableObject {
     }
 }
 
-public sealed class ClientCardPaymentViewModel : IValidatableObject {
+public sealed class ClientCardPaymentViewModel : ClientSubmissionViewModel, IValidatableObject {
     [Range(1, int.MaxValue, ErrorMessage = "La tarjeta es requerida.")]
     public int CardId { get; set; }
 
@@ -226,7 +269,7 @@ public sealed class ClientCardPaymentViewModel : IValidatableObject {
     }
 }
 
-public sealed class ClientLoanPaymentViewModel : IValidatableObject {
+public sealed class ClientLoanPaymentViewModel : ClientSubmissionViewModel, IValidatableObject {
     [Range(1, int.MaxValue, ErrorMessage = "El préstamo es requerido.")]
     public int LoanId { get; set; }
 
@@ -274,7 +317,7 @@ public sealed class CashAdvanceQuoteViewModel : IValidatableObject {
     }
 }
 
-public sealed class CashAdvanceViewModel : IValidatableObject {
+public sealed class CashAdvanceViewModel : ClientSubmissionViewModel, IValidatableObject {
     [Range(1, int.MaxValue, ErrorMessage = "La tarjeta es requerida.")]
     public int CardId { get; set; }
 
@@ -287,7 +330,7 @@ public sealed class CashAdvanceViewModel : IValidatableObject {
 
     public IReadOnlyList<SelectOptionViewModel> CardOptions { get; init; } = [];
     public IReadOnlyList<SelectOptionViewModel> DestinationAccountOptions { get; init; } = [];
-    public CashAdvanceQuoteViewModel? Quote { get; init; }
+    public CashAdvanceQuoteViewModel? Quote { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) {
         if (Amount <= 0m) {
@@ -299,7 +342,7 @@ public sealed class CashAdvanceViewModel : IValidatableObject {
     }
 }
 
-public sealed class OwnAccountsTransferViewModel : IValidatableObject {
+public sealed class OwnAccountsTransferViewModel : ClientSubmissionViewModel, IValidatableObject {
     [Required(ErrorMessage = "La cuenta de origen es requerida.")]
     [RegularExpression("^\\d{9}$", ErrorMessage = "La cuenta debe contener exactamente 9 dígitos.")]
     public string SourceAccountNumber { get; set; } = string.Empty;

@@ -26,6 +26,28 @@ public sealed class MerchantRepository : GenericRepository<Merchant>, IMerchantR
         CancellationToken ct = default
     ) => DbSet.FirstOrDefaultAsync(merchant => merchant.AssociatedUserId == userId, ct);
 
+    public async Task<IReadOnlyList<MerchantUserAssociationDto>> GetUserAssociationsAsync(
+        IReadOnlyCollection<string> userIds,
+        CancellationToken ct = default
+    ) {
+        if (userIds.Count == 0) {
+            return [];
+        }
+
+        return await DbSet
+            .AsNoTracking()
+            .Where(merchant =>
+                merchant.AssociatedUserId != null
+                && userIds.Contains(merchant.AssociatedUserId)
+            )
+            .Select(merchant => new MerchantUserAssociationDto(
+                merchant.AssociatedUserId!,
+                merchant.Id,
+                merchant.Name
+            ))
+            .ToListAsync(ct);
+    }
+
     public async Task<PageResult<MerchantSummaryDto>> GetPagedAsync(
         MerchantStatus? status,
         PageRequest page,

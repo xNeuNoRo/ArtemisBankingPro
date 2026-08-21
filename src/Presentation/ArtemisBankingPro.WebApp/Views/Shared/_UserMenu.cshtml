@@ -1,0 +1,42 @@
+@{
+    string displayName = User.Identity?.Name ?? "Usuario";
+    string? role = NavigationCatalog.RoleFrom(User);
+    string roleLabel = NavigationCatalog.RoleLabel(role);
+    string initial = string.IsNullOrWhiteSpace(displayName)
+        ? "A"
+        : displayName[..1].ToUpperInvariant();
+}
+<div class="user-menu" data-user-menu>
+    <button
+        type="button"
+        class="user-menu__toggle"
+        data-user-menu-toggle
+        aria-controls="user-menu-panel"
+        aria-label="Abrir menú de usuario"
+        aria-expanded="false">
+        <span class="user-menu__avatar" aria-hidden="true">@initial</span>
+        <span class="user-menu__identity">
+            <strong>@displayName</strong>
+            <small>@roleLabel</small>
+        </span>
+        <partial name="_Icon" model='@("chevron")' />
+    </button>
+
+    <div
+        id="user-menu-panel"
+        class="user-menu__panel"
+        data-user-menu-panel
+        data-user-menu-state="closed">
+        <div class="user-menu__panel-heading">
+            <span class="ui-section-label">Sesión actual</span>
+            <strong>@displayName</strong>
+            <small>@NavigationCatalog.RoleDescription(role)</small>
+        </div>
+        <form asp-controller="Auth" asp-action="Logout" method="post" data-submit-lock>
+            <button type="submit" class="ui-button ui-button--danger ui-button--small">
+                <partial name="_Icon" model='@("logout")' />
+                <span data-submit-label>Cerrar sesión</span>
+            </button>
+        </form>
+    </div>
+</div>

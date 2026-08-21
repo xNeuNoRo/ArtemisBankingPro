@@ -76,10 +76,11 @@ public sealed class LoanPersistenceTests(SqlServerFixture fixture) : SqlServerTe
             context.Loans.Add(loan);
             await context.SaveChangesAsync();
 
-            await context.Database.ExecuteSqlRawAsync(
-                "UPDATE dbo.Loans SET Status = 2, CompletedAt = GETUTCDATE() WHERE Id = {0}",
-                loan.Id
-            );
+            await context.Loans
+                .Where(item => item.Id == loan.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.Status, ArtemisBankingPro.Domain.Lending.Enums.LoanStatus.Completed)
+                    .SetProperty(item => item.CompletedAt, DateTimeOffset.UtcNow));
         });
 
         await WithContextAsync(async context => {
@@ -104,13 +105,15 @@ public sealed class LoanPersistenceTests(SqlServerFixture fixture) : SqlServerTe
 
         await WithContextAsync(async context => {
             Loan loan = await context.Loans.Include(item => item.Installments).FirstAsync();
-            Func<Task> act = () =>
-                context.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO dbo.Installments "
-                        + "(LoanId, Number, DueDate, ScheduledAmount, InterestAmount, PrincipalAmount, PaidAmount, IsOverdue, CreatedAt) "
-                        + "VALUES ({0}, 1, '2026-09-06', 1000, 100, 900, 0, 0, GETUTCDATE())",
-                    loan.Id
-                );
+            int duplicateId = loan.Installments
+                .OrderBy(installment => installment.Number)
+                .Skip(1)
+                .First()
+                .Id;
+            Func<Task> act = () => context.Installments
+                .Where(installment => installment.Id == duplicateId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(installment => installment.Number, 1));
 
             await act.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>();
         });
@@ -181,6 +184,30 @@ public sealed class LoanPersistenceTests(SqlServerFixture fixture) : SqlServerTe
 
             firstBatch.Should().ContainSingle().Which.Should().Be(first.Id);
             secondBatch.Should().ContainSingle().Which.Should().Be(second.Id);
+        });
+    }
+
+    [Fact]
+    public async Task GetActivePastDueLoanIds_ExcludesInstallmentsAlreadyMarkedOverdue() {
+        Loan alreadyProcessed = NewLoan("customer-processed", "300000003");
+        Loan pending = NewLoan("customer-pending", "300000004");
+        DateOnly businessDate = alreadyProcessed.Installments.Min(item => item.DueDate).AddDays(1);
+        alreadyProcessed.RefreshDelinquency(businessDate);
+
+        await WithContextAsync(async context => {
+            context.Loans.AddRange(alreadyProcessed, pending);
+            await context.SaveChangesAsync();
+        });
+
+        await WithContextAsync(async context => {
+            var repository = new LoanRepository(context);
+            IReadOnlyList<int> ids = await repository.GetActivePastDueLoanIdsAsync(
+                businessDate,
+                0,
+                100
+            );
+
+            ids.Should().ContainSingle().Which.Should().Be(pending.Id);
         });
     }
 }

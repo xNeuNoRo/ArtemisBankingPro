@@ -4,13 +4,25 @@ using ArtemisBankingPro.Application.Common.ViewModels;
 namespace ArtemisBankingPro.Application.Features.Cashier.ViewModels;
 
 public sealed class CashierDashboardViewModel : BaseViewModel {
+    public string? LoadErrorMessage { get; init; }
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
     public int TransactionsToday { get; init; }
     public int PaymentsToday { get; init; }
     public int DepositsToday { get; init; }
     public int WithdrawalsToday { get; init; }
 }
 
+public sealed class CashierOperationPageViewModel<TForm> : BaseViewModel {
+    public TForm Form { get; init; } = default!;
+    public string? LoadErrorMessage { get; init; }
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+}
+
 public sealed class CashierOperationListViewModel : BaseViewModel, IValidatableObject {
+    private static readonly string[] AllowedOperationTypes =
+        ["Deposit", "Withdrawal", "CardPayment", "LoanPayment", "ThirdPartyTransfer"];
+
     [DataType(DataType.Date)]
     public DateTimeOffset? DateFrom { get; set; }
 
@@ -23,11 +35,30 @@ public sealed class CashierOperationListViewModel : BaseViewModel, IValidatableO
     public IReadOnlyList<CashierOperationItemViewModel> Operations { get; init; } = [];
     public PaginationViewModel Pagination { get; init; } = new();
 
+    public static IReadOnlyList<SelectOptionViewModel> BuildOperationTypeOptions(
+        string? selected
+    ) => [
+        new() { Value = string.Empty, Text = "Todos los tipos", IsSelected = string.IsNullOrWhiteSpace(selected) },
+        new() { Value = "Deposit", Text = "Depósitos", IsSelected = string.Equals(selected, "Deposit", StringComparison.OrdinalIgnoreCase) },
+        new() { Value = "Withdrawal", Text = "Retiros", IsSelected = string.Equals(selected, "Withdrawal", StringComparison.OrdinalIgnoreCase) },
+        new() { Value = "CardPayment", Text = "Pagos a tarjeta", IsSelected = string.Equals(selected, "CardPayment", StringComparison.OrdinalIgnoreCase) },
+        new() { Value = "LoanPayment", Text = "Pagos a préstamo", IsSelected = string.Equals(selected, "LoanPayment", StringComparison.OrdinalIgnoreCase) },
+        new() { Value = "ThirdPartyTransfer", Text = "Transferencias a terceros", IsSelected = string.Equals(selected, "ThirdPartyTransfer", StringComparison.OrdinalIgnoreCase) },
+    ];
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) {
         if (DateFrom is not null && DateTo is not null && DateFrom > DateTo) {
             yield return new ValidationResult(
                 "La fecha inicial no puede ser posterior a la fecha final.",
                 [nameof(DateFrom), nameof(DateTo)]
+            );
+        }
+
+        if (!string.IsNullOrWhiteSpace(OperationType)
+            && !AllowedOperationTypes.Contains(OperationType, StringComparer.OrdinalIgnoreCase)) {
+            yield return new ValidationResult(
+                "El tipo de operación seleccionado no es válido.",
+                [nameof(OperationType)]
             );
         }
     }
@@ -43,6 +74,24 @@ public sealed class CashierOperationItemViewModel {
     public string? CardLastFour { get; init; }
     public string? LoanNumber { get; init; }
     public string? RejectionCode { get; init; }
+}
+
+public sealed class CashierOperationConfirmationViewModel : ConfirmationViewModel {
+    public string OperationLabel { get; set; } = "Operación de caja";
+    public string ConfirmationMessage { get; set; } = "¿Está seguro que desea continuar?";
+    public string ConfirmAction { get; set; } = string.Empty;
+
+    public string? SourceOwnerName { get; set; }
+    public string? DestinationOwnerName { get; set; }
+    public string? AccountNumber { get; set; }
+    public string? SourceAccountNumber { get; set; }
+    public string? DestinationAccountNumber { get; set; }
+    public int? CardId { get; set; }
+    public string? CardLastFour { get; set; }
+    public int? LoanId { get; set; }
+    public string? LoanNumber { get; set; }
+    public decimal? RequestedAmount { get; set; }
+    public decimal? EffectiveAmount { get; set; }
 }
 
 public sealed class DepositViewModel : IValidatableObject {

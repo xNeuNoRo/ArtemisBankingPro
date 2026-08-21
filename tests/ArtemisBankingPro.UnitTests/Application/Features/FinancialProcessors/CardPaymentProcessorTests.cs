@@ -196,7 +196,7 @@ public sealed class CardPaymentProcessorTests {
     }
 
     [Fact]
-    public async Task PayAsync_NoDebt_ReturnsNoDebtWithoutPersistence() {
+    public async Task PayAsync_NoDebt_RecordsRejectedOperationWithoutStateChanges() {
         CreditCardEntity card = Card(debt: 0m);
         SavingsAccount account = Account(50_000m);
         var operationRepository = OperationRepository(out Func<FinancialOperation?> addedOperation);
@@ -211,6 +211,8 @@ public sealed class CardPaymentProcessorTests {
 
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Card.NoDebt");
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Card.NoDebt");
     }
 }

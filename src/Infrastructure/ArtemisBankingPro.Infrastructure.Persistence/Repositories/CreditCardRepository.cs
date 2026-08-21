@@ -2,7 +2,6 @@ using System.Globalization;
 using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Application.Features.HermesPay.DTOs;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
 using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Common.Pagination;
@@ -23,37 +22,44 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
         PageRequest page,
         CancellationToken ct = default
     ) {
-        IQueryable<CardConsumption> query = Context
-            .Set<CardConsumption>()
-            .AsNoTracking()
-            .Where(consumption => consumption.CreditCardId == creditCardId);
+        IQueryable<CardConsumptionView> query = BuildConsumptionQuery(creditCardId);
 
         int totalCount = await query.CountAsync(ct);
 
         List<CardConsumptionView> items = await query
-            .Join(
-                Context.Set<FinancialOperation>(),
-                consumption => consumption.FinancialOperationId,
-                operation => operation.Id,
-                (consumption, operation) => new { consumption, operation }
-            )
-            .OrderByDescending(item => item.operation.OccurredAt)
-            .ThenByDescending(item => item.consumption.Id)
             .Skip(page.Skip)
             .Take(page.PageSize)
-            .Select(item => new CardConsumptionView(
-                item.consumption.Id,
-                item.operation.OccurredAt,
-                item.consumption.Amount.Amount,
-                item.consumption.Type == ConsumptionType.CashAdvance
-                    ? "AVANCE"
-                    : item.consumption.MerchantDisplayName,
-                item.operation.Status
-            ))
             .ToListAsync(ct);
 
         return new PageResult<CardConsumptionView>(items, totalCount, page.Page, page.PageSize);
     }
+
+    public async Task<IReadOnlyList<CardConsumptionView>> GetConsumptionsAsync(
+        int creditCardId,
+        CancellationToken ct = default
+    ) => await BuildConsumptionQuery(creditCardId).ToListAsync(ct);
+
+    private IQueryable<CardConsumptionView> BuildConsumptionQuery(int creditCardId) => Context
+        .Set<CardConsumption>()
+        .AsNoTracking()
+        .Where(consumption => consumption.CreditCardId == creditCardId)
+        .Join(
+            Context.Set<FinancialOperation>(),
+            consumption => consumption.FinancialOperationId,
+            operation => operation.Id,
+            (consumption, operation) => new { consumption, operation }
+        )
+        .OrderByDescending(item => item.operation.OccurredAt)
+        .ThenByDescending(item => item.consumption.Id)
+        .Select(item => new CardConsumptionView(
+            item.consumption.Id,
+            item.operation.OccurredAt,
+            item.consumption.Amount.Amount,
+            item.consumption.Type == ConsumptionType.CashAdvance
+                ? "AVANCE"
+                : item.consumption.MerchantDisplayName,
+            item.operation.Status
+        ));
 
     public async Task<PageResult<CommerceTransactionDto>> GetConsumptionsByMerchantPagedAsync(
         int merchantId,
@@ -113,12 +119,14 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
         if (status is null) {
             query = query
                 .OrderByDescending(card => card.Status == CreditCardStatus.Active)
-                .ThenByDescending(card => card.IssuedAt);
+                .ThenByDescending(card => card.IssuedAt)
+                .ThenByDescending(card => card.Id);
         }
         else {
             query = query
                 .Where(card => card.Status == status)
-                .OrderByDescending(card => card.IssuedAt);
+                .OrderByDescending(card => card.IssuedAt)
+                .ThenByDescending(card => card.Id);
         }
 
         int totalCount = await query.CountAsync(ct);
@@ -209,30 +217,28 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
     }
 
     public async Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default) {
-        // El converter de Money impide navegar .Amount dentro de Sum en SQL
-        // materializar solo las columnas necesarias y sumar en memoria es
-        // correcto para el volumen de tarjetas activas.
-        decimal[] debts = await DbSet
-            .AsNoTracking()
-            .Where(card => card.Status == CreditCardStatus.Active)
-            .Select(card => card.CurrentDebt.Amount)
-            .ToArrayAsync(ct);
-
-        return Money.FromDecimal(debts.Sum());
+        return await GetActiveDebtAsync(customerUserId: null, ct);
     }
 
     public async Task<Money> GetClientActiveDebtAsync(
         string customerUserId,
         CancellationToken ct = default
     ) {
-        decimal[] debts = await DbSet
-            .AsNoTracking()
-            .Where(card =>
-                card.CustomerUserId == customerUserId && card.Status == CreditCardStatus.Active
-            )
-            .Select(card => card.CurrentDebt.Amount)
-            .ToArrayAsync(ct);
+        return await GetActiveDebtAsync(customerUserId, ct);
+    }
 
-        return Money.FromDecimal(debts.Sum());
+    private async Task<Money> GetActiveDebtAsync(
+        string? customerUserId,
+        CancellationToken ct
+    ) {
+        var amounts = await Context
+            .CreditCards
+            .AsNoTracking()
+            .Where(card => card.Status == CreditCardStatus.Active)
+            .Where(card => customerUserId == null || card.CustomerUserId == customerUserId)
+            .Select(card => card.CurrentDebt)
+            .ToListAsync(ct);
+        decimal debt = amounts.Sum(amount => amount.Amount);
+        return Money.FromDecimal(debt);
     }
 }

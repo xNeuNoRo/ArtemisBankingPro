@@ -1,0 +1,39 @@
+@model CashierOperationPageViewModel<DepositViewModel>
+@{
+    ViewData["Title"] = Model.PageTitle;
+}
+
+<section class="page-header" aria-labelledby="cashier-deposit-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cajero / Fondos</p>
+        <h1 id="cashier-deposit-title" class="page-header__title">Depósito</h1>
+        <p class="page-header__description">Acredite fondos en una cuenta de ahorro activa. El sistema validará el estado nuevamente al confirmar.</p>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive"><p class="ui-alert__content">@Model.LoadErrorMessage</p></section>
+}
+<section class="ui-card client-form-panel" aria-labelledby="cashier-deposit-form-title">
+    <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="cashier-deposit-form-title" class="ui-card__title">Datos del depósito</h2></div></div>
+    <div class="ui-card__body">
+        <partial name="_ValidationSummary" />
+        <form asp-controller="Cashier" asp-action="Deposit" method="post" data-submit-lock data-autofocus-error class="client-form">
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Form.AccountNumber">Cuenta destino</label>
+                <input class="ui-control" asp-for="Form.AccountNumber" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" autocomplete="off" required />
+                <p class="ui-field-description">Ingrese los nueve dígitos de la cuenta.</p>
+                <span class="ui-error" asp-validation-for="Form.AccountNumber"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Form.Amount">Monto a depositar</label>
+                <input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required />
+                <span class="ui-error" asp-validation-for="Form.Amount"></span>
+            </div>
+            <div class="page-actions">
+                <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Cashier">Cancelar</a>
+                <button class="ui-button ui-button--primary" type="submit"><span data-submit-label>Continuar</span></button>
+            </div>
+        </form>
+    </div>
+</section>

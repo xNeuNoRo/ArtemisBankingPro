@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Features.Merchants.Commands;
 using ArtemisBankingPro.Application.Features.Merchants.Handlers;
 using ArtemisBankingPro.Application.Interfaces.Events;
 using ArtemisBankingPro.Application.Interfaces.Identity;
+using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
@@ -11,12 +12,10 @@ using ArtemisBankingPro.Domain.Merchants.Errors;
 using ArtemisBankingPro.Domain.Merchants.Events;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
-using ArtemisBankingPro.Infrastructure.Persistence.Persistence;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 using Mediator;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -65,9 +64,8 @@ public sealed class MerchantStatusChangeTests(SqlServerFixture fixture)
         var handler = new ChangeMerchantStatusCommandHandler(
             new MerchantRepository(context),
             scope.ServiceProvider.GetRequiredService<IUserAccountService>(),
-            new UnitOfWork(context),
-            scope.ServiceProvider.GetRequiredService<IBusinessClock>(),
-            scope.ServiceProvider.GetRequiredService<ILogger<ChangeMerchantStatusCommandHandler>>()
+            scope.ServiceProvider.GetRequiredService<IUnitOfWork>(),
+            scope.ServiceProvider.GetRequiredService<IBusinessClock>()
         );
 
         return await handler.Handle(command, default);
@@ -237,9 +235,8 @@ public sealed class MerchantStatusChangeTests(SqlServerFixture fixture)
             var handler = new ChangeMerchantStatusCommandHandler(
                 new MerchantRepository(context),
                 scope.ServiceProvider.GetRequiredService<IUserAccountService>(),
-                new UnitOfWork(context),
-                scope.ServiceProvider.GetRequiredService<IBusinessClock>(),
-                scope.ServiceProvider.GetRequiredService<ILogger<ChangeMerchantStatusCommandHandler>>()
+                scope.ServiceProvider.GetRequiredService<IUnitOfWork>(),
+                scope.ServiceProvider.GetRequiredService<IBusinessClock>()
             );
 
             (await handler.Handle(new ChangeMerchantStatusCommand(merchant.Id, false), default))

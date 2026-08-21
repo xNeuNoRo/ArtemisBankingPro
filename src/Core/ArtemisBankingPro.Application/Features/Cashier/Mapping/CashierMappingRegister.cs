@@ -72,6 +72,7 @@ public sealed class CashierMappingRegister : IRegister {
         DateFrom = dateFrom,
         DateTo = dateTo,
         OperationType = operationType,
+        OperationTypeOptions = CashierOperationListViewModel.BuildOperationTypeOptions(operationType),
         Operations = source.Select(mapper.Map<CashierOperationItemViewModel>).ToArray(),
         Pagination = new PaginationViewModel {
             Page = page,

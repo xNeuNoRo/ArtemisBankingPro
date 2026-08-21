@@ -1,0 +1,11 @@
+@model EligibleClientsViewModel
+@{
+    ViewData["Title"] = "Seleccionar cliente para préstamo";
+    ViewData["EligibleController"] = "Loans";
+    ViewData["EligibleAction"] = "Assign";
+    ViewData["EligibleTitle"] = "Seleccionar cliente para el préstamo";
+    ViewData["EligibleDescription"] = "Solo aparecen clientes activos sin un préstamo activo.";
+    ViewData["EligibleProduct"] = "préstamo";
+}
+
+<partial name="_EligibleClientSelection" model="Model" />

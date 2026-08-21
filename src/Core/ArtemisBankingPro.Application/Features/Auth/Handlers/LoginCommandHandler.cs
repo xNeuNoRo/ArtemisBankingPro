@@ -57,8 +57,7 @@ public sealed class LoginCommandHandler : IRequestHandler<LoginCommand, Result<L
             return Result.Failure<LoginResponse>(
                 DomainError.Unauthorized(
                     "Auth.Inactive",
-                    "Su cuenta se encuentra inactiva. Debe activar su cuenta mediante el enlace "
-                        + "enviado a su correo electrónico registrado para poder acceder al sistema."
+                    "Su cuenta se encuentra inactiva. Debe activar su cuenta antes de iniciar sesión."
                 )
             );
         }

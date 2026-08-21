@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Models.Emails;
-using ArtemisBankingPro.Domain.Settings;
+using ArtemisBankingPro.Application.Interfaces.Email;
+using ArtemisBankingPro.Infrastructure.Shared.Configuration;
 using ArtemisBankingPro.Infrastructure.Shared.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -92,6 +93,44 @@ public sealed class EmailHardeningTests {
         var from = Assert.IsType<MimeKit.MailboxAddress>(message.From.Single());
         from.Name.Should().Be("no-reply@artemis.test");
         from.Address.Should().Be("no-reply@artemis.test");
+    }
+
+    [Fact]
+    public void EmailSettings_RejectsPlaintextAndPartialAuthentication() {
+        new EmailSettings {
+            Host = "smtp.test.local",
+            FromAddress = "no-reply@artemis.test",
+            EnableSsl = false,
+        }
+            .IsConfigured()
+            .Should()
+            .BeFalse();
+
+        new EmailSettings {
+            Host = "smtp.test.local",
+            FromAddress = "no-reply@artemis.test",
+            UserName = "mailer",
+        }
+            .IsConfigured()
+            .Should()
+            .BeFalse();
+    }
+
+    [Fact]
+    public async Task SendAsync_RenderingFailure_IsWrappedAsEmailSendException() {
+        var service = new MailKitEmailService(
+            Options.Create(new EmailSettings {
+                Host = "smtp.test.local",
+                Port = 587,
+                FromAddress = "no-reply@artemis.test",
+            }),
+            new RazorRenderer(),
+            NullLogger<MailKitEmailService>.Instance
+        );
+
+        Func<Task> act = () => service.SendAsync("cliente@example.com", new MissingTemplateNameModel());
+
+        await act.Should().ThrowAsync<EmailSendException>();
     }
 
     private sealed class EvilTemplateNameModel : IEmailModel {

@@ -37,7 +37,7 @@ public sealed class ResetPasswordCommandHandler
         if (completion.Value == AccountTokenVerificationResult.Expired) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
-                    "Auth.ResetExpired",
+                    "Account.InvalidResetToken",
                     "El enlace de restablecimiento ha expirado. "
                         + "Solicite un nuevo restablecimiento de contraseña."
                 )
@@ -47,7 +47,7 @@ public sealed class ResetPasswordCommandHandler
         if (completion.Value == AccountTokenVerificationResult.AlreadyUsed) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
-                    "Auth.ResetAlreadyUsed",
+                    "Account.InvalidResetToken",
                     "Este enlace de restablecimiento ya fue utilizado."
                 )
             );
@@ -56,7 +56,7 @@ public sealed class ResetPasswordCommandHandler
         if (completion.Value == AccountTokenVerificationResult.Invalid) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
-                    "Auth.ResetInvalid",
+                    "Account.InvalidResetToken",
                     "El enlace de restablecimiento no es válido."
                 )
             );

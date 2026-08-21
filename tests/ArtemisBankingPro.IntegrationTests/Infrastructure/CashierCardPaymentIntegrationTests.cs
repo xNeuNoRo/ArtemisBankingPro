@@ -336,7 +336,12 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
             (await context.FinancialOperations.CountAsync(operation =>
                 operation.Kind == FinancialOperationKind.CreditCardPayment
-            )).Should().Be(0);
+            )).Should().Be(1);
+            var operation = await context.FinancialOperations.SingleAsync(item =>
+                item.Kind == FinancialOperationKind.CreditCardPayment
+            );
+            operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+            operation.RejectionCode.Should().Be("Card.NoDebt");
         });
     }
 
@@ -374,7 +379,12 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
         await WithContextAsync(async context => {
             (await context.FinancialOperations.CountAsync(operation =>
                 operation.Kind == FinancialOperationKind.CreditCardPayment
-            )).Should().Be(0);
+            )).Should().Be(1);
+            var operation = await context.FinancialOperations.SingleAsync(item =>
+                item.Kind == FinancialOperationKind.CreditCardPayment
+            );
+            operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+            operation.RejectionCode.Should().Be("Card.NotActive");
         });
     }
 
@@ -406,7 +416,12 @@ public sealed class CashierCardPaymentIntegrationTests(SqlServerFixture fixture)
 
             (await context.FinancialOperations.CountAsync(operation =>
                 operation.Kind == FinancialOperationKind.CreditCardPayment
-            )).Should().Be(0);
+            )).Should().Be(1);
+            var operation = await context.FinancialOperations.SingleAsync(item =>
+                item.Kind == FinancialOperationKind.CreditCardPayment
+            );
+            operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+            operation.RejectionCode.Should().Be("Account.NotActive");
         });
     }
 

@@ -215,6 +215,13 @@ public sealed class AdminDashboardIntegrationTests(SqlServerFixture fixture)
         await WithContextAsync(async context => {
             var card = NewCard("customer-1");
             context.CreditCards.Add(card);
+            context.SavingsAccounts.AddRange(
+                NewAccount("operations", "400000001", 0m, AccountType.Secondary),
+                NewAccount("operations", "400000002", 0m, AccountType.Secondary),
+                NewAccount("operations", "400000005", 0m, AccountType.Secondary),
+                NewAccount("operations", "400000006", 0m, AccountType.Secondary)
+            );
+            context.Loans.Add(NewLoan("operations", 1_000m));
             await context.SaveChangesAsync();
             cardId = card.Id;
 
@@ -229,10 +236,10 @@ public sealed class AdminDashboardIntegrationTests(SqlServerFixture fixture)
                     creditCardId: cardId),
                 NewTransfer(150m, DayStartUtc.AddHours(12)),
                 NewApproved(
-                    FinancialOperationKind.LoanPayment,
-                    900m,
-                    DayStartUtc.AddDays(-1),
-                    loanNumber: "300000001"),
+                     FinancialOperationKind.LoanPayment,
+                     900m,
+                     DayStartUtc.AddDays(-1),
+                     loanNumber: "300000001"),
                 NewApproved(FinancialOperationKind.Deposit, 300m, DayEndUtc.AddDays(1))
             );
             await context.SaveChangesAsync();
@@ -260,6 +267,9 @@ public sealed class AdminDashboardIntegrationTests(SqlServerFixture fixture)
         IBusinessClock clock = await GetClockAsync();
 
         await WithContextAsync(async context => {
+            context.SavingsAccounts.Add(
+                NewAccount("operations", "400000001", 0m, AccountType.Secondary)
+            );
             context.FinancialOperations.AddRange(
                 NewApproved(FinancialOperationKind.Deposit, 10m, DayStartUtc),
                 NewApproved(FinancialOperationKind.Deposit, 20m, DayEndUtc.AddTicks(-1)),
@@ -425,6 +435,12 @@ public sealed class AdminDashboardIntegrationTests(SqlServerFixture fixture)
 
             // Cuenta del cliente inactivo: se cuenta como producto activo (spec §542-548).
             context.SavingsAccounts.Add(NewAccount(activeB, "100000013", 200m, AccountType.Primary));
+            context.SavingsAccounts.AddRange(
+                NewAccount("operations", "400000001", 0m, AccountType.Secondary, cancelled: true),
+                NewAccount("operations", "400000002", 0m, AccountType.Secondary, cancelled: true),
+                NewAccount("operations", "400000005", 0m, AccountType.Secondary, cancelled: true),
+                NewAccount("operations", "400000006", 0m, AccountType.Secondary, cancelled: true)
+            );
             await context.SaveChangesAsync();
 
             var card = await context.CreditCards.SingleAsync();

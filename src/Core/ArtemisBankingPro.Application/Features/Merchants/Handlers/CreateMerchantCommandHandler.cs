@@ -39,11 +39,9 @@ public sealed class CreateMerchantCommandHandler
         CreateMerchantCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. Unicidad de RNC y correo (validada aquí y reforzada por índices
+        // Unicidad de RNC y correo (validada aquí y reforzada por índices
         //    únicos en SQL Server).
-        if (
-            await _merchantRepository.ExistsByRncAsync(message.Rnc.Trim(), cancellationToken)
-        ) {
+        if (await _merchantRepository.ExistsByRncAsync(message.Rnc.Trim(), cancellationToken)) {
             return Result.Failure<CreateMerchantResponse>(
                 DomainError.Conflict(
                     "Commerce.RncExists",
@@ -62,7 +60,7 @@ public sealed class CreateMerchantCommandHandler
             );
         }
 
-        // 2. Reglas de dominio (campos obligatorios y formato de correo).
+        // Reglas de dominio (campos obligatorios y formato de correo).
         var createResult = Merchant.Create(
             message.Name,
             message.Description,
@@ -78,7 +76,7 @@ public sealed class CreateMerchantCommandHandler
 
         var merchant = createResult.Value;
 
-        // 3. Persistir atómicamente (un único insert con índice único).
+        // Persistimos atómicamente (un único insert con índice único).
         var saveResult = await _unitOfWork.ExecuteInTransactionAsync(
             async ct => {
                 await _merchantRepository.AddAsync(merchant, ct);

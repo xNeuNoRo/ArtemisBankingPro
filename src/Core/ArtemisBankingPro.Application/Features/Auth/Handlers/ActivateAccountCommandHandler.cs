@@ -12,61 +12,47 @@ namespace ArtemisBankingPro.Application.Features.Auth.Handlers;
 public sealed class ActivateAccountCommandHandler
     : IRequestHandler<ActivateAccountCommand, Result<Unit>> {
     private readonly IAccountTokenService _tokenService;
-    private readonly IUserAccountService _userAccountService;
 
-    public ActivateAccountCommandHandler(
-        IAccountTokenService tokenService,
-        IUserAccountService userAccountService
-    ) {
+    public ActivateAccountCommandHandler(IAccountTokenService tokenService) {
         _tokenService = tokenService;
-        _userAccountService = userAccountService;
     }
 
     public async ValueTask<Result<Unit>> Handle(
         ActivateAccountCommand message,
         CancellationToken cancellationToken
     ) {
-        var verification = await _tokenService.VerifyAndConsumeByTokenAsync(
-            AccountTokenType.Activation,
-            message.Token,
-            cancellationToken
-        );
+        Result<AccountTokenVerificationResult> completion =
+            await _tokenService.CompleteActivationAsync(message.Token, cancellationToken);
 
-        if (verification.Result == AccountTokenVerificationResult.Expired) {
+        if (completion.IsFailure) {
+            return Result.Failure<Unit>(completion.Error!);
+        }
+
+        if (completion.Value == AccountTokenVerificationResult.Expired) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
-                    "Auth.ActivationExpired",
+                    "Account.InvalidActivationToken",
                     "El enlace de activación ha expirado. Solicite un nuevo enlace."
                 )
             );
         }
 
-        if (verification.Result == AccountTokenVerificationResult.AlreadyUsed) {
+        if (completion.Value == AccountTokenVerificationResult.AlreadyUsed) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
-                    "Auth.ActivationAlreadyUsed",
+                    "Account.InvalidActivationToken",
                     "Este enlace de activación ya fue utilizado."
                 )
             );
         }
 
-        if (verification.Result == AccountTokenVerificationResult.Invalid) {
+        if (completion.Value == AccountTokenVerificationResult.Invalid) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
-                    "Auth.ActivationInvalid",
+                    "Account.InvalidActivationToken",
                     "El enlace de activación no es válido."
                 )
             );
-        }
-
-        var activationResult = await _userAccountService.SetActiveAsync(
-            verification.UserId!,
-            isActive: true,
-            cancellationToken
-        );
-
-        if (activationResult.IsFailure) {
-            return Result.Failure<Unit>(activationResult.Error!);
         }
 
         return Result.Success(Unit.Value);

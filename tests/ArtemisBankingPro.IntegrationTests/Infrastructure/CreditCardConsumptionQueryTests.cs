@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
@@ -73,7 +74,7 @@ public sealed class CreditCardConsumptionQueryTests(SqlServerFixture fixture)
                 cardId,
                 account,
                 500m,
-                25m,
+                31.25m,
                 new DateTimeOffset(2026, 8, 6, 13, 0, 0, TimeSpan.FromHours(-4))));
             context.FinancialOperations.Add(NewRejectedHermesPayment(
                 "commerce-user-1",
@@ -103,7 +104,7 @@ public sealed class CreditCardConsumptionQueryTests(SqlServerFixture fixture)
             firstPage.Items[0].Amount.Should().Be(250m);
             firstPage.Items[0].Status.Should().Be(FinancialOperationStatus.Approved);
             firstPage.Items[1].CommerceName.Should().Be("AVANCE");
-            firstPage.Items[1].Amount.Should().Be(525m);
+            firstPage.Items[1].Amount.Should().Be(531.25m);
             firstPage.Items[1].Status.Should().Be(FinancialOperationStatus.Approved);
             firstPage.Items[0].Date.Should().BeAfter(firstPage.Items[1].Date);
             firstPage.Items[0].Id.Should().NotBe(firstPage.Items[1].Id);
@@ -118,6 +119,14 @@ public sealed class CreditCardConsumptionQueryTests(SqlServerFixture fixture)
             secondPage.Items[0].Amount.Should().Be(100m);
             secondPage.Items[0].Status.Should().Be(FinancialOperationStatus.Rejected);
             secondPage.Items[0].Date.Should().BeBefore(firstPage.Items[1].Date);
+
+            IReadOnlyList<CardConsumptionView> all = await repository.GetConsumptionsAsync(cardId);
+            all.Should().HaveCount(3);
+            all.Select(item => item.Id).Should().Equal(
+                firstPage.Items[0].Id,
+                firstPage.Items[1].Id,
+                secondPage.Items[0].Id
+            );
         });
     }
 

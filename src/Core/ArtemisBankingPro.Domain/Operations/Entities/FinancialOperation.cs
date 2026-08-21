@@ -4,6 +4,7 @@ using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
 using ArtemisBankingPro.Domain.Cards.Enums;
+using ArtemisBankingPro.Domain.Cards.Policies;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Lending.ValueObjects;
@@ -35,6 +36,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         int? creditCardId,
         LoanNumber? loanNumber,
         int? merchantId,
+        int? savingsAccountId,
         IEnumerable<AccountTransaction> accountTransactions,
         CardConsumption? cardConsumption
     ) {
@@ -50,6 +52,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         CreditCardId = creditCardId;
         LoanNumber = loanNumber;
         MerchantId = merchantId;
+        SavingsAccountId = savingsAccountId;
         _accountTransactions.AddRange(accountTransactions);
         CardConsumption = cardConsumption;
     }
@@ -76,6 +79,8 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
 
     public int? MerchantId { get; private set; }
 
+    public int? SavingsAccountId { get; private set; }
+
     public IReadOnlyCollection<AccountTransaction> AccountTransactions =>
         _accountTransactions.AsReadOnly();
 
@@ -86,14 +91,30 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
     /// procesada, desencadenando <see cref="ThirdPartyTransferProcessedEvent"/>
     /// para las notificaciones post-commit. Solo transporta datos seguros.
     /// </summary>
-    public void RecordThirdPartyTransferProcessed(
+    public Result RecordThirdPartyTransferProcessed(
         string sourceAccountNumber,
         string destinationAccountNumber,
         Money amount,
         string sourceOwnerUserId,
         string destinationOwnerUserId,
         string cashierUserId
-    ) =>
+    ) {
+        Result validation = ValidateEventData(
+            amount,
+            sourceAccountNumber,
+            destinationAccountNumber,
+            sourceOwnerUserId,
+            destinationOwnerUserId,
+            cashierUserId
+        );
+        if (validation.IsFailure) {
+            return validation;
+        }
+
+        if (sourceAccountNumber == destinationAccountNumber) {
+            return Result.Failure(OperationErrors.SameAccount);
+        }
+
         RaiseDomainEvent(
             new ThirdPartyTransferProcessedEvent(
                 Id,
@@ -106,18 +127,25 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                 OccurredAt
             )
         );
+        return Result.Success();
+    }
 
     /// <summary>
     /// Marca la operación como un depósito de cajero procesado, desencadenando
     /// <see cref="DepositProcessedEvent"/> para las notificaciones post-commit.
     /// Solo transporta datos seguros.
     /// </summary>
-    public void RecordDepositProcessed(
+    public Result RecordDepositProcessed(
         string accountNumber,
         Money amount,
         string ownerUserId,
         string cashierUserId
-    ) =>
+    ) {
+        Result validation = ValidateEventData(amount, accountNumber, ownerUserId, cashierUserId);
+        if (validation.IsFailure) {
+            return validation;
+        }
+
         RaiseDomainEvent(
             new DepositProcessedEvent(
                 Id,
@@ -128,18 +156,25 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                 OccurredAt
             )
         );
+        return Result.Success();
+    }
 
     /// <summary>
     /// Marca la operación como un retiro de cajero procesado, desencadenando
     /// <see cref="WithdrawalProcessedEvent"/> para las notificaciones
     /// post-commit. Solo transporta datos seguros.
     /// </summary>
-    public void RecordWithdrawalProcessed(
+    public Result RecordWithdrawalProcessed(
         string accountNumber,
         Money amount,
         string ownerUserId,
         string cashierUserId
-    ) =>
+    ) {
+        Result validation = ValidateEventData(amount, accountNumber, ownerUserId, cashierUserId);
+        if (validation.IsFailure) {
+            return validation;
+        }
+
         RaiseDomainEvent(
             new WithdrawalProcessedEvent(
                 Id,
@@ -150,20 +185,37 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                 OccurredAt
             )
         );
+        return Result.Success();
+    }
 
     /// <summary>
     /// Marca la operación como un pago Hermes Pay procesado, desencadenando
     /// <see cref="HermesPayProcessedEvent"/> para las notificaciones
     /// post-commit. Solo transporta datos seguros.
     /// </summary>
-    public void RecordHermesPayProcessed(
+    public Result RecordHermesPayProcessed(
         string cardLastFour,
         int merchantId,
         string merchantName,
         Money amount,
         string cardOwnerUserId,
         string merchantEmail
-    ) =>
+    ) {
+        Result validation = ValidateEventData(
+            amount,
+            cardLastFour,
+            merchantName,
+            cardOwnerUserId,
+            merchantEmail
+        );
+        if (validation.IsFailure) {
+            return validation;
+        }
+
+        if (merchantId <= 0) {
+            return Result.Failure(OperationErrors.InvalidProductReference);
+        }
+
         RaiseDomainEvent(
             new HermesPayProcessedEvent(
                 Id,
@@ -176,6 +228,8 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                 OccurredAt
             )
         );
+        return Result.Success();
+    }
 
     public static Result<FinancialOperation> Approve(
         Guid id,
@@ -189,7 +243,8 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         CardConsumptionDetails? cardConsumption = null,
         int? creditCardId = null,
         LoanNumber? loanNumber = null,
-        int? merchantId = null
+        int? merchantId = null,
+        int? savingsAccountId = null
     ) {
         Result<FinancialOperation> result = Create(
             id,
@@ -204,6 +259,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             creditCardId,
             loanNumber,
             merchantId,
+            savingsAccountId,
             accountTransactions,
             cardConsumption
         );
@@ -227,7 +283,8 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         CardConsumptionDetails? cardConsumption = null,
         int? creditCardId = null,
         LoanNumber? loanNumber = null,
-        int? merchantId = null
+        int? merchantId = null,
+        int? savingsAccountId = null
     ) =>
         Create(
             id,
@@ -242,6 +299,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             creditCardId,
             loanNumber,
             merchantId,
+            savingsAccountId,
             accountTransactions,
             cardConsumption
         );
@@ -259,6 +317,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         int? creditCardId,
         LoanNumber? loanNumber,
         int? merchantId,
+        int? savingsAccountId,
         IReadOnlyCollection<AccountTransactionDetails> accountTransactionDetails,
         CardConsumptionDetails? cardConsumptionDetails
     ) {
@@ -325,11 +384,12 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                 interestAmount,
                 initiatedByUserId,
                 occurredAt,
-                rejectionCode,
-                creditCardId,
-                loanNumber,
-                merchantId,
-                accountTransactions,
+                rejectionCode?.Trim(),
+            creditCardId,
+            loanNumber,
+            merchantId,
+            savingsAccountId,
+            accountTransactions,
                 cardConsumption
             )
         );
@@ -351,6 +411,10 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
 
         if (!Enum.IsDefined(kind)) {
             return Result.Failure(OperationErrors.InvalidKind);
+        }
+
+        if (!Enum.IsDefined(status)) {
+            return Result.Failure(OperationErrors.InvalidStatus);
         }
 
         if (requestedAmount is null || appliedAmount is null || interestAmount is null) {
@@ -414,6 +478,16 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         return Result.Success();
     }
 
+    private static Result ValidateEventData(Money amount, params string?[] values) {
+        if (amount is null || amount.Amount <= 0m) {
+            return Result.Failure(OperationErrors.InvalidAppliedAmount);
+        }
+
+        return values.Any(string.IsNullOrWhiteSpace)
+            ? Result.Failure(OperationErrors.InvalidDetails)
+            : Result.Success();
+    }
+
     private static Result ValidateDetails(
         FinancialOperationKind kind,
         FinancialOperationStatus status,
@@ -427,6 +501,10 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         CardConsumptionDetails? cardConsumption
     ) {
         if (accountTransactions is null) {
+            return Result.Failure(OperationErrors.InvalidDetails);
+        }
+
+        if (accountTransactions.Any(details => details is null)) {
             return Result.Failure(OperationErrors.InvalidDetails);
         }
 
@@ -481,10 +559,16 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
                 baseAmount = appliedAmount;
             }
 
-            Money expectedConsumptionAmount =
-                kind == FinancialOperationKind.CashAdvance
-                    ? baseAmount.Add(interestAmount)
-                    : baseAmount;
+            Money expectedConsumptionAmount = baseAmount;
+            if (kind == FinancialOperationKind.CashAdvance) {
+                Result<CashAdvanceQuote> quote = CashAdvancePolicy.Calculate(baseAmount);
+                if (quote.IsFailure || quote.Value.Interest != interestAmount) {
+                    return Result.Failure(OperationErrors.InvalidAmountEquation);
+                }
+
+                expectedConsumptionAmount = quote.Value.TotalCardCharge;
+            }
+
             if (cardConsumption.Amount != expectedConsumptionAmount) {
                 return Result.Failure(OperationErrors.InvalidAmountEquation);
             }

@@ -9,7 +9,8 @@ namespace ArtemisBankingPro.Infrastructure.Shared.Observability;
 /// </summary>
 public static class SerilogConfiguration {
     private const string SafeOutputTemplate =
-        "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}";
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj} "
+            + "{Properties:j}{NewLine}{Exception}";
 
     public static LoggerConfiguration CreateArtemisLoggerConfiguration(
         IConfiguration configuration

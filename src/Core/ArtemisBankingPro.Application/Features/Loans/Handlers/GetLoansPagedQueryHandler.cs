@@ -3,6 +3,7 @@ using ArtemisBankingPro.Application.Features.Loans.Queries;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Enums;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Enums;
 using Mediator;
@@ -18,10 +19,7 @@ public sealed class GetLoansPagedQueryHandler
     private readonly ILoanRepository _loanRepository;
     private readonly IUserRepository _userRepository;
 
-    public GetLoansPagedQueryHandler(
-        ILoanRepository loanRepository,
-        IUserRepository userRepository
-    ) {
+    public GetLoansPagedQueryHandler(ILoanRepository loanRepository, IUserRepository userRepository) {
         _loanRepository = loanRepository;
         _userRepository = userRepository;
     }
@@ -30,14 +28,17 @@ public sealed class GetLoansPagedQueryHandler
         GetLoansPagedQuery message,
         CancellationToken cancellationToken
     ) {
-        // 1. Búsqueda por cédula: resolver el usuario cliente.
+        // Búsqueda por cédula: resolver el usuario cliente.
         string? customerUserId = null;
         if (!string.IsNullOrWhiteSpace(message.Identification)) {
             var customer = await _userRepository.GetByIdentityDocumentAsync(
                 message.Identification,
                 cancellationToken
             );
-            if (customer is null) {
+            if (
+                customer is null
+                || !string.Equals(customer.Role, nameof(Roles.Cliente), StringComparison.Ordinal)
+            ) {
                 return Result.Failure<PageResult<LoanListDto>>(
                     DomainError.NotFound(
                         "Loan.CustomerNotFound",
@@ -49,14 +50,20 @@ public sealed class GetLoansPagedQueryHandler
             customerUserId = customer.Id;
         }
 
-        // 2. Resolver el estado del filtro.
+        // Resolver el estado del filtro.
         LoanStatus? status = message.Status?.ToLowerInvariant() switch {
             "activos" => LoanStatus.Active,
             "completados" => LoanStatus.Completed,
             _ => null,
         };
+        if (
+            string.IsNullOrWhiteSpace(message.Status)
+            && string.IsNullOrWhiteSpace(message.Identification)
+        ) {
+            status = LoanStatus.Active;
+        }
 
-        // 3. Consultar paginado.
+        // Consultar paginado.
         var page = new PageRequest(message.Page, message.PageSize);
         var paged = await _loanRepository.GetPagedAsync(
             customerUserId,
@@ -65,20 +72,19 @@ public sealed class GetLoansPagedQueryHandler
             cancellationToken
         );
 
-        // 4. Resolver nombres de clientes en un solo viaje.
+        // Resolver nombres de clientes en un solo viaje.
         var customerIds = paged.Items.Select(loan => loan.CustomerUserId).Distinct().ToList();
         var customers = await _userRepository.GetByIdsAsync(customerIds, cancellationToken);
         var customerMap = customers.ToDictionary(c => c.Id);
 
         var items = paged.Items.Select(loan => ToDto(loan, customerMap)).ToList();
 
-        return Result.Success(new PageResult<LoanListDto>(items, paged.TotalCount, page.Page, page.PageSize));
+        return Result.Success(
+            new PageResult<LoanListDto>(items, paged.TotalCount, page.Page, page.PageSize)
+        );
     }
 
-    private static LoanListDto ToDto(
-        Loan loan,
-        Dictionary<string, UserListDto> customerMap
-    ) {
+    private static LoanListDto ToDto(Loan loan, Dictionary<string, UserListDto> customerMap) {
         customerMap.TryGetValue(loan.CustomerUserId, out var customer);
 
         return new LoanListDto(

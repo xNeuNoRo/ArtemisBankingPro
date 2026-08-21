@@ -20,5 +20,6 @@ public sealed record UpdateMerchantCommand(
 
     public string IdempotencyKey { get; init; } = string.Empty;
 
-    public string RequestFingerprint => $"{Name}|{Description}|{Email}|{PhoneNumber}|{Rnc}";
+    public string RequestFingerprint =>
+        $"{MerchantId}|{Name.Trim()}|{Description?.Trim()}|{Email.Trim().ToLowerInvariant()}|{PhoneNumber.Trim()}|{Rnc.Trim()}";
 }

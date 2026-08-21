@@ -127,7 +127,7 @@ public sealed class MerchantUpdateTests(SqlServerFixture fixture)
         Result<Unit> result = await RunCommandAsync(UpdateCommand(merchantB.Id, rnc: "101000001"));
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Merchant.RncBelongsToAnotherMerchant");
+        result.Error!.Code.Should().Be("Commerce.RncExists");
         Merchant unchanged = await ReloadMerchantByRncAsync("101000002");
         unchanged.Name.Should().Be("Comercio B");
     }
@@ -149,7 +149,7 @@ public sealed class MerchantUpdateTests(SqlServerFixture fixture)
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Merchant.EmailBelongsToAnotherMerchant");
+        result.Error!.Code.Should().Be("Commerce.EmailExists");
         Merchant unchanged = await ReloadMerchantByRncAsync("101000002");
         unchanged.Email.Should().Be("beta@example.com");
     }

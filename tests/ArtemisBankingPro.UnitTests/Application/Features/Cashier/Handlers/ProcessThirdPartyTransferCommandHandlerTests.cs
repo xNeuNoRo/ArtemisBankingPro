@@ -435,7 +435,7 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
     }
 
     [Fact]
-    public async Task Handle_InactiveSource_ReturnsNotActiveWithoutPersistence() {
+    public async Task Handle_InactiveSource_RecordsRejectedOperation() {
         var accountRepository = AccountRepository(
             Account(SourceNumberValue, "client-source", 1_000m, id: 1, status: AccountStatus.Cancelled),
             Account(DestinationNumberValue, "client-dest", 500m, id: 2)
@@ -450,11 +450,13 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.NotActive");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Account.NotActive");
     }
 
     [Fact]
-    public async Task Handle_InactiveDestination_ReturnsNotActiveWithoutPersistence() {
+    public async Task Handle_InactiveDestination_RecordsRejectedOperation() {
         var accountRepository = AccountRepository(
             Account(SourceNumberValue, "client-source", 1_000m, id: 1),
             Account(DestinationNumberValue, "client-dest", 500m, id: 2, status: AccountStatus.Cancelled)
@@ -469,7 +471,9 @@ public sealed class ProcessThirdPartyTransferCommandHandlerTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.NotActive");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Account.NotActive");
     }
 
     [Fact]

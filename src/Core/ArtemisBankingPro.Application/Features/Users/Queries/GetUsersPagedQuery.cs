@@ -1,6 +1,6 @@
 using ArtemisBankingPro.Application.Common.Interfaces;
+using ArtemisBankingPro.Application.Features.Users.DTOs;
 using ArtemisBankingPro.Domain.Common.Pagination;
-using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Mediator;
 
@@ -14,6 +14,6 @@ public sealed record GetUsersPagedQuery(
     int Page = PageRequest.DefaultPage,
     int PageSize = PageRequest.DefaultPageSize,
     string? Role = null
-) : IRequest<Result<PageResult<UserListDto>>>, IAuthorize {
+) : IRequest<Result<PageResult<UserListResponse>>>, IAuthorize {
     public string[] RequiredRoles => ["Administrador"];
 }

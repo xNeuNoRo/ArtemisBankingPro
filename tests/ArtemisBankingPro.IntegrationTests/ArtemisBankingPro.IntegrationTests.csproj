@@ -19,6 +19,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Moq" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
@@ -28,6 +29,7 @@
     <ProjectReference Include="..\..\src\Infrastructure\ArtemisBankingPro.Infrastructure.Identity\ArtemisBankingPro.Infrastructure.Identity.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\ArtemisBankingPro.Infrastructure.Shared\ArtemisBankingPro.Infrastructure.Shared.csproj" />
     <ProjectReference Include="..\..\src\Presentation\ArtemisBankingPro.Api\ArtemisBankingPro.Api.csproj" />
+    <ProjectReference Include="..\..\src\Presentation\ArtemisBankingPro.WebApp\ArtemisBankingPro.WebApp.csproj" Aliases="WebApp" />
   </ItemGroup>
 
 </Project>

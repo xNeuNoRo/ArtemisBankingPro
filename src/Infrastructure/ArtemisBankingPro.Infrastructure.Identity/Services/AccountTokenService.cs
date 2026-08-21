@@ -6,9 +6,11 @@ using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Identity.Security;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
+using System.Data;
 
 namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 
@@ -22,6 +24,7 @@ public sealed class AccountTokenService : IAccountTokenService {
     private readonly UserManager<AppUser> _userManager;
     private readonly AccountTokenOptions _options;
     private readonly TimeProvider _timeProvider;
+    private readonly byte[] _pepperKey;
 
     public AccountTokenService(
         IdentityContext context,
@@ -40,6 +43,34 @@ public sealed class AccountTokenService : IAccountTokenService {
                     + "Provea una clave HMAC de 32 bytes en base64."
             );
         }
+
+        try {
+            _pepperKey = Convert.FromBase64String(_options.PepperKey);
+        }
+        catch (FormatException ex) {
+            throw new InvalidOperationException(
+                "Security:AccountTokens:PepperKey debe estar en base64.",
+                ex
+            );
+        }
+
+        if (_pepperKey.Length < 32) {
+            throw new InvalidOperationException(
+                "Security:AccountTokens:PepperKey debe contener al menos 32 bytes."
+            );
+        }
+
+        if (
+            _options.ActivationLifetimeMinutes < 1
+            || _options.ResetLifetimeMinutes < 1
+            || _options.ResetRequestCooldownSeconds < 1
+            || _options.ResetRequestWindowMinutes < 1
+            || _options.MaxResetRequestsPerWindow < 1
+        ) {
+            throw new InvalidOperationException(
+                "Las vigencias y límites de tokens de cuenta deben ser positivos."
+            );
+        }
     }
 
     public async Task<string> GenerateAsync(
@@ -49,33 +80,144 @@ public sealed class AccountTokenService : IAccountTokenService {
     ) {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
+        await using IDbContextTransaction transaction =
+            await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
         string rawToken = CreateRawToken();
-        string tokenHash = ComputeHash(rawToken);
-
-        // Invalida tokens previos no usados del mismo usuario
-        List<AccountToken> previous = await _context
-            .AccountTokens.Where(token =>
-                token.UserId == userId && token.Type == type && token.UsedAtUtc == null
-            )
-            .ToListAsync(ct);
-
-        foreach (AccountToken token in previous) {
-            token.MarkUsed(nowUtc);
+        if (await LockTokenGenerationAsync(userId, ct) == 0) {
+            throw new InvalidOperationException("No existe el usuario para el token de cuenta.");
         }
+        // The per-user database lock can wait for another generator. Capture the
+        // timestamp after acquiring it so invalidation never predates token creation.
+        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
+        await InvalidateActiveTokensAsync(userId, type, nowUtc, ct);
+        AddToken(userId, type, rawToken, nowUtc);
 
-        var created = new AccountToken(
-            userId,
-            type,
-            tokenHash,
-            nowUtc.AddMinutes(GetLifetimeMinutes(type)),
-            nowUtc
-        );
-
-        _context.AccountTokens.Add(created);
         await _context.SaveChangesAsync(ct);
-
+        await transaction.CommitAsync(CancellationToken.None);
         return rawToken;
+    }
+
+    public async Task<Result<PasswordResetTokenResult>> GeneratePasswordResetAsync(
+        string userId,
+        IReadOnlyCollection<string> allowedRoles,
+        CancellationToken ct = default
+    ) {
+        if (string.IsNullOrWhiteSpace(userId)) {
+            return Result.Failure<PasswordResetTokenResult>(
+                DomainError.Validation("Account.ResetUserRequired", "El usuario es requerido.")
+            );
+        }
+        ArgumentNullException.ThrowIfNull(allowedRoles);
+
+        await using IDbContextTransaction transaction =
+            await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+        try {
+            if (await LockTokenGenerationAsync(userId, ct) == 0) {
+                return Result.Failure<PasswordResetTokenResult>(
+                    DomainError.NotFound("User.NotFound", "El usuario no existe.")
+                );
+            }
+
+            AppUser? user = await _userManager.FindByIdAsync(userId);
+            if (user is null) {
+                return Result.Failure<PasswordResetTokenResult>(
+                    DomainError.NotFound("User.NotFound", "El usuario no existe.")
+                );
+            }
+
+            IList<string> roles = await _userManager.GetRolesAsync(user);
+            if (!roles.Any(allowedRoles.Contains)) {
+                return Result.Failure<PasswordResetTokenResult>(
+                    DomainError.Validation(
+                        "Account.ResetUserNotFound",
+                        "No existe un usuario registrado con este nombre de usuario."
+                    )
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(user.Email)) {
+                return Result.Failure<PasswordResetTokenResult>(
+                    DomainError.Validation(
+                        "Account.ResetEmailMissing",
+                        "Este usuario no tiene un correo electrónico registrado. "
+                            + "No es posible enviar la solicitud de restablecimiento."
+                    )
+                );
+            }
+
+            DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
+            DateTimeOffset cooldownStart = nowUtc.AddSeconds(-_options.ResetRequestCooldownSeconds);
+            DateTimeOffset windowStart = nowUtc.AddMinutes(-_options.ResetRequestWindowMinutes);
+
+            AccountToken? latest = await _context.AccountTokens
+                .Where(item => item.UserId == userId && item.Type == AccountTokenType.PasswordReset)
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .FirstOrDefaultAsync(ct);
+
+            if (latest is not null && latest.CreatedAtUtc >= cooldownStart) {
+                return Result.Failure<PasswordResetTokenResult>(
+                    DomainError.Validation(
+                        "Auth.ResetCooldown",
+                        "Debe esperar antes de solicitar otro restablecimiento de contraseña."
+                    )
+                );
+            }
+
+            int requestsInWindow = await _context.AccountTokens.CountAsync(
+                item =>
+                    item.UserId == userId
+                    && item.Type == AccountTokenType.PasswordReset
+                    && item.CreatedAtUtc >= windowStart,
+                ct
+            );
+            if (requestsInWindow >= _options.MaxResetRequestsPerWindow) {
+                return Result.Failure<PasswordResetTokenResult>(
+                    DomainError.Validation(
+                        "Auth.ResetRateLimited",
+                        "Se alcanzó el límite temporal de solicitudes de restablecimiento."
+                    )
+                );
+            }
+
+            string rawToken = CreateRawToken();
+            await InvalidateActiveTokensAsync(userId, AccountTokenType.PasswordReset, nowUtc, ct);
+            AddToken(userId, AccountTokenType.PasswordReset, rawToken, nowUtc);
+
+            user.Active = false;
+            IdentityResult stampResult = await _userManager.UpdateSecurityStampAsync(user);
+            if (!stampResult.Succeeded) {
+                return Result.Failure<PasswordResetTokenResult>(
+                    DomainError.Conflict(
+                        "User.StatusUpdateFailed",
+                        "No fue posible actualizar el estado del usuario."
+                    )
+                );
+            }
+
+            await _context.SaveChangesAsync(ct);
+            await transaction.CommitAsync(CancellationToken.None);
+            return Result.Success(
+                new PasswordResetTokenResult(rawToken, user.Email, user.FullName)
+            );
+        }
+        catch (DbUpdateConcurrencyException) {
+            return Result.Failure<PasswordResetTokenResult>(
+                DomainError.Conflict(
+                    "Concurrency.Conflict",
+                    "La cuenta cambió mientras se generaba el restablecimiento. Intente nuevamente."
+                )
+            );
+        }
+        catch (DbUpdateException ex) when (HasSqlServerError(ex, 1205, 2601, 2627)) {
+            return Result.Failure<PasswordResetTokenResult>(
+                DomainError.Conflict(
+                    "Concurrency.Conflict",
+                    "La solicitud de restablecimiento entró en conflicto. Intente nuevamente."
+                )
+            );
+        }
     }
 
     public async Task<AccountTokenVerificationResult> VerifyAndConsumeAsync(
@@ -89,8 +231,6 @@ public sealed class AccountTokenService : IAccountTokenService {
         }
 
         string tokenHash = ComputeHash(token);
-        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
-
         List<AccountToken> candidates = await _context
             .AccountTokens.Where(item => item.UserId == userId && item.Type == type)
             .OrderByDescending(item => item.CreatedAtUtc)
@@ -104,7 +244,7 @@ public sealed class AccountTokenService : IAccountTokenService {
             return AccountTokenVerificationResult.Invalid;
         }
 
-        return await ConsumeIfValidAsync(match, tokenHash, nowUtc, ct);
+        return await ConsumeIfValidAsync(match, tokenHash, ct);
     }
 
     public async Task<TokenVerification> VerifyAndConsumeByTokenAsync(
@@ -117,8 +257,6 @@ public sealed class AccountTokenService : IAccountTokenService {
         }
 
         string tokenHash = ComputeHash(token);
-        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
-
         AccountToken? match = await _context
             .AccountTokens.FirstOrDefaultAsync(
                 item => item.Type == type && item.TokenHash == tokenHash,
@@ -129,8 +267,89 @@ public sealed class AccountTokenService : IAccountTokenService {
             return new TokenVerification(AccountTokenVerificationResult.Invalid, null);
         }
 
-        AccountTokenVerificationResult result = await ConsumeIfValidAsync(match, tokenHash, nowUtc, ct);
+        AccountTokenVerificationResult result = await ConsumeIfValidAsync(match, tokenHash, ct);
         return new TokenVerification(result, result == AccountTokenVerificationResult.Valid ? match.UserId : null);
+    }
+
+    public async Task<Result<AccountTokenVerificationResult>> CompleteActivationAsync(
+        string token,
+        CancellationToken ct = default
+    ) {
+        if (string.IsNullOrWhiteSpace(token)) {
+            return Result.Success(AccountTokenVerificationResult.Invalid);
+        }
+
+        string tokenHash = ComputeHash(token);
+        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
+        AccountToken? match = await _context.AccountTokens
+            .Where(item => item.Type == AccountTokenType.Activation)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(item => item.TokenHash == tokenHash, ct);
+
+        if (match is null || !HashesMatch(match.TokenHash, tokenHash)) {
+            return Result.Success(AccountTokenVerificationResult.Invalid);
+        }
+
+        if (match.IsExpired(nowUtc)) {
+            return Result.Success(AccountTokenVerificationResult.Expired);
+        }
+
+        if (match.IsUsed) {
+            return Result.Success(AccountTokenVerificationResult.AlreadyUsed);
+        }
+
+        AppUser? user = await _userManager.FindByIdAsync(match.UserId);
+        if (user is null || user.Active) {
+            return Result.Success(AccountTokenVerificationResult.Invalid);
+        }
+
+        IExecutionStrategy strategy = _context.Database.CreateExecutionStrategy();
+        try {
+            return await strategy.ExecuteAsync(async () => {
+                await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+
+                if (await LockTokenGenerationAsync(match.UserId, ct) == 0) {
+                    return Result.Success(AccountTokenVerificationResult.Invalid);
+                }
+
+                await _context.Entry(user).ReloadAsync(ct);
+                if (user.Active) {
+                    return Result.Success(AccountTokenVerificationResult.Invalid);
+                }
+
+                DateTimeOffset transactionNowUtc = _timeProvider.GetUtcNow();
+                if (await TryConsumeAsync(match, transactionNowUtc, ct) != 1) {
+                    return Result.Success(
+                        transactionNowUtc >= match.ExpiresAtUtc
+                            ? AccountTokenVerificationResult.Expired
+                            : AccountTokenVerificationResult.AlreadyUsed
+                    );
+                }
+
+                user.Active = true;
+                IdentityResult updateResult = await _userManager.UpdateSecurityStampAsync(user);
+                if (!updateResult.Succeeded) {
+                    return Result.Failure<AccountTokenVerificationResult>(
+                        DomainError.Conflict(
+                            "User.StatusUpdateFailed",
+                            "No fue posible actualizar el estado del usuario."
+                        )
+                    );
+                }
+
+                await _context.SaveChangesAsync(ct);
+                await transaction.CommitAsync(CancellationToken.None);
+                return Result.Success(AccountTokenVerificationResult.Valid);
+            });
+        }
+        catch (DbUpdateConcurrencyException) {
+            return Result.Failure<AccountTokenVerificationResult>(
+                DomainError.Conflict(
+                    "Concurrency.Conflict",
+                    "La cuenta cambió mientras se procesaba el token. Intente nuevamente."
+                )
+            );
+        }
     }
 
     public async Task<Result<AccountTokenVerificationResult>> CompletePasswordResetAsync(
@@ -174,7 +393,20 @@ public sealed class AccountTokenService : IAccountTokenService {
             return await strategy.ExecuteAsync(async () => {
                 await using var transaction = await _context.Database.BeginTransactionAsync(ct);
 
-                match.MarkUsed(nowUtc);
+                if (await LockTokenGenerationAsync(userId, ct) == 0) {
+                    return Result.Success(AccountTokenVerificationResult.Invalid);
+                }
+
+                await _context.Entry(user).ReloadAsync(ct);
+
+                DateTimeOffset transactionNowUtc = _timeProvider.GetUtcNow();
+                if (await TryConsumeAsync(match, transactionNowUtc, ct) != 1) {
+                    return Result.Success(
+                        transactionNowUtc >= match.ExpiresAtUtc
+                            ? AccountTokenVerificationResult.Expired
+                            : AccountTokenVerificationResult.AlreadyUsed
+                    );
+                }
 
                 IdentityResult removeResult = await _userManager.RemovePasswordAsync(user);
                 if (!removeResult.Succeeded) {
@@ -197,7 +429,7 @@ public sealed class AccountTokenService : IAccountTokenService {
                 }
 
                 user.Active = true;
-                IdentityResult updateResult = await _userManager.UpdateAsync(user);
+                IdentityResult updateResult = await _userManager.UpdateSecurityStampAsync(user);
                 if (!updateResult.Succeeded) {
                     return Result.Failure<AccountTokenVerificationResult>(
                         DomainError.Conflict(
@@ -208,25 +440,30 @@ public sealed class AccountTokenService : IAccountTokenService {
                 }
 
                 await _context.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
+                await transaction.CommitAsync(CancellationToken.None);
                 return Result.Success(AccountTokenVerificationResult.Valid);
             });
         }
         catch (DbUpdateConcurrencyException) {
-            return Result.Success(AccountTokenVerificationResult.AlreadyUsed);
+            return Result.Failure<AccountTokenVerificationResult>(
+                DomainError.Conflict(
+                    "Concurrency.Conflict",
+                    "La cuenta cambió mientras se procesaba el token. Intente nuevamente."
+                )
+            );
         }
     }
 
     private async Task<AccountTokenVerificationResult> ConsumeIfValidAsync(
         AccountToken match,
         string tokenHash,
-        DateTimeOffset nowUtc,
         CancellationToken ct
     ) {
         if (!HashesMatch(match.TokenHash, tokenHash)) {
             return AccountTokenVerificationResult.Invalid;
         }
 
+        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
         if (match.IsExpired(nowUtc)) {
             return AccountTokenVerificationResult.Expired;
         }
@@ -235,18 +472,80 @@ public sealed class AccountTokenService : IAccountTokenService {
             return AccountTokenVerificationResult.AlreadyUsed;
         }
 
-        match.MarkUsed(nowUtc);
-
         try {
-            await _context.SaveChangesAsync(ct);
+            int affected = await TryConsumeAsync(match, nowUtc, ct);
+            if (affected == 1) {
+                return AccountTokenVerificationResult.Valid;
+            }
+
+            return nowUtc >= match.ExpiresAtUtc
+                ? AccountTokenVerificationResult.Expired
+                : AccountTokenVerificationResult.AlreadyUsed;
         }
         catch (DbUpdateConcurrencyException) {
-            // Otro request consumió el token primero.
             return AccountTokenVerificationResult.AlreadyUsed;
         }
-
-        return AccountTokenVerificationResult.Valid;
     }
+
+    private async Task InvalidateActiveTokensAsync(
+        string userId,
+        AccountTokenType type,
+        DateTimeOffset usedAtUtc,
+        CancellationToken ct
+    ) {
+        List<AccountToken> previous = await _context.AccountTokens
+            .Where(token =>
+                token.UserId == userId && token.Type == type && token.UsedAtUtc == null
+            )
+            .ToListAsync(ct);
+
+        foreach (AccountToken token in previous) {
+            token.MarkUsed(usedAtUtc);
+        }
+    }
+
+    private Task<int> LockTokenGenerationAsync(string userId, CancellationToken ct) =>
+        _context.Users
+            .Where(user => user.Id == userId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    user => user.AccountTokenVersion,
+                    user => user.AccountTokenVersion + 1
+                ),
+                ct
+            );
+
+    private void AddToken(
+        string userId,
+        AccountTokenType type,
+        string rawToken,
+        DateTimeOffset nowUtc
+    ) {
+        _context.AccountTokens.Add(
+            new AccountToken(
+                userId,
+                type,
+                ComputeHash(rawToken),
+                nowUtc.AddMinutes(GetLifetimeMinutes(type)),
+                nowUtc
+            )
+        );
+    }
+
+    private Task<int> TryConsumeAsync(
+        AccountToken match,
+        DateTimeOffset nowUtc,
+        CancellationToken ct
+        ) => _context.AccountTokens
+        .Where(item =>
+            item.Id == match.Id
+            && item.UsedAtUtc == null
+            && item.ExpiresAtUtc > nowUtc
+        )
+        .ExecuteUpdateAsync(
+            setters => setters.SetProperty(item => item.UsedAtUtc, nowUtc),
+            ct
+        );
 
     private int GetLifetimeMinutes(AccountTokenType type) =>
         type == AccountTokenType.PasswordReset
@@ -260,8 +559,7 @@ public sealed class AccountTokenService : IAccountTokenService {
     }
 
     private string ComputeHash(string rawToken) {
-        byte[] key = Convert.FromBase64String(_options.PepperKey!);
-        byte[] digest = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(rawToken));
+        byte[] digest = HMACSHA256.HashData(_pepperKey, Encoding.UTF8.GetBytes(rawToken));
         return Convert.ToHexString(digest).ToLowerInvariant();
     }
 
@@ -270,4 +568,14 @@ public sealed class AccountTokenService : IAccountTokenService {
             Encoding.UTF8.GetBytes(stored),
             Encoding.UTF8.GetBytes(computed)
         );
+
+    private static bool HasSqlServerError(Exception exception, params int[] numbers) {
+        for (Exception? current = exception; current is not null; current = current.InnerException) {
+            if (current is SqlException sqlException && numbers.Contains(sqlException.Number)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

@@ -20,9 +20,9 @@ namespace ArtemisBankingPro.Application.Common.Behaviors;
 /// <list type="bullet">
 /// <item>La reserva es atómica: la unicidad <c>(IdempotencyKey, ActorId)</c>
 /// arbitra las carreras entre solicitudes concurrentes.</item>
-/// <item>El registro es terminal (Completed o Rejected) y nunca se elimina:
-/// repetir la misma clave devuelve un resultado determinista sin re-ejecutar
-/// ni duplicar la operación.</item>
+/// <item>Los resultados de negocio son terminales (Completed o Rejected) y
+/// nunca se eliminan. Una excepción deja InProgress porque no demuestra que
+/// un commit financiero haya sido revertido.</item>
 /// <item>Una reserva <c>InProgress</c> que supera el lease se considera de
 /// resultado desconocido y se marca rechazada, para no duplicar la operación.</item>
 /// </list>
@@ -72,17 +72,21 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         ValidateCallerKey(key);
         string fingerprint = HashFingerprint(message.RequestFingerprint);
 
-        // 1. Ruta rápida: registro ya existente (terminal, en proceso o expirado).
+        // Comprobamos si ya existe un registro de idempotencia para esta clave y actor:
         IdempotencyRecord? existing = await _repository.GetAsync(
             key,
             actorId,
             cancellationToken
         );
         if (existing is not null) {
-            await HandleExistingAsync(existing, fingerprint, cancellationToken);
+            await HandleExistingAsync(
+                existing,
+                typeof(TRequest).Name,
+                fingerprint
+            );
         }
 
-        // 2. Reserva atómica: la unicidad (key, actor) arbitra las carreras.
+        // Reservamos la clave de idempotencia para este actor y operación
         IdempotencyRecord record = new(
             key,
             actorId,
@@ -97,27 +101,39 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
                 actorId,
                 cancellationToken
             );
-            await HandleExistingAsync(winner ?? record, fingerprint, cancellationToken);
+            await HandleExistingAsync(winner ?? record, typeof(TRequest).Name, fingerprint);
         }
 
-        // 3. Ejecutar el caso de uso.
+        // Ejecutamos el handler y finalizamos el registro de idempotencia según el resultado:
         TResponse response;
         try {
             response = await next(message, cancellationToken);
         }
-        catch {
-            await FinalizeAsync(record, rejected: true, reference: "HandlerFailed", ct: cancellationToken);
-            throw;
+        catch (OperationCanceledException ex) {
+            // La cancelación no prueba que la transacción financiera haya sido
+            // revertida. Mantener InProgress fuerza el tratamiento seguro de
+            // resultado desconocido cuando expire el lease.
+            _logger.LogWarning(
+                ex,
+                "La operación idempotente {OperationType} fue cancelada con resultado desconocido (clave {KeyHash}).",
+                typeof(TRequest).Name,
+                HashFingerprint(key)[..12]
+            );
+            throw new OperationCanceledException(
+                "La operación idempotente fue cancelada y su resultado quedó desconocido.",
+                ex,
+                ex.CancellationToken
+            );
         }
-
-        // 4. Estado terminal (nunca se elimina).
+        // El resto de excepciones se propaga y deja el registro InProgress, para que
+        // el lease lo recupere y marque como Rejected si no se confirma la operación
         if (response.IsSuccess) {
             string reference = response.ResultReference ?? key;
-            await FinalizeAsync(record, rejected: false, reference: reference, ct: cancellationToken);
+            await FinalizeAsync(record, rejected: false, reference: reference);
         }
         else {
             string reference = response.Error?.Code ?? "Rejected";
-            await FinalizeAsync(record, rejected: true, reference: reference, ct: cancellationToken);
+            await FinalizeAsync(record, rejected: true, reference: reference);
         }
 
         return response;
@@ -125,9 +141,15 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
 
     private async Task HandleExistingAsync(
         IdempotencyRecord existing,
-        string fingerprint,
-        CancellationToken cancellationToken
+        string operationType,
+        string fingerprint
     ) {
+        if (!string.Equals(existing.OperationType, operationType, StringComparison.Ordinal)) {
+            throw new IdempotencyConflictException(
+                "La clave de idempotencia ya fue utilizada para otro tipo de operación."
+            );
+        }
+
         if (existing.RequestFingerprint != fingerprint) {
             throw new IdempotencyConflictException(
                 "La clave de idempotencia fue reutilizada con un payload distinto."
@@ -153,8 +175,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
                     await FinalizeAsync(
                         existing,
                         rejected: true,
-                        reference: "ExpiredUnknownOutcome",
-                        ct: cancellationToken
+                        reference: "ExpiredUnknownOutcome"
                     );
                     throw new IdempotencyConflictException(
                         "La operación quedó en estado desconocido (lease expirado); reintente con una nueva clave."
@@ -172,7 +193,11 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
     }
 
     private static void ValidateCallerKey(string key) {
-        if (string.IsNullOrWhiteSpace(key) || key.Length > 128) {
+        if (string.IsNullOrWhiteSpace(key)) {
+            throw new MissingIdempotencyKeyException();
+        }
+
+        if (key.Length > 128) {
             throw new ValidationException(
                 [
                     new ValidationFailure(
@@ -200,8 +225,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
     private async Task FinalizeAsync(
         IdempotencyRecord record,
         bool rejected,
-        string reference,
-        CancellationToken ct
+        string reference
     ) {
         if (rejected) {
             record.Reject(reference, _clock.NowUtc);
@@ -215,7 +239,7 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
                 _repository.Update(record);
                 return Task.FromResult(Result.Success());
             },
-            ct: ct
+            ct: CancellationToken.None
         );
 
         // Best-effort: la operación financiera ya se confirmó; un fallo aquí no
@@ -223,9 +247,10 @@ public sealed class IdempotencyBehavior<TRequest, TResponse>
         // lease lo recupera.
         if (result.IsFailure) {
             _logger.LogWarning(
-                "No se pudo finalizar el registro de idempotencia {Key} ({ErrorCode}).",
-                record.IdempotencyKey,
-                result.Error!.Code
+                "No se pudo finalizar el registro de idempotencia {OperationType} ({ErrorCode}, clave {KeyHash}).",
+                record.OperationType,
+                result.Error!.Code,
+                HashFingerprint(record.IdempotencyKey)[..12]
             );
         }
     }

@@ -6,7 +6,10 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
 public sealed class MerchantConfiguration : IEntityTypeConfiguration<Merchant> {
     public void Configure(EntityTypeBuilder<Merchant> builder) {
-        builder.ToTable("Merchants");
+        builder.ToTable(
+            "Merchants",
+            table => table.HasCheckConstraint("CK_Merchants_Status_Valid", "[Status] IN (1, 2)")
+        );
         builder.HasKey(merchant => merchant.Id);
         builder.Property(merchant => merchant.Id).ValueGeneratedOnAdd();
 

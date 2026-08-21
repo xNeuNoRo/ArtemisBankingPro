@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
+using System.Globalization;
 
 namespace ArtemisBankingPro.Application.Features.CreditCard.Commands;
 
@@ -16,5 +17,5 @@ public sealed record CancelCreditCardCommand(int CardId)
 
     public string IdempotencyKey { get; init; } = string.Empty;
 
-    public string RequestFingerprint => $"{CardId}";
+    public string RequestFingerprint => CardId.ToString(CultureInfo.InvariantCulture);
 }

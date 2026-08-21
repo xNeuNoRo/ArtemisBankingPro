@@ -128,6 +128,26 @@ public sealed class FeatureViewModelValidationTests {
     }
 
     [Fact]
+    public void Product_status_filters_select_all_when_searching_by_client_without_status() {
+        CreditCardListViewModel cards = new() {
+            Identification = "00100000001",
+            StatusOptions = CreditCardListViewModel.BuildStatusOptions(null, true),
+        };
+        LoanListViewModel loans = new() {
+            Identification = "00100000001",
+            StatusOptions = LoanListViewModel.BuildStatusOptions(null, true),
+        };
+        SavingsAccountListViewModel accounts = new() {
+            Identification = "00100000001",
+            StatusOptions = SavingsAccountListViewModel.BuildStatusOptions(null, true),
+        };
+
+        cards.StatusOptions.Single(option => option.Text == "Todas").IsSelected.Should().BeTrue();
+        loans.StatusOptions.Single(option => option.Text == "Todos").IsSelected.Should().BeTrue();
+        accounts.StatusOptions.Single(option => option.Text == "Todas").IsSelected.Should().BeTrue();
+    }
+
+    [Fact]
     public void PresentationValidation_DoesNotReplaceServerAuthoritativeRules() {
         CreateLoanViewModel model = new() {
             CapitalAmount = 1m,

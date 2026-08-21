@@ -1,0 +1,107 @@
+@model string?
+@{
+    string normalized = (Model ?? string.Empty).Trim().ToUpperInvariant();
+    string variant = "neutral";
+    string label = string.IsNullOrWhiteSpace(Model) ? "Sin estado" : Model.Trim();
+
+    switch (normalized) {
+        case "ACTIVO":
+        case "ACTIVE":
+            variant = "active";
+            label = "Activo";
+            break;
+        case "ACTIVA":
+            variant = "active";
+            label = "Activa";
+            break;
+        case "INACTIVO":
+        case "INACTIVE":
+            variant = "cancelled";
+            label = "Inactivo";
+            break;
+        case "INACTIVA":
+            variant = "cancelled";
+            label = "Inactiva";
+            break;
+        case "PENDIENTE":
+        case "PENDING":
+            variant = "pending";
+            label = "Pendiente";
+            break;
+        case "RECHAZADO":
+        case "REJECTED":
+        case "DECLINED":
+            variant = "rejected";
+            label = "Rechazado";
+            break;
+        case "RECHAZADA":
+            variant = "rejected";
+            label = "Rechazada";
+            break;
+        case "CANCELADO":
+        case "CANCELLED":
+            variant = "cancelled";
+            label = "Cancelado";
+            break;
+        case "CANCELADA":
+            variant = "cancelled";
+            label = "Cancelada";
+            break;
+        case "APROBADO":
+        case "APROBADA":
+        case "APPROVED":
+            variant = "success";
+            label = normalized == "APROBADA" ? "Aprobada" : "Aprobado";
+            break;
+        case "COMPLETED":
+        case "COMPLETADO":
+            variant = "success";
+            label = "Completado";
+            break;
+        case "COMPLETADA":
+            variant = "success";
+            label = "Completada";
+            break;
+        case "PAID":
+        case "PAGADO":
+            variant = "success";
+            label = "Pagado";
+            break;
+        case "PAGADA":
+            variant = "success";
+            label = "Pagada";
+            break;
+        case "PARTIALLYPAID":
+        case "PARTIALLY PAID":
+        case "PARCIALMENTE PAGADO":
+        case "PARCIALMENTE PAGADA":
+            variant = "warning";
+            label = "Pago parcial";
+            break;
+        case "EN MORA":
+        case "OVERDUE":
+        case "LATE":
+            variant = "rejected";
+            label = "En mora";
+            break;
+        case "AL DÍA":
+        case "AL DIA":
+        case "CURRENT":
+            variant = "active";
+            label = "Al día";
+            break;
+        case "CRÉDITO":
+        case "CREDITO":
+        case "CREDIT":
+            variant = "credit";
+            label = "Crédito";
+            break;
+        case "DÉBITO":
+        case "DEBITO":
+        case "DEBIT":
+            variant = "debit";
+            label = "Débito";
+            break;
+    }
+}
+<span class="ui-badge ui-badge--@variant">@label</span>

@@ -19,6 +19,19 @@ public sealed class InstallmentConfiguration : IEntityTypeConfiguration<Installm
                     "CK_Installments_Paid_Within_Scheduled",
                     "[PaidAmount] <= [ScheduledAmount]"
                 );
+                table.HasCheckConstraint(
+                    "CK_Installments_Interest_NonNegative",
+                    "[InterestAmount] >= 0"
+                );
+                table.HasCheckConstraint(
+                    "CK_Installments_Principal_NonNegative",
+                    "[PrincipalAmount] >= 0"
+                );
+                table.HasCheckConstraint("CK_Installments_Number_Positive", "[Number] > 0");
+                table.HasCheckConstraint(
+                    "CK_Installments_Scheduled_Equals_Breakdown",
+                    "[ScheduledAmount] = [InterestAmount] + [PrincipalAmount]"
+                );
             }
         );
         builder.HasKey(installment => installment.Id);

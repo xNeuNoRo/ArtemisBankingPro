@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Http;
 namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 
 /// <summary>
-/// Actor autenticado leído del ClaimsPrincipal actual. El claim de comercio
-/// solo está presente en tokens JWT de rol Comercio.
+/// Actor autenticado leído del ClaimsPrincipal actual. Funciona con el principal
+/// de la cookie MVC y con el principal del token JWT.
 /// </summary>
 public sealed class CurrentUserService : ICurrentUserService {
     public const string CommerceIdClaim = "commerce_id";

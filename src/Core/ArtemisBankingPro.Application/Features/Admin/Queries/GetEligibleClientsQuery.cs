@@ -15,7 +15,8 @@ public sealed record GetEligibleClientsQuery(
     ClientAssignmentProduct Product,
     int Page = PageRequest.DefaultPage,
     int PageSize = PageRequest.DefaultPageSize,
-    string? Identification = null
+    string? Identification = null,
+    string? SelectedClientId = null
 ) : IRequest<Result<EligibleClientsResponse>>, IAuthorize {
     public string[] RequiredRoles => ["Administrador"];
 }

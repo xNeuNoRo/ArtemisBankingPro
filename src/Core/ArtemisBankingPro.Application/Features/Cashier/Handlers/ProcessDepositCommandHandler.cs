@@ -61,7 +61,8 @@ public sealed class ProcessDepositCommandHandler
         ProcessDepositCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. Cuenta activa (estado mutable re-leído).
+        // Cuenta de origen válida (número, existencia y estado activo). La validación de
+        // monto positivo se hace en el dominio bajo protección de concurrencia.
         var accountNumberResult = AccountNumber.Create(message.AccountNumber);
         if (accountNumberResult.IsFailure) {
             return Result.Failure<CashierOperationResponse>(accountNumberResult.Error!);
@@ -75,7 +76,7 @@ public sealed class ProcessDepositCommandHandler
             return Result.Failure<CashierOperationResponse>(AccountErrors.SourceNotFound);
         }
 
-        // 2. Monto válido (monto <= 0 devuelve siempre el mismo error de
+        // Monto válido (monto <= 0 devuelve siempre el mismo error de
         // validación; Credit() lo revalida bajo protección de concurrencia).
         if (message.Amount <= 0m) {
             return Result.Failure<CashierOperationResponse>(AccountErrors.AmountMustBePositive);
@@ -88,7 +89,7 @@ public sealed class ProcessDepositCommandHandler
 
         var amount = amountResult.Value;
 
-        // 3. Crédito + operación + evento, atómicos. Credit() valida de nuevo
+        // Crédito + operación + evento, atómicos. Credit() valida de nuevo
         // el estado activo y el monto positivo.
         var occurredAt = _clock.Now;
         Guid operationId = Guid.NewGuid();
@@ -98,13 +99,13 @@ public sealed class ProcessDepositCommandHandler
             account,
             amount,
             occurredAt,
-            cancellationToken
+            CancellationToken.None
         );
         if (persistResult.IsFailure) {
             return Result.Failure<CashierOperationResponse>(persistResult.Error!);
         }
 
-        // 4. Correo post-commit (fallo no revierte el depósito; la respuesta
+        // Correo post-commit (fallo no revierte el depósito; la respuesta
         // informa el warning de notificación).
         bool notificationsOk = await SendNotificationAsync(
             account,
@@ -165,12 +166,15 @@ public sealed class ProcessDepositCommandHandler
                 }
 
                 var operation = operationResult.Value;
-                operation.RecordDepositProcessed(
+                Result eventResult = operation.RecordDepositProcessed(
                     account.Number.Value,
                     amount,
                     account.OwnerUserId,
                     _currentUser.UserId!
                 );
+                if (eventResult.IsFailure) {
+                    return eventResult;
+                }
 
                 await _financialOperationRepository.AddAsync(operation, ct);
                 return Result.Success();
@@ -221,9 +225,9 @@ public sealed class ProcessDepositCommandHandler
         catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
-                "No se pudo enviar el correo {Template} tras el depósito en la cuenta {AccountNumber}.",
+                "No se pudo enviar el correo {Template} tras el depósito en la cuenta terminada en {AccountLastFour}.",
                 model.TemplateName,
-                accountNumber
+                accountNumber[^4..]
             );
             return false;
         }

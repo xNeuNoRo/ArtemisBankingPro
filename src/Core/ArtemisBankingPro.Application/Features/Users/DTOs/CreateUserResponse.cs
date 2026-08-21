@@ -1,11 +1,13 @@
+using System.Text.Json.Serialization;
+
 namespace ArtemisBankingPro.Application.Features.Users.DTOs;
 
-/// <summary>Respuesta de creación de usuario de la aplicación web.</summary>
+/// <summary>Respuesta API de creación de usuario.</summary>
 public sealed record CreateUserResponse(
-    string UserId,
+    string Id,
     string UserName,
     string Email,
     string Role,
     bool IsActive,
-    string? MainAccountNumber
+    [property: JsonIgnore] bool ActivationEmailSent = true
 );

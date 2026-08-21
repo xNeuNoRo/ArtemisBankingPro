@@ -48,15 +48,15 @@ public sealed class CardPaymentProcessor : ICardPaymentProcessor {
         CancellationToken ct = default
     ) {
         if (card.Status != CreditCardStatus.Active) {
-            return Result.Failure<FinancialOperationOutcome>(CardErrors.NotActive);
+            return await RejectAsync(card, account, requestedAmount, CardErrors.NotActive, initiatedByUserId, ct);
         }
 
         if (card.CurrentDebt == Money.Zero) {
-            return Result.Failure<FinancialOperationOutcome>(CardErrors.NoDebt);
+            return await RejectAsync(card, account, requestedAmount, CardErrors.NoDebt, initiatedByUserId, ct);
         }
 
         if (account.Status != AccountStatus.Active) {
-            return Result.Failure<FinancialOperationOutcome>(AccountErrors.NotActive);
+            return await RejectAsync(card, account, requestedAmount, AccountErrors.NotActive, initiatedByUserId, ct);
         }
 
         Money effectiveAmount = Money.Create(
@@ -179,5 +179,26 @@ public sealed class CardPaymentProcessor : ICardPaymentProcessor {
             },
             ct: ct
         );
+    }
+
+    private async Task<Result<FinancialOperationOutcome>> RejectAsync(
+        CreditCardEntity card,
+        SavingsAccount account,
+        Money amount,
+        DomainError error,
+        string initiatedByUserId,
+        CancellationToken ct
+    ) {
+        Result rejection = await PersistRejectionAsync(
+            card,
+            account,
+            amount,
+            error,
+            initiatedByUserId,
+            ct
+        );
+        return rejection.IsFailure
+            ? Result.Failure<FinancialOperationOutcome>(rejection.Error!)
+            : Result.Failure<FinancialOperationOutcome>(error);
     }
 }

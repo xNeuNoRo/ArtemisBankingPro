@@ -1,0 +1,115 @@
+@model CreateUserViewModel
+@{
+    ViewData["Title"] = "Crear usuario";
+    string? submissionToken = ViewData["SubmissionToken"] as string;
+}
+
+<section class="page-header" aria-labelledby="create-user-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Usuarios</p>
+        <h1 id="create-user-title" class="page-header__title">Crear usuario</h1>
+        <p class="page-header__description">
+            Registre un usuario de la aplicación web. Toda cuenta nueva inicia inactiva y recibe un enlace de activación.
+        </p>
+    </div>
+</section>
+
+<form
+    method="post"
+    asp-action="CreateUser"
+    class="admin-form"
+    data-submit-lock
+    data-autofocus-error>
+    <input type="hidden" name="submissionToken" value="@submissionToken" />
+    <partial name="_ValidationSummary" />
+
+    <section class="ui-card admin-form__panel" aria-labelledby="identity-title">
+        <div class="ui-card__header">
+            <div>
+                <p class="ui-section-label">Identidad</p>
+                <h2 id="identity-title" class="ui-card__title">Datos personales y de acceso</h2>
+            </div>
+        </div>
+        <div class="ui-card__body admin-form-grid">
+            <div class="ui-field">
+                <label class="ui-label" asp-for="FirstName">Nombre</label>
+                <input class="ui-control" asp-for="FirstName" autocomplete="given-name" />
+                <span class="ui-error" asp-validation-for="FirstName"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="LastName">Apellido</label>
+                <input class="ui-control" asp-for="LastName" autocomplete="family-name" />
+                <span class="ui-error" asp-validation-for="LastName"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Identification">Cédula</label>
+                <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" />
+                <span class="ui-error" asp-validation-for="Identification"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Email">Correo electrónico</label>
+                <input class="ui-control" asp-for="Email" autocomplete="email" inputmode="email" />
+                <span class="ui-error" asp-validation-for="Email"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="UserName">Nombre de usuario</label>
+                <input class="ui-control" asp-for="UserName" autocomplete="username" />
+                <span class="ui-error" asp-validation-for="UserName"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Role">Tipo de usuario</label>
+                    <select class="ui-control" asp-for="Role" data-user-role autocomplete="off" required>
+                    <option value="" disabled>Seleccione un tipo</option>
+                    <option value="Administrador">Administrador</option>
+                    <option value="Cajero">Cajero</option>
+                    <option value="Cliente">Cliente</option>
+                </select>
+                <span class="ui-error" asp-validation-for="Role"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="ui-card admin-form__panel" aria-labelledby="security-title">
+        <div class="ui-card__header">
+            <div>
+                <p class="ui-section-label">Acceso inicial</p>
+                <h2 id="security-title" class="ui-card__title">Credenciales temporales</h2>
+            </div>
+        </div>
+        <div class="ui-card__body admin-form-grid">
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Password">Contraseña</label>
+                <div class="ui-control-group">
+                    <input class="ui-control" asp-for="Password" autocomplete="new-password" data-password-input="create-password" />
+                    <button class="ui-control-group__action" type="button" data-password-toggle="Password" aria-label="Ver" aria-pressed="false"><span aria-hidden="true" data-password-label>Ver</span></button>
+                </div>
+                <span class="ui-error" asp-validation-for="Password"></span>
+                <p class="ui-field-description">Debe tener entre 8 y 128 caracteres.</p>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="ConfirmPassword">Confirmar contraseña</label>
+                <div class="ui-control-group">
+                    <input class="ui-control" asp-for="ConfirmPassword" autocomplete="new-password" />
+                    <button class="ui-control-group__action" type="button" data-password-toggle="ConfirmPassword" aria-label="Ver" aria-pressed="false"><span aria-hidden="true" data-password-label>Ver</span></button>
+                </div>
+                <span class="ui-error" asp-validation-for="ConfirmPassword"></span>
+            </div>
+            <div class="ui-field admin-form__role-dependent" data-role-dependent="Cliente">
+                <label class="ui-label" asp-for="InitialAmount">
+                    Monto inicial
+                    <span class="ui-label__optional">Solo para Cliente</span>
+                </label>
+                <input class="ui-control" asp-for="InitialAmount" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" />
+                <span class="ui-error" asp-validation-for="InitialAmount"></span>
+                <p class="ui-field-description">Si se omite, la cuenta principal inicia en RD$ 0.00.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="page-actions">
+        <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Creando…">
+            <span data-submit-label>Crear usuario</span>
+        </button>
+        <a class="ui-button ui-button--secondary" asp-action="Users">Cancelar</a>
+    </div>
+</form>

@@ -1,10 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text.Json;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Security;
-using ArtemisBankingPro.Application.Settings;
+using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Settings;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using ArtemisBankingPro.Infrastructure.Identity.Repositories;
@@ -12,13 +12,16 @@ using ArtemisBankingPro.Infrastructure.Identity.Security;
 using ArtemisBankingPro.Infrastructure.Identity.Seeds;
 using ArtemisBankingPro.Infrastructure.Identity.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
+using System.Data.Common;
+using AppDataProtectionOptions = ArtemisBankingPro.Infrastructure.Identity.Security.DataProtectionOptions;
 
 namespace ArtemisBankingPro.Infrastructure.Identity;
 
@@ -35,16 +38,13 @@ public static class ServicesRegistration {
         this IServiceCollection services,
         IConfiguration configuration
     ) {
-        services.AddDbContext<IdentityContext>(options =>
+        services.AddHttpContextAccessor();
+
+        services.AddDbContext<IdentityContext>((provider, options) =>
             options.UseSqlServer(
-                configuration.GetConnectionString("ArtemisDb"),
+                provider.GetRequiredService<DbConnection>(),
                 sql => {
                     sql.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName);
-                    sql.EnableRetryOnFailure(
-                        maxRetryCount: 3,
-                        maxRetryDelay: TimeSpan.FromSeconds(5),
-                        errorNumbersToAdd: null
-                    );
                     sql.CommandTimeout(30);
                 }
             )
@@ -57,6 +57,9 @@ public static class ServicesRegistration {
         services.Configure<DefaultUsersOptions>(
             configuration.GetSection(DefaultUsersOptions.SectionName)
         );
+        services.Configure<DatabaseInitializationSettings>(
+            configuration.GetSection(DatabaseInitializationSettings.SectionName)
+        );
 
         services
             .AddIdentityCore<AppUser>(options => {
@@ -67,6 +70,7 @@ public static class ServicesRegistration {
                 options.Password.RequireUppercase = true;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
                 options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.AllowedForNewUsers = true;
                 options.User.RequireUniqueEmail = true;
             })
             .AddRoles<IdentityRole>()
@@ -77,15 +81,17 @@ public static class ServicesRegistration {
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserAccountService, UserAccountService>();
+        services.AddScoped<IDbTransactionParticipant, IdentityTransactionParticipant>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IAccountTokenService, AccountTokenService>();
+        services.AddHostedService<IdentityDatabaseInitializer>();
 
         return services;
     }
 
     /// <summary>
-    /// JWT Bearer para la Web API con validación completa (firma, emisor,
-    /// audiencia, vigencia) y respuestas 401/403 con mensajes del contrato.
+    /// JWT Bearer para la Web API con validación criptográfica completa y
+    /// respuestas 401/403 con mensajes del contrato.
     /// </summary>
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services,
@@ -106,65 +112,79 @@ public static class ServicesRegistration {
             .AddJwtBearer(options => {
                 options.RequireHttpsMetadata = true;
                 options.SaveToken = false;
+                options.MapInboundClaims = false;
                 options.TokenValidationParameters = new TokenValidationParameters {
                     ValidateIssuerSigningKey = true,
                     ValidateIssuer = true,
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateActor = false,
-                    ClockSkew = TimeSpan.FromMinutes(2),
+                    RequireSignedTokens = true,
+                    ClockSkew = TimeSpan.Zero,
                     ValidIssuer = jwtSettings.Issuer,
                     ValidAudience = jwtSettings.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                        Convert.FromBase64String(jwtSettings.SecretKey!)
-                    ),
+                    IssuerSigningKey = new SymmetricSecurityKey(DecodeJwtKey(jwtSettings.SecretKey)),
                     RequireExpirationTime = true,
+                    NameClaimType = ClaimTypes.Name,
+                    RoleClaimType = ClaimTypes.Role,
                     ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
                 };
                 options.Events = new JwtBearerEvents {
-                    OnTokenValidated = async context => {
-                        string? userId = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
-                            ?? context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
-                        if (string.IsNullOrWhiteSpace(userId)) {
-                            context.Fail("El token no contiene un identificador de usuario válido.");
-                            return;
+                    OnTokenValidated = context => {
+                        ClaimsPrincipal principal = context.Principal!;
+                        if (string.IsNullOrWhiteSpace(
+                            principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                        )) {
+                            context.Fail("El token no contiene un subject válido.");
                         }
 
-                        IUserRepository userRepository = context.HttpContext.RequestServices
-                            .GetRequiredService<IUserRepository>();
-                        UserListDto? user = await userRepository.GetByIdAsync(
-                            userId,
-                            context.HttpContext.RequestAborted
-                        );
-                        if (user is null || !user.IsActive) {
-                            context.Fail("El usuario no está activo.");
+                        string? userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                            ?? principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
+                        if (string.IsNullOrWhiteSpace(userId)) {
+                            context.Fail("El token no contiene un identificador de usuario válido.");
                         }
-                    },
-                    OnChallenge = context => {
-                        context.HandleResponse();
-                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                        context.Response.ContentType = "application/json";
-                        return context.Response.WriteAsync(
-                            JsonSerializer.Serialize(
-                                new { error = "No tiene autorización para acceder a este recurso." }
-                            )
-                        );
-                    },
-                    OnForbidden = context => {
-                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                        context.Response.ContentType = "application/json";
-                        return context.Response.WriteAsync(
-                            JsonSerializer.Serialize(
-                                new {
-                                    error = "Acceso denegado. No tiene permisos para utilizar este recurso.",
-                                }
-                            )
-                        );
+
+                        if (string.IsNullOrWhiteSpace(principal.FindFirstValue(ClaimTypes.Role))) {
+                            context.Fail("El token no contiene un rol válido.");
+                        }
+
+                        if (string.IsNullOrWhiteSpace(
+                            principal.FindFirstValue(JwtRegisteredClaimNames.Jti)
+                        )) {
+                            context.Fail("El token no contiene un identificador único válido.");
+                        }
+
+                        return Task.CompletedTask;
                     },
                 };
             });
 
         return services;
+    }
+
+    private static byte[] DecodeJwtKey(string? secretKey) {
+        if (string.IsNullOrWhiteSpace(secretKey)) {
+            throw new InvalidOperationException("Security:Jwt:SecretKey es obligatoria.");
+        }
+
+        byte[] key;
+        try {
+            key = Convert.FromBase64String(secretKey);
+        }
+        catch (FormatException ex) {
+            throw new InvalidOperationException(
+                "Security:Jwt:SecretKey debe estar en base64.",
+                ex
+            );
+        }
+
+        if (key.Length < 32) {
+            throw new InvalidOperationException(
+                "Security:Jwt:SecretKey debe contener al menos 32 bytes."
+            );
+        }
+
+        return key;
     }
 
     /// <summary>
@@ -186,9 +206,36 @@ public static class ServicesRegistration {
     /// </summary>
     public static IServiceCollection AddIdentityForWebApp(
         this IServiceCollection services,
-        IConfiguration configuration
+        IConfiguration configuration,
+        IHostEnvironment? environment = null
     ) {
         services.AddIdentityInfrastructure(configuration);
+
+        AppDataProtectionOptions dataProtection = configuration
+            .GetSection(AppDataProtectionOptions.SectionName)
+            .Get<AppDataProtectionOptions>()
+            ?? new AppDataProtectionOptions();
+
+        if (environment?.IsDevelopment() != true && string.IsNullOrWhiteSpace(dataProtection.KeyRingPath)) {
+            throw new InvalidOperationException(
+                "Security:DataProtection:KeyRingPath es obligatorio fuera de Development."
+            );
+        }
+        if (
+            environment?.IsDevelopment() != true
+            && !Path.IsPathFullyQualified(dataProtection.KeyRingPath!)
+        ) {
+            throw new InvalidOperationException(
+                "Security:DataProtection:KeyRingPath debe ser una ruta absoluta fuera de Development."
+            );
+        }
+
+        var dataProtectionBuilder = services
+            .AddDataProtection()
+            .SetApplicationName(dataProtection.ApplicationName);
+        if (!string.IsNullOrWhiteSpace(dataProtection.KeyRingPath)) {
+            dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(dataProtection.KeyRingPath));
+        }
 
         services
             .AddAuthentication(options => {
@@ -204,9 +251,17 @@ public static class ServicesRegistration {
             options.SlidingExpiration = true;
             options.ExpireTimeSpan = TimeSpan.FromHours(8);
             options.Cookie.HttpOnly = true;
+            options.Cookie.IsEssential = true;
+            options.Cookie.Path = "/";
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.Cookie.Name = ".ArtemisBanking.Auth";
-            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.Cookie.SecurePolicy = environment?.IsDevelopment() == true
+                ? CookieSecurePolicy.SameAsRequest
+                : CookieSecurePolicy.Always;
+        });
+
+        services.Configure<SecurityStampValidatorOptions>(options => {
+            options.ValidationInterval = TimeSpan.FromMinutes(5);
         });
 
         services.AddAuthorization();
@@ -217,17 +272,11 @@ public static class ServicesRegistration {
     /// <summary>
     /// Ejecuta los seeds de roles y usuarios por defecto (idempotente).
     /// </summary>
-    public static async Task RunIdentitySeedAsync(this IServiceProvider services) {
-        using var scope = services.CreateScope();
-        var provider = scope.ServiceProvider;
-
-        var userManager = provider.GetRequiredService<UserManager<AppUser>>();
-        var roleManager = provider.GetRequiredService<RoleManager<IdentityRole>>();
-        var options =
-            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DefaultUsersOptions>>();
-        var timeProvider = provider.GetRequiredService<TimeProvider>();
-        var logger = provider.GetService<ILoggerFactory>()?.CreateLogger("IdentitySeed");
-
-        await DefaultUsers.SeedAsync(userManager, roleManager, options.Value, timeProvider, logger);
+    public static async Task RunIdentitySeedAsync(
+        this IServiceProvider services,
+        CancellationToken cancellationToken = default
+    ) {
+        await using var scope = services.CreateAsyncScope();
+        await IdentitySeedRunner.RunAsync(scope.ServiceProvider, cancellationToken);
     }
 }

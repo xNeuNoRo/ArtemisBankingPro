@@ -1,0 +1,100 @@
+@model CreditCardListViewModel
+@{
+    ViewData["Title"] = "Gestión de tarjetas de crédito";
+    ViewData["PaginationStatus"] = Model.Status;
+    ViewData["PaginationIdentification"] = Model.Identification;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="cards-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Productos</p>
+        <h1 id="cards-title" class="page-header__title">Gestión de tarjetas de crédito</h1>
+        <p class="page-header__description">Consulte tarjetas, consumos, límites y cancelaciones protegidas.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--primary" asp-action="Assign">
+            <partial name="_Icon" model='@("card")' />
+            Asignar tarjeta
+        </a>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <div class="ui-alert ui-alert--error" role="alert"><p class="ui-alert__content">@Model.LoadErrorMessage</p></div>
+} else {
+    <section class="ui-card admin-product__filter" aria-labelledby="cards-filter-title">
+        <div class="ui-card__body">
+            <form method="get" asp-action="Index" class="admin-filter" data-submit-lock>
+                <div class="ui-field">
+                    <label id="cards-filter-title" class="ui-label" asp-for="Identification">Buscar por cédula</label>
+                    <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-describedby="Identification-error" />
+                    <span class="ui-error" asp-validation-for="Identification"></span>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Status">Estado</label>
+                    <select class="ui-control" asp-for="Status" autocomplete="off">
+                        @foreach (SelectOptionViewModel option in Model.StatusOptions) {
+                            <option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option>
+                        }
+                    </select>
+                    <span class="ui-error" asp-validation-for="Status"></span>
+                </div>
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="pageSize" value="20" />
+                <button class="ui-button ui-button--secondary" type="submit">Aplicar filtros</button>
+            </form>
+        </div>
+    </section>
+
+    @if (Model.Cards.Count == 0) {
+        ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Identification)
+            ? "No hay tarjetas para mostrar"
+            : "Este cliente no tiene tarjetas de crédito registradas.";
+        ViewData["EmptyDescription"] = "Pruebe con otra cédula o cambie el filtro de estado.";
+        <partial name="_EmptyState" />
+    } else {
+        <section class="admin-product__list" aria-labelledby="cards-list-title">
+            <div class="admin-users__list-heading">
+                <div>
+                    <p class="ui-section-label">Cartera administrada</p>
+                    <h2 id="cards-list-title" class="ui-card__title">Tarjetas registradas</h2>
+                </div>
+                <span class="ui-badge ui-badge--neutral">@Model.Pagination.TotalItems registros</span>
+            </div>
+            <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de tarjetas de crédito">
+                <table class="ui-table admin-product__table admin-product__table--wide">
+                    <caption class="ui-visually-hidden">Tarjetas de crédito registradas</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Tarjeta</th><th scope="col">Cliente</th><th scope="col">Límite</th>
+                            <th scope="col">Deuda</th><th scope="col">Disponible</th><th scope="col">Vencimiento</th>
+                            <th scope="col">Estado</th><th scope="col"><span class="ui-visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (CreditCardSummaryViewModel card in Model.Cards) {
+                            <tr>
+                                <td><span class="admin-product__person"><strong>@card.MaskedNumber</strong><span>@card.Expiration</span></span></td>
+                                <td><span class="admin-product__person"><strong>@card.ClientFullName</strong><span>@card.ClientId</span></span></td>
+                                <td class="ui-table__numeric">@Money(card.CreditLimit)</td>
+                                <td class="ui-table__numeric">@Money(card.CurrentDebt)</td>
+                                <td class="ui-table__numeric">@Money(card.AvailableCredit)</td>
+                                <td class="ui-table__numeric">@card.Expiration</td>
+                                <td><partial name="_StatusBadge" model="card.Status" /></td>
+                                <td><div class="admin-product__actions">
+                                    <a class="ui-button ui-button--secondary ui-button--small" asp-action="Details" asp-route-id="@card.Id">Ver detalles</a>
+                                    @if (card.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) || card.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase)) {
+                                        <a class="ui-button ui-button--secondary ui-button--small" asp-action="EditLimit" asp-route-id="@card.Id">Editar límite</a>
+                                        <a class="ui-button ui-button--danger ui-button--small" asp-action="ConfirmCancel" asp-route-id="@card.Id">Cancelar</a>
+                                    }
+                                </div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <partial name="_Pagination" model="Model.Pagination" />
+        </section>
+    }
+}

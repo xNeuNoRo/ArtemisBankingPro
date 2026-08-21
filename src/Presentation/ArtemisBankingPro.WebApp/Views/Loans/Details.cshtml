@@ -1,0 +1,68 @@
+@model LoanDetailViewModel
+@{
+    ViewData["Title"] = "Detalle del préstamo";
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="loan-detail-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Préstamos</p>
+        <h1 id="loan-detail-title" class="page-header__title">Préstamo @Model.LoanNumber</h1>
+        <p class="page-header__description">Tabla de amortización y estado calculados por Application.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--secondary" asp-action="EditRate" asp-route-id="@Model.LoanId">Editar tasa</a>
+    </div>
+</section>
+
+<section class="ui-card admin-product__detail" aria-labelledby="loan-summary-title">
+    <div class="ui-card__header">
+        <div>
+            <p class="ui-section-label">Resumen</p>
+            <h2 id="loan-summary-title" class="ui-card__title">@Model.CustomerFullName</h2>
+            <p class="ui-card__description">Cliente asociado al préstamo</p>
+        </div>
+        <div class="admin-product__actions"><partial name="_StatusBadge" model="Model.Status" /><partial name="_StatusBadge" model="Model.CustomerPaymentStatus" /></div>
+    </div>
+    <div class="ui-card__body admin-product__metric-grid">
+        <div class="admin-product__metric"><span class="admin-product__metric-label">Capital aprobado</span><strong class="admin-product__metric-value">@Money(Model.CapitalAmount)</strong></div>
+        <div class="admin-product__metric"><span class="admin-product__metric-label">Pendiente</span><strong class="admin-product__metric-value">@Money(Model.PendingAmount)</strong></div>
+        <div class="admin-product__metric"><span class="admin-product__metric-label">Cuota mensual</span><strong class="admin-product__metric-value">@Money(Model.MonthlyInstallment)</strong></div>
+        <div class="admin-product__metric"><span class="admin-product__metric-label">Tasa / plazo</span><strong class="admin-product__metric-value">@Model.AnnualInterestRate.ToString("N2", CultureInfo.InvariantCulture)% · @Model.TermMonths meses</strong></div>
+    </div>
+</section>
+
+@if (Model.Amortization.Count == 0) {
+    ViewData["EmptyTitle"] = "No hay cuotas para mostrar";
+    ViewData["EmptyDescription"] = "La tabla de amortización todavía no contiene cuotas.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="admin-product__list" aria-labelledby="loan-amortization-title">
+        <div class="admin-users__list-heading">
+            <div><p class="ui-section-label">Plan de pagos</p><h2 id="loan-amortization-title" class="ui-card__title">Tabla de amortización</h2></div>
+            <span class="ui-badge ui-badge--neutral">@Model.Amortization.Count cuotas</span>
+        </div>
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de amortización del préstamo">
+            <table class="ui-table admin-product__table">
+                <caption class="ui-visually-hidden">Tabla de amortización del préstamo @Model.LoanNumber</caption>
+                <thead><tr><th scope="col">Cuota</th><th scope="col">Vencimiento</th><th scope="col">Valor</th><th scope="col">Interés</th><th scope="col">Capital</th><th scope="col">Pendiente</th><th scope="col">Pago</th><th scope="col">Atraso</th></tr></thead>
+                <tbody>
+                    @foreach (LoanInstallmentViewModel installment in Model.Amortization) {
+                        <tr>
+                            <td class="ui-table__numeric">@installment.InstallmentNumber</td>
+                            <td>@installment.DueDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)</td>
+                            <td class="ui-table__numeric">@Money(installment.InstallmentAmount)</td>
+                            <td class="ui-table__numeric">@Money(installment.InterestAmount)</td>
+                            <td class="ui-table__numeric">@Money(installment.CapitalAmount)</td>
+                            <td class="ui-table__numeric">@Money(installment.PendingInstallmentAmount)</td>
+                            <td><partial name="_StatusBadge" model="installment.PaymentStatus" /></td>
+                            <td><partial name="_StatusBadge" model='@(installment.IsLate ? "En mora" : "Al día")' /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+<div class="page-actions"><a class="ui-button ui-button--secondary" asp-action="Index">Volver atrás</a></div>

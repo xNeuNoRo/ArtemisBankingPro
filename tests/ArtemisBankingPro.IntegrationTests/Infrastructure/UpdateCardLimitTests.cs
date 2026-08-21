@@ -4,9 +4,11 @@ using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
+using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
-using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -176,42 +178,56 @@ public sealed class UpdateCardLimitTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task FinancialOperations_DbConstraint_AllowsZeroAmountOnlyForCardLimitChanged() {
-        Guid allowedId = Guid.NewGuid();
+    public async Task ConcurrentLimitUpdates_SecondSaveFailsWithRowVersionConflict() {
+        int cardId = 0;
         await WithContextAsync(async context => {
-            await context.Database.ExecuteSqlRawAsync(
-                """
-                INSERT INTO dbo.FinancialOperations
-                    (Id, Kind, Status, RequestedAmount, AppliedAmount, InterestAmount, InitiatedByUserId, OccurredAt)
-                VALUES ({0}, 16, 1, 0, 0, 0, 'admin', {1})
-                """,
-                allowedId,
-                IssuedAt
+            var card = NewCard();
+            context.CreditCards.Add(card);
+            await context.SaveChangesAsync();
+            cardId = card.Id;
+        });
+
+        await using var firstScope = Fixture.Services.CreateAsyncScope();
+        await using var secondScope = Fixture.Services.CreateAsyncScope();
+        var firstContext = firstScope.ServiceProvider.GetRequiredService<BankingDbContext>();
+        var secondContext = secondScope.ServiceProvider.GetRequiredService<BankingDbContext>();
+        CreditCard first = await firstContext.CreditCards.SingleAsync(card => card.Id == cardId);
+        CreditCard second = await secondContext.CreditCards.SingleAsync(card => card.Id == cardId);
+
+        first.ChangeCreditLimit(Money.Create(11_000m).Value).IsSuccess.Should().BeTrue();
+        second.ChangeCreditLimit(Money.Create(12_000m).Value).IsSuccess.Should().BeTrue();
+        await firstContext.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
+            () => secondContext.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task FinancialOperations_ModelConstraint_AllowsZeroAmountOnlyForCardLimitChanged() {
+        await WithContextAsync(async context => {
+            var result = FinancialOperation.Approve(
+                Guid.NewGuid(),
+                FinancialOperationKind.CardLimitChanged,
+                Money.Zero,
+                Money.Zero,
+                Money.Zero,
+                "admin",
+                IssuedAt,
+                [],
+                creditCardId: 1
             );
-        });
+            result.IsSuccess.Should().BeTrue();
+            context.FinancialOperations.Add(result.Value);
+            await context.SaveChangesAsync();
 
-        await WithContextAsync(async context => {
-            Assert.True(await context.FinancialOperations.AnyAsync(operation => operation.Id == allowedId));
-        });
-
-        Guid blockedId = Guid.NewGuid();
-        await WithContextAsync(async context => {
-            Func<Task> insert = () => context.Database.ExecuteSqlRawAsync(
-                """
-                INSERT INTO dbo.FinancialOperations
-                    (Id, Kind, Status, RequestedAmount, AppliedAmount, InterestAmount, InitiatedByUserId, OccurredAt)
-                VALUES ({0}, 16, 1, 100, 100, 0, 'admin', {1})
-                """,
-                blockedId,
-                IssuedAt
-            );
-
-            await insert.Should().ThrowAsync<DbException>();
-        });
-
-        await WithContextAsync(async context => {
-            (await context.FinancialOperations.AnyAsync(operation => operation.Id == blockedId))
-                .Should().BeFalse();
+            context.GetService<IDesignTimeModel>().Model
+                .FindEntityType(typeof(FinancialOperation))!
+                .GetCheckConstraints()
+                .Should()
+                .Contain(constraint =>
+                    constraint.Name == "CK_FinancialOperations_Requested_Positive"
+                    && constraint.Sql.Contains("[RequestedAmount] > 0", StringComparison.Ordinal)
+                );
         });
     }
 }

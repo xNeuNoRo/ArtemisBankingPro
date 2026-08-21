@@ -1,0 +1,112 @@
+@model MyAccountTransactionsViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+    ViewData["PaginationAccountNumber"] = Model.AccountNumber;
+    ViewData["PaginationDateFrom"] = Model.DateFrom;
+    ViewData["PaginationDateTo"] = Model.DateTo;
+    ViewData["PaginationTransactionType"] = Model.TransactionType;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="client-transactions-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cliente / Actividad</p>
+        <h1 id="client-transactions-title" class="page-header__title">Transacciones</h1>
+        <p class="page-header__description">Consulte los movimientos de sus cuentas activas con filtros y paginación server-side.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Volver al Home</a>
+        <a class="ui-button ui-button--primary" asp-controller="Client" asp-action="ExpressTransfer">
+            <partial name="_Icon" model='@("transfer")' />
+            Nueva transferencia
+        </a>
+    </div>
+</section>
+
+<section class="ui-card client-filter" aria-labelledby="transactions-filter-title">
+    <div class="ui-card__header">
+        <div>
+            <h2 id="transactions-filter-title" class="ui-card__title">Filtrar movimientos</h2>
+            <p class="ui-card__description">Los resultados se consultan desde la base de datos y respetan la propiedad de la cuenta.</p>
+        </div>
+    </div>
+    <div class="ui-card__body">
+        <form asp-controller="Client" asp-action="Transactions" method="get" class="client-filter__form">
+            <div class="ui-field">
+                <label class="ui-label" for="AccountNumber">Cuenta</label>
+                <select class="ui-control" id="AccountNumber" name="accountNumber">
+                    @foreach (SelectOptionViewModel option in Model.AccountOptions) {
+                        <option value="@option.Value" selected="@(option.Value == Model.AccountNumber ? "selected" : null)">@option.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" for="DateFrom">Desde</label>
+                <input class="ui-control" id="DateFrom" name="dateFrom" type="date" value="@(Model.DateFrom?.ToString("yyyy-MM-dd"))" aria-describedby="DateFrom-error" />
+                <span class="ui-error" asp-validation-for="DateFrom"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" for="DateTo">Hasta</label>
+                <input class="ui-control" id="DateTo" name="dateTo" type="date" value="@(Model.DateTo?.ToString("yyyy-MM-dd"))" aria-describedby="DateTo-error" />
+                <span class="ui-error" asp-validation-for="DateTo"></span>
+            </div>
+            <div class="ui-field">
+                <label class="ui-label" for="TransactionType">Tipo</label>
+                <select class="ui-control" id="TransactionType" name="transactionType">
+                    @foreach (SelectOptionViewModel option in Model.TransactionTypeOptions) {
+                        <option value="@option.Value" selected="@(option.Value == Model.TransactionType ? "selected" : null)">@option.Text</option>
+                    }
+                </select>
+            </div>
+            <button class="ui-button ui-button--primary" type="submit">Aplicar filtros</button>
+        </form>
+    </div>
+</section>
+
+@if (Model.AccountOptions.Count == 0) {
+    ViewData["EmptyTitle"] = "No tiene cuentas activas.";
+    ViewData["EmptyDescription"] = "Las transacciones estarán disponibles cuando tenga una cuenta de ahorro activa.";
+    <partial name="_EmptyState" />
+} else if (Model.Transactions.Count == 0) {
+    ViewData["EmptyTitle"] = "No hay movimientos para estos filtros.";
+    ViewData["EmptyDescription"] = "Pruebe con otra cuenta, rango de fechas o tipo de transacción.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="client-list" aria-labelledby="transactions-list-title">
+        <div class="client-list__heading">
+            <div>
+                <p class="ui-section-label">Cuenta @Model.AccountNumber</p>
+                <h2 id="transactions-list-title" class="ui-card__title">Movimientos recientes</h2>
+            </div>
+            <span class="ui-badge ui-badge--info">@Model.Pagination.TotalItems registros</span>
+        </div>
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de transacciones">
+            <table class="ui-table client-table">
+                <caption class="ui-visually-hidden">Movimientos de la cuenta @Model.AccountNumber</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Monto</th>
+                        <th scope="col">Beneficiario</th>
+                        <th scope="col">Origen</th>
+                        <th scope="col">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (ClientAccountTransactionItemViewModel transaction in Model.Transactions) {
+                        <tr>
+                            <td>@BusinessClock.ToBusinessTime(transaction.Date).ToString("dd/MM/yyyy HH:mm")</td>
+                            <td><partial name="_StatusBadge" model="transaction.TransactionType" /></td>
+                            <td class="ui-table__numeric">@Money(transaction.Amount)</td>
+                            <td>@transaction.Beneficiary</td>
+                            <td>@transaction.Origin</td>
+                            <td><partial name="_StatusBadge" model="transaction.Status" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pagination" model="Model.Pagination" />
+    </section>
+}

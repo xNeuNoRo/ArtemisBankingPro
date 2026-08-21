@@ -8,25 +8,19 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 namespace ArtemisBankingPro.UnitTests.Application.Features.Auth.Handlers;
 
 public sealed class ActivateAccountCommandHandlerTests {
-    private static Mock<IAccountTokenService> TokenService(TokenVerification verification) {
+    private static Mock<IAccountTokenService> TokenService(AccountTokenVerificationResult result) {
         var service = new Mock<IAccountTokenService>();
         service
-            .Setup(s => s.VerifyAndConsumeByTokenAsync(AccountTokenType.Activation, It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(verification);
+            .Setup(s => s.CompleteActivationAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result.Success(result));
         return service;
     }
 
     [Fact]
     public async Task Handle_ValidToken_ActivatesUser() {
-        var tokenService = TokenService(
-            new TokenVerification(AccountTokenVerificationResult.Valid, "user-1")
-        );
-        var userService = new Mock<IUserAccountService>();
-        userService
-            .Setup(s => s.SetActiveAsync("user-1", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result.Success());
+        var tokenService = TokenService(AccountTokenVerificationResult.Valid);
 
-        var handler = new ActivateAccountCommandHandler(tokenService.Object, userService.Object);
+        var handler = new ActivateAccountCommandHandler(tokenService.Object);
 
         var result = await handler.Handle(
             new ActivateAccountCommand("token-123"),
@@ -34,20 +28,17 @@ public sealed class ActivateAccountCommandHandlerTests {
         );
 
         result.IsSuccess.Should().BeTrue();
-        userService.Verify(
-            s => s.SetActiveAsync("user-1", true, It.IsAny<CancellationToken>()),
+        tokenService.Verify(
+            s => s.CompleteActivationAsync("token-123", It.IsAny<CancellationToken>()),
             Times.Once
         );
     }
 
     [Fact]
     public async Task Handle_InvalidToken_ReturnsValidationErrorAndDoesNotActivate() {
-        var tokenService = TokenService(
-            new TokenVerification(AccountTokenVerificationResult.Invalid, null)
-        );
-        var userService = new Mock<IUserAccountService>();
+        var tokenService = TokenService(AccountTokenVerificationResult.Invalid);
 
-        var handler = new ActivateAccountCommandHandler(tokenService.Object, userService.Object);
+        var handler = new ActivateAccountCommandHandler(tokenService.Object);
 
         var result = await handler.Handle(
             new ActivateAccountCommand("bad-token"),
@@ -55,19 +46,14 @@ public sealed class ActivateAccountCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.ActivationInvalid");
+        result.Error!.Code.Should().Be("Account.InvalidActivationToken");
         result.Error.Category.Should().Be(ErrorCategory.Validation);
-        userService.Verify(
-            s => s.SetActiveAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()),
-            Times.Never
-        );
     }
 
     [Fact]
     public async Task Handle_ExpiredToken_ReturnsExpirationMessage() {
         var handler = new ActivateAccountCommandHandler(
-            TokenService(new TokenVerification(AccountTokenVerificationResult.Expired, null)).Object,
-            new Mock<IUserAccountService>().Object
+            TokenService(AccountTokenVerificationResult.Expired).Object
         );
 
         var result = await handler.Handle(
@@ -76,14 +62,13 @@ public sealed class ActivateAccountCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.ActivationExpired");
+        result.Error!.Code.Should().Be("Account.InvalidActivationToken");
     }
 
     [Fact]
     public async Task Handle_AlreadyUsedToken_ReturnsUsedMessage() {
         var handler = new ActivateAccountCommandHandler(
-            TokenService(new TokenVerification(AccountTokenVerificationResult.AlreadyUsed, null)).Object,
-            new Mock<IUserAccountService>().Object
+            TokenService(AccountTokenVerificationResult.AlreadyUsed).Object
         );
 
         var result = await handler.Handle(
@@ -92,7 +77,7 @@ public sealed class ActivateAccountCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.ActivationAlreadyUsed");
+        result.Error!.Code.Should().Be("Account.InvalidActivationToken");
     }
 }
 
@@ -138,7 +123,7 @@ public sealed class ResetPasswordCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.ResetExpired");
+        result.Error!.Code.Should().Be("Account.InvalidResetToken");
     }
 
     [Fact]
@@ -153,7 +138,7 @@ public sealed class ResetPasswordCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.ResetAlreadyUsed");
+        result.Error!.Code.Should().Be("Account.InvalidResetToken");
     }
 
     [Fact]
@@ -168,7 +153,7 @@ public sealed class ResetPasswordCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.ResetInvalid");
+        result.Error!.Code.Should().Be("Account.InvalidResetToken");
     }
 
     [Fact]

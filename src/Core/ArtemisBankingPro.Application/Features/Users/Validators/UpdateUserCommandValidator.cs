@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Features.Users.Commands;
+using ArtemisBankingPro.Application.Common.Validation;
 using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Users.Validators;
@@ -19,7 +20,7 @@ public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCom
 
         RuleFor(x => x.Identification)
             .NotEmpty().WithMessage("La cédula es requerida.")
-            .MaximumLength(20);
+            .MaximumLength(IdentityValidationLimits.IdentificationMaxLength);
 
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("El correo electrónico es requerido.")

@@ -12,7 +12,10 @@ public sealed class ResetPasswordViewModel {
     public string UserId { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El token es requerido.")]
-    [StringLength(256, ErrorMessage = "El enlace de restablecimiento no es valido.")]
+    // The MVC form carries a time-limited Data Protection envelope. The
+    // Application command validator still enforces the raw token limit after
+    // the WebApp unwraps it.
+    [StringLength(1024, ErrorMessage = "El enlace de restablecimiento no es valido.")]
     public string Token { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La contraseña es requerida.")]

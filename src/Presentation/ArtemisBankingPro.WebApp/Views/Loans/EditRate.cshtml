@@ -1,0 +1,30 @@
+@model LoanRatePageViewModel
+@{
+    ViewData["Title"] = "Modificar tasa de interés";
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="loan-rate-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Préstamos</p>
+        <h1 id="loan-rate-title" class="page-header__title">Modificar tasa de interés</h1>
+        <p class="page-header__description">Solo se recalculan cuotas futuras pendientes; pagos y cuotas vencidas permanecen intactos.</p>
+    </div>
+</section>
+
+<form method="post" asp-action="EditRate" asp-route-id="@Model.Loan.LoanId" class="admin-product__form" data-submit-lock data-autofocus-error>
+    <input type="hidden" name="submissionToken" value="@Model.SubmissionToken" />
+    <partial name="_ValidationSummary" />
+    <section class="ui-card" aria-labelledby="loan-rate-card-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Préstamo @Model.Loan.LoanNumber</p><h2 id="loan-rate-card-title" class="ui-card__title">@Model.Loan.CustomerFullName</h2><p class="ui-card__description">Tasa actual: @Model.Loan.AnnualInterestRate.ToString("N2", CultureInfo.InvariantCulture)% · Pendiente: @Money(Model.Loan.PendingAmount)</p></div><partial name="_StatusBadge" model="Model.Loan.Status" /></div>
+        <div class="ui-card__body admin-product__form-grid">
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Form.AnnualInterestRate">Tasa de interés anual</label>
+                <input class="ui-control" asp-for="Form.AnnualInterestRate" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" required />
+                <span class="ui-error" asp-validation-for="Form.AnnualInterestRate"></span>
+                <p class="ui-field-description">Debe existir al menos una cuota futura pendiente para recalcular.</p>
+            </div>
+        </div>
+    </section>
+    <div class="page-actions"><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Actualizando…"><span data-submit-label>Modificar tasa</span></button><a class="ui-button ui-button--secondary" asp-action="Index">Volver atrás</a></div>
+</form>

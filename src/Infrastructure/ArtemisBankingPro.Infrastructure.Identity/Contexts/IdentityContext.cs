@@ -29,12 +29,17 @@ public sealed class IdentityContext : IdentityDbContext<AppUser> {
             user.Property(item => item.LastName).HasMaxLength(100).IsRequired();
             user.Property(item => item.IdentityDocument).HasMaxLength(11).IsRequired();
             user.Property(item => item.Active).IsRequired().HasDefaultValue(false);
+            user.Property(item => item.AccountTokenVersion).IsRequired().HasDefaultValue(0L);
             user.Property(item => item.CreatedAt).IsRequired().HasDefaultValueSql("GETUTCDATE()");
 
             // Cédula única, permitiendo nulos futuros sin colisión.
             user.HasIndex(item => item.IdentityDocument)
                 .IsUnique()
                 .HasFilter("[IdentityDocument] IS NOT NULL");
+            user.HasIndex(item => item.NormalizedEmail)
+                .IsUnique()
+                .HasDatabaseName("EmailIndex")
+                .HasFilter("[NormalizedEmail] IS NOT NULL");
         });
 
         builder.Entity<IdentityRole>().ToTable("Roles");
@@ -55,7 +60,27 @@ public sealed class IdentityContext : IdentityDbContext<AppUser> {
             token.Property(item => item.CreatedAtUtc).IsRequired();
             token.Property(item => item.UsedAtUtc);
 
-            token.HasIndex(item => new { item.UserId, item.Type });
+            token.HasIndex(item => item.TokenHash).IsUnique();
+            token.HasIndex(item => new { item.UserId, item.Type })
+                .IsUnique()
+                .HasFilter("[UsedAtUtc] IS NULL");
+            token.HasOne<AppUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            token.ToTable(
+                "AccountTokens",
+                table => {
+                    table.HasCheckConstraint(
+                        "CK_AccountTokens_Type",
+                        "[Type] IN (1, 2)"
+                    );
+                    table.HasCheckConstraint(
+                        "CK_AccountTokens_Dates",
+                        "[ExpiresAtUtc] > [CreatedAtUtc] AND ([UsedAtUtc] IS NULL OR [UsedAtUtc] >= [CreatedAtUtc])"
+                    );
+                }
+            );
             token.Property<byte[]>("RowVersion").IsRowVersion();
         });
     }

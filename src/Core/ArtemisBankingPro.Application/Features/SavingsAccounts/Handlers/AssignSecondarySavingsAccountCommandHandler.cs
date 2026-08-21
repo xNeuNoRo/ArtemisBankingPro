@@ -111,55 +111,58 @@ public sealed class AssignSecondarySavingsAccountCommandHandler
             return Result.Failure<SavingsAccountResponse>(balanceResult.Error!);
         }
 
-        string rawNumber = await _numberGenerator.NextAccountNumberAsync(cancellationToken);
-        var numberResult = AccountNumber.Create(rawNumber);
-        if (numberResult.IsFailure) {
-            return Result.Failure<SavingsAccountResponse>(numberResult.Error!);
-        }
-
         var openedAt = _clock.Now;
-        var accountResult = SavingsAccount.OpenSecondary(
-            customer.Id,
-            numberResult.Value,
-            balanceResult.Value,
-            _currentUser.UserId!,
-            openedAt
-        );
-        if (accountResult.IsFailure) {
-            return Result.Failure<SavingsAccountResponse>(accountResult.Error!);
-        }
-
-        SavingsAccount account = accountResult.Value;
+        SavingsAccount? account = null;
         FinancialOperation? initialFunding = null;
-        if (balanceResult.Value != Money.Zero) {
-            var operationResult = FinancialOperation.Approve(
-                Guid.NewGuid(),
-                FinancialOperationKind.InitialFunding,
-                balanceResult.Value,
-                balanceResult.Value,
-                Money.Zero,
-                _currentUser.UserId!,
-                openedAt,
-                [
-                    new AccountTransactionDetails(
-                        account.Number,
-                        TransactionDirection.Credit,
-                        balanceResult.Value,
-                        "APERTURA_CUENTA_SECUNDARIA",
-                        account.Number.Value
-                    ),
-                ]
-            );
-            if (operationResult.IsFailure) {
-                return Result.Failure<SavingsAccountResponse>(operationResult.Error!);
-            }
-
-            initialFunding = operationResult.Value;
-        }
 
         Result persistResult = await _unitOfWork.ExecuteInTransactionAsync(
             async ct => {
-                await _savingsAccountRepository.AddAsync(account, ct);
+                string rawNumber = await _numberGenerator.NextAccountNumberAsync(ct);
+                var numberResult = AccountNumber.Create(rawNumber);
+                if (numberResult.IsFailure) {
+                    return Result.Failure(numberResult.Error!);
+                }
+
+                var accountResult = SavingsAccount.OpenSecondary(
+                    customer.Id,
+                    numberResult.Value,
+                    balanceResult.Value,
+                    _currentUser.UserId!,
+                    openedAt
+                );
+                if (accountResult.IsFailure) {
+                    return Result.Failure(accountResult.Error!);
+                }
+
+                SavingsAccount createdAccount = accountResult.Value;
+                account = createdAccount;
+                if (balanceResult.Value != Money.Zero) {
+                    var operationResult = FinancialOperation.Approve(
+                        Guid.NewGuid(),
+                        FinancialOperationKind.InitialFunding,
+                        balanceResult.Value,
+                        balanceResult.Value,
+                        Money.Zero,
+                        _currentUser.UserId!,
+                        openedAt,
+                        [
+                            new AccountTransactionDetails(
+                                createdAccount.Number,
+                                TransactionDirection.Credit,
+                                balanceResult.Value,
+                                "APERTURA_CUENTA_SECUNDARIA",
+                                createdAccount.Number.Value
+                            ),
+                        ]
+                    );
+                    if (operationResult.IsFailure) {
+                        return Result.Failure(operationResult.Error!);
+                    }
+
+                    initialFunding = operationResult.Value;
+                }
+
+                await _savingsAccountRepository.AddAsync(createdAccount, ct);
 
                 if (initialFunding is not null) {
                     await _financialOperationRepository.AddAsync(initialFunding, ct);
@@ -173,16 +176,19 @@ public sealed class AssignSecondarySavingsAccountCommandHandler
             return Result.Failure<SavingsAccountResponse>(persistResult.Error!);
         }
 
+        SavingsAccount persistedAccount = account
+            ?? throw new InvalidOperationException("La cuenta no fue creada durante la transacción.");
+
         return Result.Success(
             new SavingsAccountResponse(
-                account.Id,
-                account.Number.Value,
+                persistedAccount.Id,
+                persistedAccount.Number.Value,
                 customer.Id,
                 $"{customer.FirstName} {customer.LastName}".Trim(),
-                account.Balance.Amount,
-                account.Type.ToString(),
-                account.Status.ToString(),
-                account.OpenedAt
+                persistedAccount.Balance.Amount,
+                persistedAccount.Type.ToString(),
+                persistedAccount.Status.ToString(),
+                persistedAccount.OpenedAt
             )
         );
     }

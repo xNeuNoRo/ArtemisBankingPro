@@ -96,7 +96,7 @@ public sealed class Merchant : AggregateRoot<int> {
             return Result.Failure(validationError);
         }
 
-        if (updatedAt < CreatedAt) {
+        if (IsBeforeLastChange(updatedAt)) {
             return Result.Failure(MerchantErrors.InvalidUpdateDate);
         }
 
@@ -119,7 +119,7 @@ public sealed class Merchant : AggregateRoot<int> {
             return Result.Failure(MerchantErrors.InvalidAssociatedUser);
         }
 
-        if (updatedAt < CreatedAt) {
+        if (IsBeforeLastChange(updatedAt)) {
             return Result.Failure(MerchantErrors.InvalidUpdateDate);
         }
 
@@ -134,7 +134,7 @@ public sealed class Merchant : AggregateRoot<int> {
             return Result.Failure(MerchantErrors.AlreadyActive);
         }
 
-        if (updatedAt < CreatedAt) {
+        if (IsBeforeLastChange(updatedAt)) {
             return Result.Failure(MerchantErrors.InvalidUpdateDate);
         }
 
@@ -149,7 +149,7 @@ public sealed class Merchant : AggregateRoot<int> {
             return Result.Failure(MerchantErrors.AlreadyInactive);
         }
 
-        if (updatedAt < CreatedAt) {
+        if (IsBeforeLastChange(updatedAt)) {
             return Result.Failure(MerchantErrors.InvalidUpdateDate);
         }
 
@@ -205,4 +205,7 @@ public sealed class Merchant : AggregateRoot<int> {
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private bool IsBeforeLastChange(DateTimeOffset timestamp) =>
+        timestamp < CreatedAt || UpdatedAt is not null && timestamp < UpdatedAt;
 }

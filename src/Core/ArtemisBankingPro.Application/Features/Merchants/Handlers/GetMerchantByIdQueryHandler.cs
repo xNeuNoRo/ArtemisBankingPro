@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Features.Merchants.DTOs;
 using ArtemisBankingPro.Application.Features.Merchants.Queries;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Enums;
 using MapsterMapper;
 using Mediator;
 
@@ -50,7 +51,7 @@ public sealed class GetMerchantByIdQueryHandler
                 merchant.AssociatedUserId,
                 cancellationToken
             );
-            if (user is not null) {
+            if (user is not null && user.Role == nameof(Roles.Comercio)) {
                 associatedUser = new MerchantUserDto(
                     user.Id,
                     user.UserName,

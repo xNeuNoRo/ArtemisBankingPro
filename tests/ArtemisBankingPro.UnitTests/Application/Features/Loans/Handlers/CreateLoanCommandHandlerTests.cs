@@ -280,7 +280,7 @@ public sealed class CreateLoanCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Loan.HighRisk");
+        result.Error!.Code.Should().Be("Loan.HighRiskConfirmationRequired");
         result.Error.Category.Should().Be(ErrorCategory.Conflict);
         result.Error.Message.Should().Be(
             "Este cliente se considera de alto riesgo, ya que su deuda actual supera el promedio del sistema."

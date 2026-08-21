@@ -5,6 +5,10 @@ namespace ArtemisBankingPro.Application.Features.Admin.ViewModels;
 
 /// <summary>Indicadores administrativos calculados por Application.</summary>
 public sealed class AdminDashboardViewModel : BaseViewModel {
+    public string? LoadErrorMessage { get; init; }
+
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
     public int TotalTransactionsHistorical { get; init; }
     public int TransactionsToday { get; init; }
     public int TotalPaymentsHistorical { get; init; }

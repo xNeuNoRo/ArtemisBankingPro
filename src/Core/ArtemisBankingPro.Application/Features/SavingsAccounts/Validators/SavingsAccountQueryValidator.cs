@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Features.SavingsAccounts.Queries;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using FluentValidation;
+using ArtemisBankingPro.Application.Common.Validation;
 
 namespace ArtemisBankingPro.Application.Features.SavingsAccounts.Validators;
 
@@ -23,7 +24,7 @@ public sealed class GetSavingsAccountsPagedQueryValidator
             .Must(value => value is null || AllowedTypes.Contains(value.ToLowerInvariant()))
             .WithMessage("El tipo debe ser principal, secundaria o todas.");
         RuleFor(query => query.Identification)
-            .MaximumLength(20)
+            .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
             .When(query => query.Identification is not null)
             .WithMessage("La cédula no debe exceder 20 caracteres.");
     }

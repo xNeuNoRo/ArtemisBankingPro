@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Application.Features.Loans.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Mediator;
+using System.Globalization;
 
 namespace ArtemisBankingPro.Application.Features.Loans.Commands;
 
@@ -24,5 +25,12 @@ public sealed record CreateLoanCommand(
     public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
-        $"{CustomerUserId}|{CapitalAmount}|{TermMonths}|{AnnualInterestRate}|{ConfirmHighRisk}";
+        string.Join(
+            '|',
+            CustomerUserId,
+            CapitalAmount.ToString(CultureInfo.InvariantCulture),
+            TermMonths.ToString(CultureInfo.InvariantCulture),
+            AnnualInterestRate.ToString(CultureInfo.InvariantCulture),
+            ConfirmHighRisk.ToString(CultureInfo.InvariantCulture)
+        );
 }

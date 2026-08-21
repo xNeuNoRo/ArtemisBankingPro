@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Application.Features.SavingsAccounts.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Mediator;
+using System.Globalization;
 
 namespace ArtemisBankingPro.Application.Features.SavingsAccounts.Commands;
 
@@ -13,5 +14,6 @@ public sealed record AssignSecondarySavingsAccountCommand(
 
     public string IdempotencyKey { get; init; } = string.Empty;
 
-    public string RequestFingerprint => $"{CustomerUserId}|{InitialAmount}";
+    public string RequestFingerprint =>
+        $"{CustomerUserId}|{InitialAmount.ToString(CultureInfo.InvariantCulture)}";
 }

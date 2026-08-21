@@ -1,0 +1,123 @@
+@model UserListViewModel
+@{
+    ViewData["Title"] = "Gestión de usuarios";
+    ViewData["PaginationRole"] = Model.Role;
+}
+
+<section class="page-header" aria-labelledby="users-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración</p>
+        <h1 id="users-title" class="page-header__title">Gestión de usuarios</h1>
+        <p class="page-header__description">
+            Consulte y mantenga los usuarios de la aplicación web. Los usuarios Comercio permanecen fuera de este módulo.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--primary" asp-action="CreateUser">
+            <partial name="_Icon" model='@("users")' />
+            Crear usuario
+        </a>
+    </div>
+</section>
+
+<partial name="_ValidationSummary" />
+
+<section class="ui-card admin-users__filter" aria-labelledby="users-filter-title">
+    <div class="ui-card__body">
+        <form method="get" asp-action="Users" class="admin-filter" data-submit-lock>
+            <div class="ui-field">
+                <label id="users-filter-title" class="ui-label" asp-for="Role">Filtrar por tipo de usuario</label>
+                <select class="ui-control" asp-for="Role" autocomplete="off">
+                    @foreach (SelectOptionViewModel option in Model.RoleOptions) {
+                        <option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option>
+                    }
+                </select>
+            </div>
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="pageSize" value="20" />
+            <button class="ui-button ui-button--secondary" type="submit">
+                Aplicar filtro
+            </button>
+        </form>
+    </div>
+</section>
+
+@if (Model.Users.Count == 0) {
+    ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Role)
+        ? "No hay usuarios registrados"
+        : "No hay usuarios para este filtro";
+    ViewData["EmptyDescription"] = "Los usuarios Comercio no se muestran en la aplicación web administrativa.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="admin-users__list" aria-labelledby="users-list-title">
+        <div class="admin-users__list-heading">
+            <div>
+                <p class="ui-section-label">Directorio web</p>
+                <h2 id="users-list-title" class="ui-card__title">Usuarios registrados</h2>
+            </div>
+            <span class="ui-badge ui-badge--neutral">@Model.Pagination.TotalItems registros</span>
+        </div>
+
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de usuarios">
+            <table class="ui-table admin-users__table">
+                <caption class="ui-visually-hidden">Usuarios de la aplicación web</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Usuario</th>
+                        <th scope="col">Cédula</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Correo electrónico</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col"><span class="ui-visually-hidden">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (UserListItemViewModel user in Model.Users) {
+                        <tr>
+                            <td class="ui-table__primary">@user.UserName</td>
+                            <td class="ui-table__numeric">@user.Identification</td>
+                            <td>
+                                <span class="admin-users__person-name">@user.FirstName @user.LastName</span>
+                            </td>
+                            <td class="admin-users__email">@user.Email</td>
+                            <td><span class="ui-badge ui-badge--info">@user.Role</span></td>
+                            <td>
+                                <partial name="_StatusBadge" model='@(user.IsActive ? "Activo" : "Inactivo")' />
+                            </td>
+                            <td>
+                                <div class="admin-users__actions">
+                                    <a
+                                        class="ui-button ui-button--secondary ui-button--small"
+                                        asp-action="EditUser"
+                                        asp-route-id="@user.UserId">
+                                        Editar
+                                    </a>
+                                    @if (user.IsActive) {
+                                        <a
+                                            class="ui-button ui-button--danger ui-button--small"
+                                            asp-action="ConfirmUserStatus"
+                                            asp-route-id="@user.UserId"
+                                            asp-route-targetActive="false">
+                                            Inactivar
+                                        </a>
+                                    } else {
+                                        <a
+                                            class="ui-button ui-button--secondary ui-button--small"
+                                            asp-action="ConfirmUserStatus"
+                                            asp-route-id="@user.UserId"
+                                            asp-route-targetActive="true">
+                                            Activar
+                                        </a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <partial name="_Pagination" model="Model.Pagination" />
+    </section>
+}

@@ -122,7 +122,7 @@ public sealed class UpdateMerchantCommandHandlerTests {
         var result = await fixture.Handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Merchant.RncBelongsToAnotherMerchant");
+        result.Error!.Code.Should().Be("Commerce.RncExists");
         result.Error.Message.Should().Be("El RNC pertenece a otro comercio.");
         fixture.MerchantRepository.Verify(r => r.Update(It.IsAny<Merchant>()), Times.Never);
     }
@@ -143,7 +143,7 @@ public sealed class UpdateMerchantCommandHandlerTests {
         var result = await fixture.Handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Merchant.EmailBelongsToAnotherMerchant");
+        result.Error!.Code.Should().Be("Commerce.EmailExists");
         result.Error.Message.Should().Be("El correo electrónico pertenece a otro comercio.");
         fixture.MerchantRepository.Verify(r => r.Update(It.IsAny<Merchant>()), Times.Never);
     }
@@ -158,6 +158,20 @@ public sealed class UpdateMerchantCommandHandlerTests {
         var result = await fixture.Handler.Handle(ValidCommand(), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Command_IdempotencyFingerprintIncludesMerchantId() {
+        UpdateMerchantCommand first = new(
+            5,
+            "Tienda",
+            null,
+            "tienda@example.com",
+            "8095551234",
+            "111222333");
+        UpdateMerchantCommand second = first with { MerchantId = 6 };
+
+        first.RequestFingerprint.Should().NotBe(second.RequestFingerprint);
     }
 
     [Fact]

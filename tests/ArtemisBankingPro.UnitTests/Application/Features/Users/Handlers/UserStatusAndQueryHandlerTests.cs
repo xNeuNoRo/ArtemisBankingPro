@@ -6,6 +6,7 @@ using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Enums;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Users.Handlers;
 
@@ -103,6 +104,13 @@ public sealed class GetCommerceUsersPagedQueryHandlerTests {
     [Fact]
     public async Task Handle_ReturnsCommerceUsers() {
         var repository = new Mock<IUserRepository>();
+        var merchantRepository = new Mock<IMerchantRepository>();
+        merchantRepository
+            .Setup(r => r.GetUserAssociationsAsync(
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync([]);
         repository
             .Setup(r => r.GetCommerceUsersPagedAsync(
                 It.IsAny<PageRequest>(),
@@ -113,7 +121,10 @@ public sealed class GetCommerceUsersPagedQueryHandlerTests {
                     Page: 1, PageSize: 20)
             );
 
-        var handler = new GetCommerceUsersPagedQueryHandler(repository.Object);
+        var handler = new GetCommerceUsersPagedQueryHandler(
+            repository.Object,
+            merchantRepository.Object
+        );
 
         var result = await handler.Handle(
             new GetCommerceUsersPagedQuery(),
@@ -125,6 +136,61 @@ public sealed class GetCommerceUsersPagedQueryHandlerTests {
             r => r.GetCommerceUsersPagedAsync(It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()),
             Times.Once
         );
+    }
+
+    [Fact]
+    public async Task Handle_maps_commerce_association_without_exposing_internal_projection_fields() {
+        var repository = new Mock<IUserRepository>();
+        repository
+            .Setup(r => r.GetCommerceUsersPagedAsync(
+                It.IsAny<PageRequest>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync(
+                new PageResult<UserListDto>(
+                    [
+                        new UserListDto(
+                            "user-1",
+                            "commerce-user",
+                            "00112345678",
+                            "Commerce",
+                            "User",
+                            "commerce@example.com",
+                            nameof(Roles.Comercio),
+                            true,
+                            DateTimeOffset.UtcNow
+                        ),
+                    ],
+                    TotalCount: 1,
+                    Page: 1,
+                    PageSize: 20
+                )
+            );
+        var merchantRepository = new Mock<IMerchantRepository>();
+        merchantRepository
+            .Setup(r => r.GetUserAssociationsAsync(
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync([
+                new ArtemisBankingPro.Application.Features.Merchants.DTOs.MerchantUserAssociationDto(
+                    "user-1",
+                    5,
+                    "Tienda Demo"
+                ),
+            ]);
+
+        var handler = new GetCommerceUsersPagedQueryHandler(
+            repository.Object,
+            merchantRepository.Object
+        );
+
+        var result = await handler.Handle(new GetCommerceUsersPagedQuery(), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Items.Should().ContainSingle();
+        result.Value.Items[0].CommerceId.Should().Be(5);
+        result.Value.Items[0].CommerceName.Should().Be("Tienda Demo");
     }
 }
 

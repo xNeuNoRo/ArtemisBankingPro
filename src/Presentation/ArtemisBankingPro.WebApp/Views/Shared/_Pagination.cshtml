@@ -1,0 +1,98 @@
+@model PaginationViewModel
+@{
+    string? role = ViewData["PaginationRole"] as string;
+    string? status = ViewData["PaginationStatus"] as string;
+    string? type = ViewData["PaginationType"] as string;
+    string? identification = ViewData["PaginationIdentification"] as string;
+    string? accountNumber = ViewData["PaginationAccountNumber"] as string;
+    DateTimeOffset? dateFrom = ViewData["PaginationDateFrom"] is DateTimeOffset dateFromValue
+        ? dateFromValue
+        : null;
+    DateTimeOffset? dateTo = ViewData["PaginationDateTo"] is DateTimeOffset dateToValue
+        ? dateToValue
+        : null;
+    string? dateFromRouteValue = dateFrom?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string? dateToRouteValue = dateTo?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string? transactionType = ViewData["PaginationTransactionType"] as string;
+    string? operationType = ViewData["PaginationOperationType"] as string;
+    int? id = ViewData["PaginationId"] is int idValue ? idValue : null;
+}
+@if (Model.TotalPages > 1) {
+    int firstPage = Math.Max(1, Model.Page - 2);
+    int lastPage = Math.Min(Model.TotalPages, firstPage + 4);
+    firstPage = Math.Max(1, lastPage - 4);
+    <nav class="ui-pagination" aria-label="Paginación">
+        <span class="ui-pagination__summary">
+            Página @Model.Page de @Model.TotalPages
+        </span>
+        <ul class="ui-pagination__list">
+            <li>
+                @if (Model.HasPreviousPage) {
+                    <a
+                        class="ui-pagination__link"
+                        asp-route-page="@(Model.Page - 1)"
+                        asp-route-pageSize="@Model.PageSize"
+                        asp-route-role="@role"
+                        asp-route-status="@status"
+                        asp-route-type="@type"
+                        asp-route-identification="@identification"
+                        asp-route-accountNumber="@accountNumber"
+                         asp-route-dateFrom="@dateFromRouteValue"
+                         asp-route-dateTo="@dateToRouteValue"
+                         asp-route-transactionType="@transactionType"
+                         asp-route-operationType="@operationType"
+                         asp-route-id="@id"
+                        aria-label="Página anterior">
+                        Anterior
+                    </a>
+                } else {
+                    <span class="ui-pagination__link" aria-disabled="true">Anterior</span>
+                }
+            </li>
+            @for (int page = firstPage; page <= lastPage; page++) {
+                <li>
+                    <a
+                        class="ui-pagination__link"
+                        asp-route-page="@(page)"
+                        asp-route-pageSize="@Model.PageSize"
+                        asp-route-role="@role"
+                        asp-route-status="@status"
+                        asp-route-type="@type"
+                        asp-route-identification="@identification"
+                        asp-route-accountNumber="@accountNumber"
+                         asp-route-dateFrom="@dateFromRouteValue"
+                         asp-route-dateTo="@dateToRouteValue"
+                         asp-route-transactionType="@transactionType"
+                         asp-route-operationType="@operationType"
+                         asp-route-id="@id"
+                        aria-current="@(page == Model.Page ? "page" : null)">
+                        @(page)
+                    </a>
+                </li>
+            }
+            <li>
+                @if (Model.HasNextPage) {
+                    <a
+                        class="ui-pagination__link"
+                        asp-route-page="@(Model.Page + 1)"
+                        asp-route-pageSize="@Model.PageSize"
+                        asp-route-role="@role"
+                        asp-route-status="@status"
+                        asp-route-type="@type"
+                        asp-route-identification="@identification"
+                        asp-route-accountNumber="@accountNumber"
+                         asp-route-dateFrom="@dateFromRouteValue"
+                         asp-route-dateTo="@dateToRouteValue"
+                        asp-route-transactionType="@transactionType"
+                        asp-route-operationType="@operationType"
+                        asp-route-id="@id"
+                        aria-label="Página siguiente">
+                        Siguiente
+                    </a>
+                } else {
+                    <span class="ui-pagination__link" aria-disabled="true">Siguiente</span>
+                }
+            </li>
+        </ul>
+    </nav>
+}

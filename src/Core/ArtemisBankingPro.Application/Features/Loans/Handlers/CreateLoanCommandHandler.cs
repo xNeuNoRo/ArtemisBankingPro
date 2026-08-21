@@ -2,16 +2,17 @@ using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Features.Loans.Commands;
 using ArtemisBankingPro.Application.Features.Loans.DTOs;
 using ArtemisBankingPro.Application.Interfaces.Email;
-using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Application.Interfaces.Time;
+using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Domain.Enums;
 using ArtemisBankingPro.Domain.Lending.Details;
 using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Lending.Policies;
@@ -20,6 +21,7 @@ using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
 using Microsoft.Extensions.Logging;
+using System.Data;
 
 namespace ArtemisBankingPro.Application.Features.Loans.Handlers;
 
@@ -72,7 +74,7 @@ public sealed class CreateLoanCommandHandler
         CreateLoanCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. El cliente debe existir y estar activo.
+        // El cliente debe existir y estar activo.
         var customer = await _userRepository.GetByIdAsync(
             message.CustomerUserId,
             cancellationToken
@@ -86,21 +88,30 @@ public sealed class CreateLoanCommandHandler
             );
         }
 
-        // 2. El cliente no debe tener un préstamo activo.
+        if (!string.Equals(customer.Role, nameof(Roles.Cliente), StringComparison.Ordinal)) {
+            return Result.Failure<CreateLoanResponse>(
+                DomainError.Validation(
+                    "Loan.InvalidRequest",
+                    "El usuario seleccionado no es un cliente."
+                )
+            );
+        }
+
+        // El cliente no debe tener un préstamo activo.
         var activeLoan = await _loanRepository.GetActiveByCustomerAsync(
             message.CustomerUserId,
             cancellationToken
         );
         if (activeLoan is not null) {
             return Result.Failure<CreateLoanResponse>(
-                DomainError.Conflict(
+                DomainError.Validation(
                     "Loan.ActiveLoanExists",
                     "Este cliente ya tiene un préstamo activo asignado."
                 )
             );
         }
 
-        // 3. El cliente debe tener una cuenta principal activa para el desembolso.
+        // El cliente debe tener una cuenta principal activa para el desembolso.
         var principalAccount = await _savingsAccountRepository.GetPrincipalByOwnerAsync(
             message.CustomerUserId,
             cancellationToken
@@ -114,13 +125,6 @@ public sealed class CreateLoanCommandHandler
             );
         }
 
-        // 4. Generar número único de 9 dígitos.
-        string rawNumber = await _numberGenerator.NextLoanNumberAsync(cancellationToken);
-        var numberResult = LoanNumber.Create(rawNumber);
-        if (numberResult.IsFailure) {
-            return Result.Failure<CreateLoanResponse>(numberResult.Error!);
-        }
-
         var principalResult = Money.Create(message.CapitalAmount);
         if (principalResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(principalResult.Error!);
@@ -131,91 +135,108 @@ public sealed class CreateLoanCommandHandler
             return Result.Failure<CreateLoanResponse>(rateResult.Error!);
         }
 
-        var issuedAt = _clock.Now;
-        var businessDate = _clock.Today;
+        DateTimeOffset issuedAt = _clock.Now;
+        DateOnly businessDate = _clock.Today;
+        Loan? loan = null;
 
-        // 5. Crear el préstamo en memoria (genera la tabla de amortización).
-        var loanResult = Loan.Issue(
-            message.CustomerUserId,
-            numberResult.Value,
-            principalResult.Value,
-            message.TermMonths,
-            rateResult.Value,
-            _currentUser.UserId!,
-            issuedAt,
-            businessDate
-        );
-        if (loanResult.IsFailure) {
-            return Result.Failure<CreateLoanResponse>(loanResult.Error!);
-        }
+        // El número, la reserva, el préstamo y el desembolso se confirman en
+        // una sola transacción; un rechazo de riesgo no deja números huérfanos.
+        Result persistResult = await _unitOfWork.ExecuteInTransactionAsync(
+            async ct => {
+                string rawNumber = await _numberGenerator.NextLoanNumberAsync(ct);
+                var numberResult = LoanNumber.Create(rawNumber);
+                if (numberResult.IsFailure) {
+                    return Result.Failure(numberResult.Error!);
+                }
 
-        var loan = loanResult.Value;
+                var loanResult = Loan.Issue(
+                    message.CustomerUserId,
+                    numberResult.Value,
+                    principalResult.Value,
+                    message.TermMonths,
+                    rateResult.Value,
+                    _currentUser.UserId!,
+                    issuedAt,
+                    businessDate
+                );
+                if (loanResult.IsFailure) {
+                    return Result.Failure(loanResult.Error!);
+                }
 
-        // 6. Evaluación de riesgo (deuda promedio del sistema).
-        var riskResult = await EvaluateRiskAsync(
-            message.CustomerUserId,
-            loan,
-            cancellationToken
-        );
-        if (riskResult.IsFailure) {
-            return Result.Failure<CreateLoanResponse>(riskResult.Error!);
-        }
+                Loan createdLoan = loanResult.Value;
+                loan = createdLoan;
+                Result<LoanRiskAssessment> riskResult = await EvaluateRiskAsync(
+                    message.CustomerUserId,
+                    createdLoan,
+                    ct
+                );
+                if (riskResult.IsFailure) {
+                    return Result.Failure(riskResult.Error!);
+                }
 
-        var risk = riskResult.Value;
-        if (risk.IsHighRisk && !message.ConfirmHighRisk) {
-            return Result.Failure<CreateLoanResponse>(
-                new DomainError(
-                    "Loan.HighRisk",
-                    risk.CurrentDebtExceedsAverage
-                        ? "Este cliente se considera de alto riesgo, ya que su deuda actual supera el promedio del sistema."
-                        : "Asignar este préstamo convertirá al cliente en un cliente de alto riesgo, ya que su deuda superará el umbral promedio del sistema.",
-                    Domain.Common.Enums.ErrorCategory.Conflict,
-                    new Dictionary<string, object?> {
-                        ["riskType"] = risk.CurrentDebtExceedsAverage
-                            ? "CurrentHighRisk"
-                            : "ProjectedHighRisk",
-                        ["currentDebt"] = risk.CurrentDebt.Amount,
-                        ["projectedDebt"] = risk.ProjectedDebt.Amount,
-                        ["averageDebt"] = risk.AverageDebt.Amount,
-                    }
-                )
-            );
-        }
+                LoanRiskAssessment risk = riskResult.Value;
+                if (risk.IsHighRisk && !message.ConfirmHighRisk) {
+                    return Result.Failure(
+                        new DomainError(
+                            "Loan.HighRiskConfirmationRequired",
+                            risk.CurrentDebtExceedsAverage
+                                ? "Este cliente se considera de alto riesgo, ya que su deuda actual supera el promedio del sistema."
+                                : "Asignar este préstamo convertirá al cliente en un cliente de alto riesgo, ya que su deuda superará el umbral promedio del sistema.",
+                            Domain.Common.Enums.ErrorCategory.Conflict,
+                            new Dictionary<string, object?> {
+                                ["riskType"] = risk.CurrentDebtExceedsAverage
+                                    ? "CurrentHighRisk"
+                                    : "ProjectedHighRisk",
+                                ["currentDebt"] = risk.CurrentDebt.Amount,
+                                ["projectedDebt"] = risk.ProjectedDebt.Amount,
+                                ["averageDebt"] = risk.AverageDebt.Amount,
+                            }
+                        )
+                    );
+                }
 
-        // 7. Desembolso atómico: préstamo + cuentas + operación financiera.
-        var totalAmountToPay = loan.Installments.Sum(i => i.ScheduledAmount.Amount);
-        var monthlyInstallment = loan.Installments.First().ScheduledAmount.Amount;
-
-        var persistResult = await PersistLoanAsync(
-            loan,
-            principalAccount,
-            principalResult.Value,
-            issuedAt,
-            cancellationToken
+                return await PersistLoanAsync(
+                    createdLoan,
+                    principalAccount,
+                    principalResult.Value,
+                    issuedAt,
+                    ct
+                );
+            },
+            isolationLevel: IsolationLevel.Serializable,
+            ct: cancellationToken
         );
         if (persistResult.IsFailure) {
             return Result.Failure<CreateLoanResponse>(persistResult.Error!);
         }
 
+        Loan persistedLoan =
+            loan
+            ?? throw new InvalidOperationException(
+                "El préstamo no fue creado durante la transacción."
+            );
+        var totalAmountToPay = persistedLoan.Installments.Sum(i => i.ScheduledAmount.Amount);
+        var monthlyInstallment = persistedLoan.Installments.First().ScheduledAmount.Amount;
+
         string? notificationWarning = await SendApprovedEmailAsync(
             customer,
-            loan,
-            cancellationToken
+            persistedLoan,
+            CancellationToken.None
         );
 
         return Result.Success(
             new CreateLoanResponse(
-                loan.Id,
-                loan.Number.Value,
+                persistedLoan.Id,
+                persistedLoan.Number.Value,
                 customer.Id,
                 $"{customer.FirstName} {customer.LastName}".Trim(),
-                loan.ApprovedPrincipal.Amount,
-                loan.TermMonths,
-                loan.AnnualInterestRate.AnnualPercentage,
+                persistedLoan.ApprovedPrincipal.Amount,
+                persistedLoan.TermMonths,
+                persistedLoan.AnnualInterestRate.AnnualPercentage,
                 monthlyInstallment,
                 totalAmountToPay,
-                loan.Status.ToString(),
-                loan.IssuedAt,
+                persistedLoan.Status.ToString(),
+                persistedLoan.IssuedAt,
                 notificationWarning
             )
         );
@@ -242,14 +263,15 @@ public sealed class CreateLoanCommandHandler
         var totalCardDebt = await _creditCardRepository.GetTotalActiveDebtAsync(cancellationToken);
         int activeClients = await _userRepository.CountActiveClientsAsync(cancellationToken);
 
-        Money averageDebt = activeClients > 0
-            ? Money.Create((totalLoanDebt.Amount + totalCardDebt.Amount) / activeClients).Value
-            : Money.Zero;
+        Money averageDebt =
+            activeClients > 0
+                ? Money.Create((totalLoanDebt.Amount + totalCardDebt.Amount) / activeClients).Value
+                : Money.Zero;
 
         // Total a pagar del nuevo préstamo (suma de cuotas de la amortización).
-        Money newLoanTotalPayable = Money.Create(
-            loan.Installments.Sum(i => i.ScheduledAmount.Amount)
-        ).Value;
+        Money newLoanTotalPayable = Money
+            .Create(loan.Installments.Sum(i => i.ScheduledAmount.Amount))
+            .Value;
 
         return Result.Success(
             LoanRiskPolicy.Evaluate(currentDebt, newLoanTotalPayable, averageDebt)
@@ -263,46 +285,40 @@ public sealed class CreateLoanCommandHandler
         DateTimeOffset issuedAt,
         CancellationToken cancellationToken
     ) {
-        return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                // Crédito del desembolso en la cuenta principal.
-                var creditResult = principalAccount.Credit(principal);
-                if (creditResult.IsFailure) {
-                    return creditResult;
-                }
+        // Crédito del desembolso en la cuenta principal.
+        var creditResult = principalAccount.Credit(principal);
+        if (creditResult.IsFailure) {
+            return creditResult;
+        }
 
-                _savingsAccountRepository.Update(principalAccount);
-                await _loanRepository.AddAsync(loan, ct);
+        _savingsAccountRepository.Update(principalAccount);
+        await _loanRepository.AddAsync(loan, cancellationToken);
 
-                var operationResult = FinancialOperation.Approve(
-                    Guid.NewGuid(),
-                    FinancialOperationKind.LoanDisbursement,
+        var operationResult = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.LoanDisbursement,
+            principal,
+            principal,
+            Money.Zero,
+            _currentUser.UserId!,
+            issuedAt,
+            [
+                new AccountTransactionDetails(
+                    principalAccount.Number,
+                    TransactionDirection.Credit,
                     principal,
-                    principal,
-                    Money.Zero,
-                    _currentUser.UserId!,
-                    issuedAt,
-                    [
-                        new AccountTransactionDetails(
-                            principalAccount.Number,
-                            TransactionDirection.Credit,
-                            principal,
-                            loan.Number.Value,
-                            principalAccount.Number.Value
-                        ),
-                    ],
-                    loanNumber: loan.Number
-                );
-                if (operationResult.IsFailure) {
-                    return Result.Failure(operationResult.Error!);
-                }
-
-                await _financialOperationRepository.AddAsync(operationResult.Value, ct);
-
-                return Result.Success();
-            },
-            ct: cancellationToken
+                    loan.Number.Value,
+                    principalAccount.Number.Value
+                ),
+            ],
+            loanNumber: loan.Number
         );
+        if (operationResult.IsFailure) {
+            return Result.Failure(operationResult.Error!);
+        }
+
+        await _financialOperationRepository.AddAsync(operationResult.Value, cancellationToken);
+        return Result.Success();
     }
 
     private async Task<string?> SendApprovedEmailAsync(
@@ -328,8 +344,8 @@ public sealed class CreateLoanCommandHandler
         catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
-                "No se pudo enviar el correo de préstamo aprobado para {LoanNumber}.",
-                loan.Number.Value
+                "No se pudo enviar el correo de préstamo aprobado para el préstamo terminado en {LoanLastFour}.",
+                loan.Number.Value[^4..]
             );
             return NotificationMessages.EmailFailed;
         }

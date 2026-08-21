@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Settings;
+using ArtemisBankingPro.Domain.Enums;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -15,6 +16,7 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Services;
 /// </summary>
 public sealed class JwtTokenService : IJwtTokenService {
     private readonly JwtSettings _settings;
+    private readonly byte[] _signingKey;
 
     public JwtTokenService(IOptions<JwtSettings> settings) {
         _settings = settings.Value;
@@ -26,6 +28,13 @@ public sealed class JwtTokenService : IJwtTokenService {
             );
         }
 
+        _signingKey = GetKey();
+        if (_signingKey.Length < 32) {
+            throw new InvalidOperationException(
+                "Security:Jwt:SecretKey debe contener al menos 32 bytes."
+            );
+        }
+
         if (
             string.IsNullOrWhiteSpace(_settings.Issuer)
             || string.IsNullOrWhiteSpace(_settings.Audience)
@@ -34,9 +43,32 @@ public sealed class JwtTokenService : IJwtTokenService {
                 "Security:Jwt:Issuer y Security:Jwt:Audience son obligatorias."
             );
         }
+
+        if (_settings.ExpirationMinutes < 1) {
+            throw new InvalidOperationException(
+                "Security:Jwt:ExpirationMinutes debe ser positivo."
+            );
+        }
     }
 
     public JwtTokenResult GenerateToken(JwtTokenRequest request) {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.UserId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.UserName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Role);
+
+        if (!RoleSets.Api.Contains(request.Role, StringComparer.Ordinal)) {
+            throw new InvalidOperationException(
+                "Solo los roles habilitados para la API pueden recibir un JWT."
+            );
+        }
+
+        if (request.Role != nameof(Roles.Comercio) && request.CommerceId is not null) {
+            throw new InvalidOperationException(
+                "Solo un JWT de Comercio puede contener la asociación de comercio."
+            );
+        }
+
         DateTimeOffset expiresAtUtc = request.IssuedAtUtc.AddMinutes(_settings.ExpirationMinutes);
 
         var claims = new List<Claim>
@@ -46,6 +78,11 @@ public sealed class JwtTokenService : IJwtTokenService {
             new(ClaimTypes.Name, request.UserName),
             new(JwtRegisteredClaimNames.UniqueName, request.UserName),
             new(ClaimTypes.Role, request.Role),
+            new(
+                JwtRegisteredClaimNames.Iat,
+                request.IssuedAtUtc.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture),
+                ClaimValueTypes.Integer64
+            ),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
         };
 
@@ -59,7 +96,7 @@ public sealed class JwtTokenService : IJwtTokenService {
         }
 
         var credentials = new SigningCredentials(
-            new SymmetricSecurityKey(GetKey()),
+            new SymmetricSecurityKey(_signingKey),
             SecurityAlgorithms.HmacSha256
         );
 

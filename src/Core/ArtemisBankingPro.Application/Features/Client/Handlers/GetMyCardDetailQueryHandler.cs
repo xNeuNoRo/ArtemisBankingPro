@@ -1,9 +1,9 @@
 using ArtemisBankingPro.Application.Common.Exceptions;
 using ArtemisBankingPro.Application.Features.Client.DTOs;
+using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Application.Features.Client.Queries;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
-using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Enums;

@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Features.HermesPay.DTOs;
+using ArtemisBankingPro.Application.Features.HermesPay.Commands;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.HermesPay;
 
@@ -29,5 +30,23 @@ public sealed class HermesPayDtoContractTests {
         dto.Message.Should().Be(
             "El monto de la transacción excede el crédito disponible de la tarjeta."
         );
+    }
+
+    [Fact]
+    public void ProcessHermesPayCommand_FingerprintExcludesCardAuthenticationData() {
+        var first = new ProcessHermesPayCommand(
+            7,
+            "1589963258467598",
+            "08",
+            "2029",
+            "859",
+            100m,
+            "key"
+        );
+        var second = first with { CardNumber = "1589963258467599" };
+
+        first.RequestFingerprint.Should().NotContain(first.CardNumber);
+        first.RequestFingerprint.Should().NotContain(first.Cvc);
+        first.RequestFingerprint.Should().Be(second.RequestFingerprint);
     }
 }

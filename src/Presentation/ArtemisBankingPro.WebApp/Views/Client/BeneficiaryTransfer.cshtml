@@ -1,0 +1,31 @@
+@model ClientOperationPageViewModel<BeneficiaryTransferViewModel>
+@{
+    ViewData["Title"] = Model.PageTitle;
+    bool canSubmit = Model.Form.SourceAccountOptions.Count > 0 && Model.Form.BeneficiaryOptions.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="beneficiary-transfer-title">
+    <div class="page-header__content"><p class="page-header__eyebrow">Cliente / Transacciones</p><h1 id="beneficiary-transfer-title" class="page-header__title">Transferencia a beneficiario</h1><p class="page-header__description">Transfiera fondos a una cuenta activa que ya haya registrado.</p></div>
+</section>
+
+@if (!canSubmit) {
+    ViewData["EmptyTitle"] = Model.Form.BeneficiaryOptions.Count == 0 ? "No tiene beneficiarios registrados." : "No tiene cuentas activas para transferir.";
+    ViewData["EmptyDescription"] = "Registre un beneficiario y mantenga una cuenta de ahorro activa para operar.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="ui-card client-form-panel" aria-labelledby="beneficiary-transfer-form-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="beneficiary-transfer-form-title" class="ui-card__title">Datos de la transferencia</h2></div></div>
+        <div class="ui-card__body">
+            <partial name="_ValidationSummary" />
+            <form asp-controller="Client" asp-action="BeneficiaryTransfer" method="post" data-submit-lock data-autofocus-error class="client-form">
+                <input asp-for="Form.SubmissionToken" type="hidden" />
+                <div class="client-form__grid">
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.BeneficiaryId">Beneficiario</label><select class="ui-control" asp-for="Form.BeneficiaryId" required><option value="0" disabled>Seleccione un beneficiario</option>@foreach (SelectOptionViewModel option in Model.Form.BeneficiaryOptions) { <option value="@option.Value">@option.Text</option> }</select><span class="ui-error" asp-validation-for="Form.BeneficiaryId"></span></div>
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.SourceAccountNumber">Cuenta de origen</label><select class="ui-control" asp-for="Form.SourceAccountNumber" required><option value="" disabled>Seleccione una cuenta</option>@foreach (SelectOptionViewModel option in Model.Form.SourceAccountOptions) { <option value="@option.Value">@option.Text</option> }</select><span class="ui-error" asp-validation-for="Form.SourceAccountNumber"></span></div>
+                </div>
+                <div class="ui-field"><label class="ui-label" asp-for="Form.Amount">Monto a transferir</label><input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required /><span class="ui-error" asp-validation-for="Form.Amount"></span></div>
+                <div class="page-actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Cancelar</a><button class="ui-button ui-button--primary" type="submit"><span data-submit-label>Continuar</span></button></div>
+            </form>
+        </div>
+    </section>
+}

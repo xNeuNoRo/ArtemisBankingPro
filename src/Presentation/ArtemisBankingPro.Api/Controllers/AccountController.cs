@@ -2,23 +2,26 @@ using ArtemisBankingPro.Application.Common.Errors;
 using ArtemisBankingPro.Application.Features.Auth.Commands;
 using ArtemisBankingPro.Application.Features.Auth.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
+using ArtemisBankingPro.Api.Infrastructure;
 using Mediator;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace ArtemisBankingPro.Api.Controllers;
 
 [ApiController]
 [AllowAnonymous]
-[EnableRateLimiting("auth")]
 [Route("account")]
 public sealed class AccountController(
     IMediator mediator,
     IErrorResponseMapper errorMapper
 ) : ApiControllerBase(errorMapper) {
     [HttpPost("login")]
+    [Consumes("application/json")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status401Unauthorized, "application/problem+json")]
+    [ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status403Forbidden, "application/problem+json")]
     public async Task<IActionResult> Login(
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken
@@ -32,7 +35,9 @@ public sealed class AccountController(
     }
 
     [HttpPost("confirm")]
+    [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<IActionResult> Confirm(
         [FromBody] ConfirmAccountRequest request,
         CancellationToken cancellationToken
@@ -46,7 +51,9 @@ public sealed class AccountController(
     }
 
     [HttpPost("get-reset-token")]
+    [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<IActionResult> GetResetToken(
         [FromBody] UserNameRequest request,
         CancellationToken cancellationToken
@@ -60,7 +67,9 @@ public sealed class AccountController(
     }
 
     [HttpPost("reset-password")]
+    [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<IActionResult> ResetPassword(
         [FromBody] ResetPasswordRequest request,
         CancellationToken cancellationToken
@@ -79,16 +88,3 @@ public sealed class AccountController(
     }
 
 }
-
-public sealed record LoginRequest(string UserName, string Password);
-
-public sealed record ConfirmAccountRequest(string Token);
-
-public sealed record UserNameRequest(string UserName);
-
-public sealed record ResetPasswordRequest(
-    string UserId,
-    string Token,
-    string Password,
-    string ConfirmPassword
-);

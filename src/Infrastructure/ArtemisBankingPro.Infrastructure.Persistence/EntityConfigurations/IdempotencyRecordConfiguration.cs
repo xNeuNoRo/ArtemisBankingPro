@@ -6,7 +6,13 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
 public sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<IdempotencyRecord> {
     public void Configure(EntityTypeBuilder<IdempotencyRecord> builder) {
-        builder.ToTable("IdempotencyRecords");
+        builder.ToTable(
+            "IdempotencyRecords",
+            table => table.HasCheckConstraint(
+                "CK_IdempotencyRecords_Status_Valid",
+                "[Status] IN (1, 2, 3)"
+            )
+        );
         builder.HasKey(record => record.Id);
         builder.Property(record => record.Id).ValueGeneratedOnAdd();
 
@@ -18,7 +24,6 @@ public sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Id
         builder.Property(record => record.ResultReference).HasMaxLength(100);
         builder.Property(record => record.CreatedAt).IsRequired();
         builder.Property(record => record.CompletedAt);
-
         // La misma clave de idempotencia solo se puede usar una vez por actor.
         builder.HasIndex(record => new { record.IdempotencyKey, record.ActorId }).IsUnique();
         builder.HasIndex(record => record.OperationType);

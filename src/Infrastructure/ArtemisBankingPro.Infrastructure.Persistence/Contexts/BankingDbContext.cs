@@ -2,12 +2,13 @@ using ArtemisBankingPro.Application.Interfaces.Events;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Domain.Accounts.Beneficiaries.Entities;
 using ArtemisBankingPro.Domain.Accounts.Entities;
+using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Cards.Entities;
 using ArtemisBankingPro.Domain.Common.Entities;
-using ArtemisBankingPro.Domain.Lending.Entities;
 using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
+using ArtemisBankingPro.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 /// Contexto principal de EF Core.
 /// </summary>
 public sealed class BankingDbContext : DbContext {
+    private readonly List<Domain.Common.Events.IDomainEvent> _deferredDomainEvents = [];
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<BankingDbContext> _logger;
     private readonly IDomainEventDispatcher _dispatcher;
@@ -56,11 +58,14 @@ public sealed class BankingDbContext : DbContext {
 
     public DbSet<ConfirmationToken> ConfirmationTokens => Set<ConfirmationToken>();
 
+    public DbSet<BankingNumberReservation> BankingNumberReservations =>
+        Set<BankingNumberReservation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasDefaultSchema("dbo");
 
-        // Secuencia compartida para números de cuenta, préstamo y tarjeta.
+        // Secuencia compartida para números de cuenta y préstamo.
         modelBuilder
             .HasSequence<long>("BankingNumberSequence")
             .StartsAt(1)
@@ -79,10 +84,12 @@ public sealed class BankingDbContext : DbContext {
         modelBuilder.ApplyConfiguration(new FinancialOperationConfiguration());
         modelBuilder.ApplyConfiguration(new IdempotencyRecordConfiguration());
         modelBuilder.ApplyConfiguration(new ConfirmationTokenConfiguration());
+        modelBuilder.ApplyConfiguration(new BankingNumberReservationConfiguration());
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) {
         ApplyAuditInformation();
+        await EnsureNumberReservationsAsync(cancellationToken);
         List<(
             IAggregateRoot Aggregate,
             List<Domain.Common.Events.IDomainEvent> Events
@@ -90,13 +97,65 @@ public sealed class BankingDbContext : DbContext {
 
         int result = await base.SaveChangesAsync(cancellationToken);
 
-        if (pendingEvents.Count > 0) {
-            await DispatchDomainEventsAsync(pendingEvents, cancellationToken);
-            // Los handlers pueden modificar estado; se persiste en un segundo guardado.
-            await base.SaveChangesAsync(cancellationToken);
+        if (Database.CurrentTransaction is null) {
+            await DispatchDomainEventsAsync(
+                pendingEvents.SelectMany(item => item.Events),
+                cancellationToken
+            );
+        }
+        else {
+            _deferredDomainEvents.AddRange(pendingEvents.SelectMany(item => item.Events));
         }
 
         return result;
+    }
+
+    private async Task EnsureNumberReservationsAsync(CancellationToken ct) {
+        List<(string Number, BankingNumberResourceType Type)> pending = [
+            .. ChangeTracker
+                .Entries<SavingsAccount>()
+                .Where(entry => entry.State == EntityState.Added)
+                .Select(entry => (entry.Entity.Number.Value, BankingNumberResourceType.SavingsAccount)),
+            .. ChangeTracker
+                .Entries<Loan>()
+                .Where(entry => entry.State == EntityState.Added)
+                .Select(entry => (entry.Entity.Number.Value, BankingNumberResourceType.Loan)),
+        ];
+
+        if (pending.Count == 0) {
+            return;
+        }
+
+        var duplicates = pending
+            .GroupBy(item => item.Number, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+        if (duplicates.Length > 0) {
+            throw new InvalidOperationException(
+                $"El namespace de numeros contiene una reserva duplicada: {duplicates[0]}."
+            );
+        }
+
+        string[] numbers = pending.Select(item => item.Number).ToArray();
+        Dictionary<string, BankingNumberResourceType> existing = await BankingNumberReservations
+            .AsNoTracking()
+            .Where(reservation => numbers.Contains(reservation.Number))
+            .ToDictionaryAsync(reservation => reservation.Number, reservation => reservation.ResourceType, ct);
+
+        foreach ((string number, BankingNumberResourceType resourceType) in pending) {
+            if (existing.TryGetValue(number, out BankingNumberResourceType existingType)) {
+                if (existingType != resourceType) {
+                    throw new InvalidOperationException(
+                        $"El numero {number} ya esta reservado para otro recurso financiero."
+                    );
+                }
+
+                continue;
+            }
+
+            BankingNumberReservations.Add(new BankingNumberReservation(number, resourceType));
+        }
     }
 
     public override int SaveChanges() {
@@ -105,6 +164,84 @@ public sealed class BankingDbContext : DbContext {
                 + "de eventos de dominio y la auditoría requieren asincronía."
         );
     }
+
+    public async Task ValidateExistingNumberNamespaceAsync(CancellationToken ct = default) {
+        List<string> accountNumbers = await SavingsAccounts
+            .AsNoTracking()
+            .Select(account => account.Number.Value)
+            .ToListAsync(ct);
+        List<string> loanNumbers = await Loans
+            .AsNoTracking()
+            .Select(loan => loan.Number.Value)
+            .ToListAsync(ct);
+        IEnumerable<string> numbers = accountNumbers.Concat(loanNumbers);
+
+        string? duplicate = numbers
+            .GroupBy(number => number, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .FirstOrDefault();
+        if (duplicate is not null) {
+            throw new InvalidOperationException(
+                $"El namespace de numeros contiene una colision existente: {duplicate}."
+            );
+        }
+    }
+
+    public async Task BackfillNumberReservationsAsync(CancellationToken ct = default) {
+        var accountNumbers = await SavingsAccounts
+            .AsNoTracking()
+            .Select(account => account.Number.Value)
+            .ToListAsync(ct);
+        var loanNumbers = await Loans
+            .AsNoTracking()
+            .Select(loan => loan.Number.Value)
+            .ToListAsync(ct);
+        string[] numbers = accountNumbers.Concat(loanNumbers).Distinct(StringComparer.Ordinal).ToArray();
+
+        HashSet<string> existing = await BankingNumberReservations
+            .AsNoTracking()
+            .Where(reservation => numbers.Contains(reservation.Number))
+            .Select(reservation => reservation.Number)
+            .ToHashSetAsync(ct);
+
+        string[] missingAccounts = accountNumbers
+            .Where(number => !existing.Contains(number))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        BankingNumberReservations.AddRange(
+            missingAccounts.Select(
+                number => new BankingNumberReservation(number, BankingNumberResourceType.SavingsAccount)
+            )
+        );
+        existing.UnionWith(missingAccounts);
+
+        string[] missingLoans = loanNumbers
+            .Where(number => !existing.Contains(number))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        BankingNumberReservations.AddRange(
+            missingLoans.Select(
+                number => new BankingNumberReservation(number, BankingNumberResourceType.Loan)
+            )
+        );
+
+        if (ChangeTracker.Entries<BankingNumberReservation>().Any(entry => entry.State == EntityState.Added)) {
+            await SaveChangesAsync(ct);
+        }
+    }
+
+    internal async Task DispatchDeferredDomainEventsAsync(CancellationToken ct) {
+        if (_deferredDomainEvents.Count == 0) {
+            return;
+        }
+
+        List<Domain.Common.Events.IDomainEvent> events = [.. _deferredDomainEvents];
+        _deferredDomainEvents.Clear();
+        await DispatchDomainEventsAsync(events, ct);
+    }
+
+    internal void ClearDeferredDomainEvents() => _deferredDomainEvents.Clear();
 
     private void ApplyAuditInformation() {
         DateTimeOffset now = _timeProvider.GetUtcNow();
@@ -147,25 +284,19 @@ public sealed class BankingDbContext : DbContext {
     }
 
     private async Task DispatchDomainEventsAsync(
-        List<(IAggregateRoot Aggregate, List<Domain.Common.Events.IDomainEvent> Events)> pending,
+        IEnumerable<Domain.Common.Events.IDomainEvent> events,
         CancellationToken ct
     ) {
-        foreach ((_, List<Domain.Common.Events.IDomainEvent> events) in pending) {
-            foreach (Domain.Common.Events.IDomainEvent domainEvent in events) {
-                try {
-                    await _dispatcher.DispatchAsync(domainEvent, ct);
-                }
-                catch (Exception ex) {
-                    _logger.LogError(
-                        ex,
-                        "Error al despachar el evento de dominio {EventType} tras persistir.",
-                        domainEvent.GetType().Name
-                    );
-                    throw new InvalidOperationException(
-                        $"El despacho del evento de dominio {domainEvent.GetType().Name} falló tras persistir.",
-                        ex
-                    );
-                }
+        foreach (Domain.Common.Events.IDomainEvent domainEvent in events) {
+            try {
+                await _dispatcher.DispatchAsync(domainEvent, ct);
+            }
+            catch (Exception ex) {
+                _logger.LogError(
+                    ex,
+                    "Error al despachar el evento de dominio {EventType} tras confirmar la persistencia.",
+                    domainEvent.GetType().Name
+                );
             }
         }
     }

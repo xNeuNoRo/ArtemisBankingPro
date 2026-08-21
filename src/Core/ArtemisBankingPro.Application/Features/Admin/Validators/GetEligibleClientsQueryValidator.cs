@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Features.Admin.Queries;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using FluentValidation;
+using ArtemisBankingPro.Application.Common.Validation;
 
 namespace ArtemisBankingPro.Application.Features.Admin.Validators;
 
@@ -20,8 +21,13 @@ public sealed class GetEligibleClientsQueryValidator
             .WithMessage($"El tamaño de página debe estar entre 1 y {PageRequest.MaxPageSize}.");
 
         RuleFor(query => query.Identification)
-            .MaximumLength(20)
+            .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
             .When(query => query.Identification is not null)
             .WithMessage("La cédula no debe exceder 20 caracteres.");
+
+        RuleFor(query => query.SelectedClientId)
+            .MaximumLength(450)
+            .When(query => query.SelectedClientId is not null)
+            .WithMessage("El identificador del cliente no es válido.");
     }
 }

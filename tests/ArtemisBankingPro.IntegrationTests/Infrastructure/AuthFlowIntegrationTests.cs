@@ -2,9 +2,9 @@ using ArtemisBankingPro.Application.Features.Auth.Commands;
 using ArtemisBankingPro.Application.Features.Auth.Handlers;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Interfaces.Time;
-using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Enums;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
@@ -117,6 +117,35 @@ public sealed class AuthFlowIntegrationTests(SqlServerFixture fixture) : SqlServ
     }
 
     [Fact]
+    public async Task Login_repeated_wrong_password_locks_out_the_identity_user() {
+        AppUser user = await CreateUserAsync("authlockout", nameof(Roles.Administrador));
+
+        await using var scope = Fixture.Services.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
+
+        for (var attempt = 0; attempt < 5; attempt++) {
+            LoginResult result = await service.ValidateCredentialsAsync(
+                "authlockout",
+                "WrongP@ssword123!",
+                RoleSets.Api
+            );
+
+            result.Status.Should().Be(LoginStatus.InvalidCredentials);
+        }
+
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        AppUser locked = (await userManager.FindByIdAsync(user.Id))!;
+        locked.LockoutEnd.Should().NotBeNull();
+
+        LoginResult validPassword = await service.ValidateCredentialsAsync(
+            "authlockout",
+            "P@ssw0rd123!",
+            RoleSets.Api
+        );
+        validPassword.Status.Should().Be(LoginStatus.InvalidCredentials);
+    }
+
+    [Fact]
     public async Task ActivateAccount_Flow_ActivatesUser() {
         AppUser user = await CreateUserAsync("authactivate", nameof(Roles.Cliente), active: false);
 
@@ -128,8 +157,7 @@ public sealed class AuthFlowIntegrationTests(SqlServerFixture fixture) : SqlServ
 
         await using (var scope = Fixture.Services.CreateAsyncScope()) {
             var handler = new ActivateAccountCommandHandler(
-                scope.ServiceProvider.GetRequiredService<IAccountTokenService>(),
-                scope.ServiceProvider.GetRequiredService<IUserAccountService>()
+                scope.ServiceProvider.GetRequiredService<IAccountTokenService>()
             );
 
             var result = await handler.Handle(
@@ -159,16 +187,19 @@ public sealed class AuthFlowIntegrationTests(SqlServerFixture fixture) : SqlServ
 
         await using (var scope = Fixture.Services.CreateAsyncScope()) {
             var handler = new ActivateAccountCommandHandler(
-                scope.ServiceProvider.GetRequiredService<IAccountTokenService>(),
-                scope.ServiceProvider.GetRequiredService<IUserAccountService>()
+                scope.ServiceProvider.GetRequiredService<IAccountTokenService>()
             );
 
             (await handler.Handle(new ActivateAccountCommand(rawToken), CancellationToken.None))
-                .IsSuccess.Should().BeTrue();
+                .IsSuccess.Should()
+                .BeTrue();
 
-            var second = await handler.Handle(new ActivateAccountCommand(rawToken), CancellationToken.None);
+            var second = await handler.Handle(
+                new ActivateAccountCommand(rawToken),
+                CancellationToken.None
+            );
             second.IsFailure.Should().BeTrue();
-            second.Error!.Code.Should().Be("Auth.ActivationAlreadyUsed");
+            second.Error!.Code.Should().Be("Account.InvalidActivationToken");
         }
     }
 
@@ -181,14 +212,19 @@ public sealed class AuthFlowIntegrationTests(SqlServerFixture fixture) : SqlServ
             services.AddScoped<IEmailService>(_ => emailService)
         );
 
-        // 1. Solicitar restablecimiento (API: token directo, sin callback)
+        // Solicitar restablecimiento (API: token directo, sin callback)
         string rawToken;
         await using (var scope = provider.CreateAsyncScope()) {
             var handler = new RequestPasswordResetCommandHandler(
                 scope.ServiceProvider.GetRequiredService<IUserAccountService>(),
                 scope.ServiceProvider.GetRequiredService<IAccountTokenService>(),
                 scope.ServiceProvider.GetRequiredService<IEmailService>(),
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<RequestPasswordResetCommandHandler>.Instance
+                Microsoft
+                    .Extensions
+                    .Logging
+                    .Abstractions
+                    .NullLogger<RequestPasswordResetCommandHandler>
+                    .Instance
             );
 
             var requestResult = await handler.Handle(
@@ -201,14 +237,16 @@ public sealed class AuthFlowIntegrationTests(SqlServerFixture fixture) : SqlServ
             rawToken = tokenModel.Token;
         }
 
-        // 2. El usuario quedó desactivado temporalmente
+        // El usuario quedó desactivado temporalmente
         await using (var verifyScope = Fixture.Services.CreateAsyncScope()) {
-            var userManager = verifyScope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var userManager = verifyScope.ServiceProvider.GetRequiredService<
+                UserManager<AppUser>
+            >();
             AppUser? deactivated = await userManager.FindByIdAsync(user.Id);
             deactivated!.Active.Should().BeFalse();
         }
 
-        // 3. Completar el restablecimiento con el token enviado por correo
+        // Completar el restablecimiento con el token enviado por correo
         await using (var scope = provider.CreateAsyncScope()) {
             var handler = new ResetPasswordCommandHandler(
                 scope.ServiceProvider.GetRequiredService<IAccountTokenService>()
@@ -222,7 +260,7 @@ public sealed class AuthFlowIntegrationTests(SqlServerFixture fixture) : SqlServ
             resetResult.IsSuccess.Should().BeTrue();
         }
 
-        // 4. Verificar: nuevo password funciona y usuario reactivado
+        // Verificar: nuevo password funciona y usuario reactivado
         await using (var scope = Fixture.Services.CreateAsyncScope()) {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
             AppUser? updated = await userManager.FindByIdAsync(user.Id);

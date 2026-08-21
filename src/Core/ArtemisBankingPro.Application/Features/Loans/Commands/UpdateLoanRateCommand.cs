@@ -1,6 +1,8 @@
 using ArtemisBankingPro.Application.Common.Interfaces;
+using ArtemisBankingPro.Application.Features.Loans.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Mediator;
+using System.Globalization;
 
 namespace ArtemisBankingPro.Application.Features.Loans.Commands;
 
@@ -12,10 +14,14 @@ namespace ArtemisBankingPro.Application.Features.Loans.Commands;
 public sealed record UpdateLoanRateCommand(
     int LoanId,
     decimal AnnualInterestRate
-) : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
+) : IRequest<Result<LoanRateUpdateResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey { get; init; } = string.Empty;
 
-    public string RequestFingerprint => $"{LoanId}|{AnnualInterestRate}";
+    public string RequestFingerprint => string.Join(
+        '|',
+        LoanId.ToString(CultureInfo.InvariantCulture),
+        AnnualInterestRate.ToString(CultureInfo.InvariantCulture)
+    );
 }

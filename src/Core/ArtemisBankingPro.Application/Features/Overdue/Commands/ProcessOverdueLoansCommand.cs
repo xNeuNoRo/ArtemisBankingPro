@@ -18,8 +18,11 @@ namespace ArtemisBankingPro.Application.Features.Overdue.Commands;
 /// (ADR-010): un crash
 /// no bloquea el día con una reserva <c>InProgress</c> ni marca el día como
 /// procesado cuando quedaron préstamos sin actualizar; el reintento del mismo
-/// día es seguro y el resultado informa <c>FailedCount</c> para que el host
-/// decida.
+/// día es seguro y el resultado informa <c>FailedCount</c> y
+/// <c>EmailFailedCount</c> para que el host observe fallos sin convertir un
+/// cambio de mora confirmado en una operación financiera fallida. El handler
+/// limita cada ejecución a 1,000 préstamos y devuelve <c>HasMore</c> cuando
+/// debe continuar.
 /// </remarks>
 public sealed record ProcessOverdueLoansCommand(DateOnly BusinessDate, int BatchSize = 100)
     : IRequest<Result<OverdueProcessingResult>> {

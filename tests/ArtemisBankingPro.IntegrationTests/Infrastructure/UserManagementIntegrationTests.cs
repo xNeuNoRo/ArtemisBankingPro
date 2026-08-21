@@ -8,7 +8,9 @@ using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
+using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
@@ -85,7 +87,6 @@ public sealed class UserManagementIntegrationTests(SqlServerFixture fixture) : S
         }
 
         CreateUserCommandHandler handler;
-        string? mainAccountNumber = null;
         await using (var scope = provider.CreateAsyncScope()) {
             handler = CreateUserHandler(scope.ServiceProvider);
 
@@ -105,10 +106,7 @@ public sealed class UserManagementIntegrationTests(SqlServerFixture fixture) : S
             );
 
             result.IsSuccess.Should().BeTrue();
-            mainAccountNumber = result.Value.MainAccountNumber;
-            mainAccountNumber.Should().NotBeNullOrWhiteSpace();
             result.Value.IsActive.Should().BeFalse();
-            mainAccountNumber.Length.Should().Be(9);
 
             // El correo de activación fue generado (token directo, flujo API).
             Assert.IsType<AccountActivationTokenModel>(emailService.LastModel);
@@ -125,8 +123,9 @@ public sealed class UserManagementIntegrationTests(SqlServerFixture fixture) : S
         await using (var scope = Fixture.Services.CreateAsyncScope()) {
             var accountRepository = scope.ServiceProvider
                 .GetRequiredService<ISavingsAccountRepository>();
-            var number = Domain.Accounts.ValueObjects.AccountNumber.Create(mainAccountNumber).Value;
-            var account = await accountRepository.GetByNumberAsync(number);
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            string userId = (await userManager.FindByNameAsync("maria.gomez"))!.Id;
+            var account = (await accountRepository.GetByOwnerAsync(userId)).Single();
             Assert.NotNull(account);
             account.Balance.Amount.Should().Be(5000m);
             account.Type.Should().Be(Domain.Accounts.Enums.AccountType.Primary);
@@ -166,6 +165,58 @@ public sealed class UserManagementIntegrationTests(SqlServerFixture fixture) : S
     }
 
     [Fact]
+    public async Task CreateClientUser_WhenAccountPersistenceThrows_RollsBackIdentityAndAccount() {
+        await CreateSeededUserAsync("atomic-admin", "Administrador");
+
+        var emailService = new EmailCaptureService();
+        await using var provider = Fixture.BuildProvider(configure: services => {
+            services.AddScoped<IEmailService>(_ => emailService);
+            services.AddScoped<ICurrentUserService>(_ => new FixedCurrentUser());
+            services.AddScoped<INumberGenerator>(_ => new ThrowingNumberGenerator());
+        });
+
+        await using (var roleScope = provider.CreateAsyncScope()) {
+            await EnsureRoleAsync(roleScope.ServiceProvider, "Cliente");
+            await EnsureRoleAsync(roleScope.ServiceProvider, "Administrador");
+        }
+
+        int accountCountBefore;
+        await using (var snapshotScope = provider.CreateAsyncScope()) {
+            accountCountBefore = await snapshotScope.ServiceProvider
+                .GetRequiredService<BankingDbContext>()
+                .SavingsAccounts
+                .CountAsync();
+        }
+
+        string userName = $"rollback-{Guid.NewGuid():N}"[..30];
+        await using (var scope = provider.CreateAsyncScope()) {
+            var handler = CreateUserHandler(scope.ServiceProvider);
+            Func<Task> act = () => handler.Handle(
+                new CreateUserCommand(
+                    "Rollback",
+                    "User",
+                    DigitsFromGuid(),
+                    $"{userName}@example.test",
+                    userName,
+                    "P@ssw0rd123!",
+                    "P@ssw0rd123!",
+                    "Cliente",
+                    InitialAmount: 100m
+                ),
+                CancellationToken.None
+            ).AsTask();
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        await using var verificationScope = provider.CreateAsyncScope();
+        var userManager = verificationScope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        Assert.Null(await userManager.FindByNameAsync(userName));
+        (await verificationScope.ServiceProvider.GetRequiredService<BankingDbContext>()
+            .SavingsAccounts.CountAsync()).Should().Be(accountCountBefore);
+    }
+
+    [Fact]
     public async Task ChangeStatus_DeactivatesUser_PreventsLogin() {
         AppUser user = await CreateSeededUserAsync("statustest", "Cliente");
 
@@ -190,4 +241,18 @@ public sealed class UserManagementIntegrationTests(SqlServerFixture fixture) : S
         );
         login.Status.Should().Be(LoginStatus.Inactive);
     }
+
+    private sealed class ThrowingNumberGenerator : INumberGenerator {
+        public Task<string> NextAccountNumberAsync(CancellationToken ct = default) =>
+            throw new InvalidOperationException("number generator unavailable");
+
+        public Task<string> NextLoanNumberAsync(CancellationToken ct = default) =>
+            throw new InvalidOperationException("number generator unavailable");
+
+        public Task<string> NextCardNumberAsync(CancellationToken ct = default) =>
+            throw new InvalidOperationException("number generator unavailable");
+    }
+
+    private static string DigitsFromGuid() =>
+        new string(Guid.NewGuid().ToString("N").Where(char.IsDigit).Concat("00000000000").Take(11).ToArray());
 }

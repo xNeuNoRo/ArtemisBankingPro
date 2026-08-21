@@ -34,6 +34,20 @@ public sealed class AmortizationCalculatorTests {
     }
 
     [Fact]
+    public void Generate_AdjustsFinalInstallmentResidualWithoutLosingPrincipal() {
+        IReadOnlyList<AmortizationEntry> schedule = AmortizationCalculator.Generate(
+            Money.Create(100m).Value,
+            InterestRate.Create(0m).Value,
+            6,
+            new DateOnly(2026, 1, 15)).Value;
+
+        schedule.Take(5).Should().OnlyContain(entry => entry.ScheduledAmount.Amount == 16.67m);
+        schedule[^1].ScheduledAmount.Amount.Should().Be(16.65m);
+        schedule.Sum(entry => entry.PrincipalAmount.Amount).Should().Be(100m);
+        schedule.Sum(entry => entry.ScheduledAmount.Amount).Should().Be(100m);
+    }
+
+    [Fact]
     public void Generate_Day31_PreservesOriginalAnchorAcrossMonths() {
         IReadOnlyList<AmortizationEntry> schedule = AmortizationCalculator.Generate(
             Money.Create(600m).Value,

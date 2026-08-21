@@ -1,0 +1,63 @@
+@model CashierOperationListViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+    ViewData["PaginationDateFrom"] = Model.DateFrom;
+    ViewData["PaginationDateTo"] = Model.DateTo;
+    ViewData["PaginationOperationType"] = Model.OperationType;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="cashier-operations-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cajero / Actividad</p>
+        <h1 id="cashier-operations-title" class="page-header__title">Historial de operaciones</h1>
+        <p class="page-header__description">Consulte las operaciones registradas por su sesión de cajero con filtros y paginación server-side.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--primary" asp-controller="Cashier" asp-action="Deposit">Nueva operación</a>
+    </div>
+</section>
+
+<section class="ui-card client-filter" aria-labelledby="cashier-operations-filter-title">
+    <div class="ui-card__header"><div><h2 id="cashier-operations-filter-title" class="ui-card__title">Filtrar operaciones</h2><p class="ui-card__description">El cajero y el alcance de los resultados se resuelven en el servidor.</p></div></div>
+    <div class="ui-card__body">
+        <partial name="_ValidationSummary" />
+        <form asp-controller="Cashier" asp-action="Operations" method="get" class="client-filter__form">
+            <div class="ui-field"><label class="ui-label" for="DateFrom">Desde</label><input class="ui-control" id="DateFrom" name="dateFrom" type="date" value="@(Model.DateFrom?.ToString("yyyy-MM-dd"))" aria-describedby="DateFrom-error" /><span class="ui-error" asp-validation-for="DateFrom"></span></div>
+            <div class="ui-field"><label class="ui-label" for="DateTo">Hasta</label><input class="ui-control" id="DateTo" name="dateTo" type="date" value="@(Model.DateTo?.ToString("yyyy-MM-dd"))" aria-describedby="DateTo-error" /><span class="ui-error" asp-validation-for="DateTo"></span></div>
+            <div class="ui-field"><label class="ui-label" for="OperationType">Tipo</label><select class="ui-control" id="OperationType" name="operationType">
+                @foreach (SelectOptionViewModel option in Model.OperationTypeOptions) { <option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option> }
+            </select><span class="ui-error" asp-validation-for="OperationType"></span></div>
+            <button class="ui-button ui-button--primary" type="submit">Aplicar filtros</button>
+        </form>
+    </div>
+</section>
+
+@if (Model.Operations.Count == 0) {
+    ViewData["EmptyTitle"] = "No hay operaciones para estos filtros.";
+    ViewData["EmptyDescription"] = "Pruebe con otro rango de fechas o tipo de operación.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="client-list" aria-labelledby="cashier-operations-list-title">
+        <div class="client-list__heading"><div><p class="ui-section-label">Actividad registrada</p><h2 id="cashier-operations-list-title" class="ui-card__title">Operaciones recientes</h2></div><span class="ui-badge ui-badge--info">@Model.Pagination.TotalItems registros</span></div>
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de operaciones de caja">
+            <table class="ui-table client-table">
+                <caption class="ui-visually-hidden">Historial de operaciones del cajero</caption>
+                <thead><tr><th scope="col">Fecha</th><th scope="col">Tipo</th><th scope="col">Monto</th><th scope="col">Cuenta</th><th scope="col">Producto</th><th scope="col">Estado</th></tr></thead>
+                <tbody>
+                    @foreach (CashierOperationItemViewModel operation in Model.Operations) {
+                        <tr>
+                            <td>@BusinessClock.ToBusinessTime(operation.OccurredAt).ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@operation.Kind</td>
+                            <td class="ui-table__numeric">@Money(operation.Amount)</td>
+                            <td>@(string.IsNullOrWhiteSpace(operation.AccountLastFour) ? "No aplica" : $"•••• {operation.AccountLastFour}")</td>
+                            <td>@(operation.CardLastFour is not null ? $"Tarjeta •••• {operation.CardLastFour}" : operation.LoanNumber ?? "No aplica")</td>
+                            <td><partial name="_StatusBadge" model="operation.Status" />@if (!string.IsNullOrWhiteSpace(operation.RejectionCode)) { <small class="ui-field-description">@operation.RejectionCode</small> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pagination" model="Model.Pagination" />
+    </section>
+}

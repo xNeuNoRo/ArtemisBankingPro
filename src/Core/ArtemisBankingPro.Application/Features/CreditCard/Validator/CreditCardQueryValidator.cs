@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Features.CreditCard.Queries;
 using ArtemisBankingPro.Domain.Common.Pagination;
 using FluentValidation;
+using ArtemisBankingPro.Application.Common.Validation;
 
 namespace ArtemisBankingPro.Application.Features.CreditCard.Validator;
 
@@ -40,7 +41,7 @@ public sealed class GetCreditCardsPagedQueryValidator : AbstractValidator<GetCre
 
         When(x => x.Identification is not null, () => {
             RuleFor(x => x.Identification)
-                .MaximumLength(20)
+                .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
                 .WithMessage("La cédula no debe exceder 20 caracteres.");
         });
     }

@@ -1,9 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Features.Admin.ViewModels;
 using ArtemisBankingPro.Application.Common.ViewModels;
 
 namespace ArtemisBankingPro.Application.Features.Loans.ViewModels;
 
 public sealed class LoanListViewModel : BaseViewModel {
+    public string? LoadErrorMessage { get; init; }
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
     [StringLength(50, ErrorMessage = "El estado no debe exceder 50 caracteres.")]
     public string? Status { get; set; }
 
@@ -13,6 +17,29 @@ public sealed class LoanListViewModel : BaseViewModel {
     public IReadOnlyList<SelectOptionViewModel> StatusOptions { get; init; } = [];
     public IReadOnlyList<LoanListItemViewModel> Loans { get; init; } = [];
     public PaginationViewModel Pagination { get; init; } = new();
+
+    public static IReadOnlyList<SelectOptionViewModel> BuildStatusOptions(
+        string? selectedStatus,
+        bool searchingByIdentification = false
+    ) => [
+        new() {
+            Value = "activos",
+            Text = "Activos",
+            IsSelected = (!searchingByIdentification && string.IsNullOrWhiteSpace(selectedStatus))
+                || string.Equals(selectedStatus, "activos", StringComparison.OrdinalIgnoreCase),
+        },
+        new() {
+            Value = "completados",
+            Text = "Completados",
+            IsSelected = string.Equals(selectedStatus, "completados", StringComparison.OrdinalIgnoreCase),
+        },
+        new() {
+            Value = "todos",
+            Text = "Todos",
+            IsSelected = (searchingByIdentification && string.IsNullOrWhiteSpace(selectedStatus))
+                || string.Equals(selectedStatus, "todos", StringComparison.OrdinalIgnoreCase),
+        },
+    ];
 }
 
 public sealed class LoanListItemViewModel {
@@ -47,6 +74,18 @@ public sealed class LoanDetailViewModel : BaseViewModel {
     public IReadOnlyList<LoanInstallmentViewModel> Amortization { get; init; } = [];
 }
 
+public sealed class LoanAssignmentPageViewModel : BaseViewModel {
+    public EligibleClientItemViewModel Customer { get; init; } = new();
+    public CreateLoanViewModel Form { get; init; } = new();
+    public string SubmissionToken { get; init; } = string.Empty;
+}
+
+public sealed class LoanRatePageViewModel : BaseViewModel {
+    public LoanDetailViewModel Loan { get; init; } = new();
+    public UpdateLoanRateViewModel Form { get; init; } = new();
+    public string SubmissionToken { get; init; } = string.Empty;
+}
+
 public sealed class LoanInstallmentViewModel {
     public int InstallmentNumber { get; init; }
     public DateOnly DueDate { get; init; }
@@ -58,7 +97,7 @@ public sealed class LoanInstallmentViewModel {
     public bool IsLate { get; init; }
 }
 
-public sealed class CreateLoanViewModel : IValidatableObject {
+public sealed class CreateLoanViewModel : BaseViewModel, IValidatableObject {
     [Required(ErrorMessage = "El monto a prestar es requerido.")]
     public decimal? CapitalAmount { get; set; }
 
@@ -92,7 +131,7 @@ public sealed class CreateLoanViewModel : IValidatableObject {
     }
 }
 
-public sealed class UpdateLoanRateViewModel : IValidatableObject {
+public sealed class UpdateLoanRateViewModel : BaseViewModel, IValidatableObject {
     [Required(ErrorMessage = "La tasa de interés anual es requerida.")]
     public decimal? AnnualInterestRate { get; set; }
 
@@ -107,7 +146,12 @@ public sealed class UpdateLoanRateViewModel : IValidatableObject {
 }
 
 public sealed class HighRiskLoanConfirmationViewModel : ConfirmationViewModel {
+    public string CustomerUserId { get; init; } = string.Empty;
+    public string CustomerIdentification { get; init; } = string.Empty;
     public string CustomerFullName { get; init; } = string.Empty;
+    public decimal CapitalAmount { get; init; }
+    public int TermMonths { get; init; }
+    public decimal AnnualInterestRate { get; init; }
     public decimal CurrentDebt { get; init; }
     public decimal ProjectedDebt { get; init; }
     public decimal AverageDebt { get; init; }

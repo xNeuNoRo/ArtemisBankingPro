@@ -250,6 +250,32 @@ public sealed class MerchantTests {
     }
 
     [Fact]
+    public void UpdateInformation_EarlierThanPreviousUpdate_ReturnsFailureAndPreservesState() {
+        Merchant merchant = CreateMerchant();
+        merchant.UpdateInformation(
+            "Renamed",
+            null,
+            "new@example.com",
+            "809-555-3333",
+            "987654321",
+            Now.AddMinutes(2)
+        ).IsSuccess.Should().BeTrue();
+
+        Result result = merchant.UpdateInformation(
+            "Out of order",
+            null,
+            "out-of-order@example.com",
+            "809-555-2222",
+            "987654321",
+            Now.AddMinutes(1)
+        );
+
+        result.IsFailure.Should().BeTrue();
+        merchant.Name.Should().Be("Renamed");
+        merchant.UpdatedAt.Should().Be(Now.AddMinutes(2));
+    }
+
+    [Fact]
     public void UpdateInformation_InvalidName_ReturnsFailure() {
         Merchant merchant = CreateMerchant();
 

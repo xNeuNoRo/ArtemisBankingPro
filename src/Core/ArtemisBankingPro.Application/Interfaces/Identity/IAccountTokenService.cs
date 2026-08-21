@@ -26,6 +26,12 @@ public sealed record TokenVerification(AccountTokenVerificationResult Result, st
     public bool IsValid => Result == AccountTokenVerificationResult.Valid;
 }
 
+public sealed record PasswordResetTokenResult(
+    string RawToken,
+    string Email,
+    string FullName
+);
+
 /// <summary>
 /// Generación y verificación de tokens de activación y restablecimiento de
 /// contraseña. Los tokens son aleatorios, de un solo uso, con vencimiento y
@@ -40,6 +46,17 @@ public interface IAccountTokenService {
     Task<string> GenerateAsync(
         string userId,
         AccountTokenType type,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Desactiva la cuenta, invalida tokens de reset anteriores y genera el
+    /// nuevo token dentro de una única transacción de Identity. Aplica los
+    /// límites de abuso configurados por usuario.
+    /// </summary>
+    Task<Result<PasswordResetTokenResult>> GeneratePasswordResetAsync(
+        string userId,
+        IReadOnlyCollection<string> allowedRoles,
         CancellationToken ct = default
     );
 
@@ -60,6 +77,15 @@ public interface IAccountTokenService {
     /// </summary>
     Task<TokenVerification> VerifyAndConsumeByTokenAsync(
         AccountTokenType type,
+        string token,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Consumes an activation token and activates its user in one Identity
+    /// transaction. A valid token must belong to an inactive user.
+    /// </summary>
+    Task<Result<AccountTokenVerificationResult>> CompleteActivationAsync(
         string token,
         CancellationToken ct = default
     );

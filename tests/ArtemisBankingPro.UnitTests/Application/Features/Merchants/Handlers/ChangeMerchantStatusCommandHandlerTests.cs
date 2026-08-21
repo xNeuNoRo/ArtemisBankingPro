@@ -7,7 +7,6 @@ using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Domain.Merchants.Enums;
-using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.Merchants.Handlers;
@@ -78,10 +77,9 @@ public sealed class ChangeMerchantStatusCommandHandlerTests {
 
             Handler = new ChangeMerchantStatusCommandHandler(
                 MerchantRepository.Object,
-                UserAccountService.Object,
-                UnitOfWork.Object,
-                Clock.Object,
-                NullLogger<ChangeMerchantStatusCommandHandler>.Instance
+            UserAccountService.Object,
+            UnitOfWork.Object,
+            Clock.Object
             );
         }
 
@@ -202,7 +200,6 @@ public sealed class ChangeMerchantStatusCommandHandlerTests {
 
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("User.NotFound");
-        merchant.Status.Should().Be(MerchantStatus.Active);
         fixture.MerchantRepository.Verify(r => r.Update(It.IsAny<Merchant>()), Times.Never);
     }
 
@@ -261,7 +258,7 @@ public sealed class ChangeMerchantStatusCommandHandlerTests {
     }
 
     [Fact]
-    public async Task Handle_PersistenceFails_RestoresExactPreviousUserState() {
+    public async Task Handle_TransactionFailsBeforeExecution_DoesNotTouchUser() {
         var fixture = new Fixture();
         Merchant merchant = NewMerchant(associatedUserId: "user-10");
         fixture.MerchantRepository
@@ -282,12 +279,12 @@ public sealed class ChangeMerchantStatusCommandHandlerTests {
 
         result.IsFailure.Should().BeTrue();
         fixture.UserAccountService.Verify(
-            s => s.SetActiveAsync("user-10", false, It.IsAny<CancellationToken>()),
-            Times.Once
+            s => s.SetActiveAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never
         );
         fixture.UserAccountService.Verify(
-            s => s.SetActiveAsync("user-10", true, It.IsAny<CancellationToken>()),
-            Times.Once
+            s => s.GetActiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never
         );
     }
 

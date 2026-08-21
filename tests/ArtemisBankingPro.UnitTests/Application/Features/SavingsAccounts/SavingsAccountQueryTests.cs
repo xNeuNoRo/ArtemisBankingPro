@@ -45,6 +45,37 @@ public sealed class SavingsAccountQueryTests {
     }
 
     [Fact]
+    public async Task GetPagedHandler_WithoutFiltersRequestsActiveAccountsOnly() {
+        var accountRepository = new Mock<ISavingsAccountRepository>();
+        accountRepository
+            .Setup(repository => repository.GetPagedAsync(
+                null,
+                AccountStatus.Active,
+                null,
+                It.IsAny<PageRequest>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync(new PageResult<SavingsAccountSummaryDto>([], 0, 1, 20));
+        var userRepository = new Mock<IUserRepository>();
+        userRepository
+            .Setup(repository => repository.GetByIdsAsync(
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync([]);
+
+        var handler = new GetSavingsAccountsPagedQueryHandler(
+            accountRepository.Object,
+            userRepository.Object
+        );
+
+        var result = await handler.Handle(new GetSavingsAccountsPagedQuery(), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        accountRepository.VerifyAll();
+    }
+
+    [Fact]
     public async Task GetPagedHandler_ResolvesIdentificationAndCompletesCustomerData() {
         var accountRepository = new Mock<ISavingsAccountRepository>();
         accountRepository
@@ -88,6 +119,34 @@ public sealed class SavingsAccountQueryTests {
         result.Value.Items.Should().ContainSingle();
         result.Value.Items[0].ClientFullName.Should().Be("María Gómez");
         result.Value.Items[0].Identification.Should().Be("001");
+    }
+
+    [Fact]
+    public async Task GetPagedHandler_UnknownIdentification_ReturnsEmptyPage() {
+        var accountRepository = new Mock<ISavingsAccountRepository>();
+        var userRepository = new Mock<IUserRepository>();
+        userRepository
+            .Setup(repository => repository.GetByIdentityDocumentAsync(
+                "unknown",
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync((UserListDto?)null);
+        var handler = new GetSavingsAccountsPagedQueryHandler(
+            accountRepository.Object,
+            userRepository.Object
+        );
+
+        var result = await handler.Handle(
+            new GetSavingsAccountsPagedQuery(2, 10, "todas", Identification: "unknown"),
+            CancellationToken.None
+        );
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Items.Should().BeEmpty();
+        result.Value.TotalCount.Should().Be(0);
+        result.Value.Page.Should().Be(2);
+        result.Value.PageSize.Should().Be(10);
+        accountRepository.VerifyNoOtherCalls();
     }
 
     [Fact]

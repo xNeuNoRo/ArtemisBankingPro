@@ -44,6 +44,16 @@ public sealed class CreateUserCommandValidatorTests {
     }
 
     [Fact]
+    public async Task Validate_IdentificationLongerThanSqlColumn_Fails() {
+        var result = await _validator.ValidateAsync(
+            ValidClient() with { Identification = "123456789012" }
+        );
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "Identification");
+    }
+
+    [Fact]
     public async Task Validate_PasswordMismatch_Fails() {
         var result = await _validator.ValidateAsync(
             ValidClient() with { ConfirmPassword = "different" }
@@ -232,6 +242,25 @@ public sealed class CreateCommerceUserCommandValidatorTests {
                 "123P@$$word!",
                 "123P@$$word!",
                 -1m
+            )
+        );
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "InitialAmount");
+    }
+
+    [Fact]
+    public async Task Validate_MissingInitialAmount_Fails() {
+        var result = await _validator.ValidateAsync(
+            new CreateCommerceUserCommand(
+                5,
+                "Comercio",
+                "Demo",
+                "10199999999",
+                "comercio@demo.com",
+                "comercio01",
+                "123P@$$word!",
+                "123P@$$word!"
             )
         );
 

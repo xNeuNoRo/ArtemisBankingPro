@@ -1,0 +1,68 @@
+@model EditUserPageViewModel
+@{
+    ViewData["Title"] = "Editar usuario";
+    ViewData["UserRole"] = Model.User.Role;
+}
+
+<section class="page-header" aria-labelledby="edit-user-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Usuarios</p>
+        <h1 id="edit-user-title" class="page-header__title">Editar usuario</h1>
+        <p class="page-header__description">
+            Actualice los datos permitidos sin modificar el tipo de usuario. El estado se administra mediante una confirmación separada.
+        </p>
+    </div>
+</section>
+
+<form
+    method="post"
+    asp-action="EditUser"
+    asp-route-id="@Model.User.UserId"
+    class="admin-form"
+    data-submit-lock
+    data-autofocus-error>
+    <input type="hidden" name="submissionToken" value="@Model.SubmissionToken" />
+    <partial name="_ValidationSummary" />
+
+    <section class="ui-card admin-form__panel" aria-labelledby="edit-identity-title">
+        <div class="ui-card__header">
+            <div>
+                <p class="ui-section-label">Cuenta seleccionada</p>
+                <h2 id="edit-identity-title" class="ui-card__title">@Model.User.UserName</h2>
+                <p class="ui-card__description">@Model.User.FirstName @Model.User.LastName · @Model.User.Email</p>
+            </div>
+            <span class="ui-badge ui-badge--info">@Model.User.Role</span>
+        </div>
+        <div class="ui-card__body admin-user-context">
+            <div>
+                <span class="ui-section-label">Estado</span>
+                <partial name="_StatusBadge" model='@(Model.User.IsActive ? "Activo" : "Inactivo")' />
+            </div>
+            @if (Model.User.MainAccount is not null) {
+                <div>
+                    <span class="ui-section-label">Balance principal</span>
+                    <strong class="admin-user-context__value">RD$ @Model.User.MainAccount.Balance.ToString("N2", CultureInfo.InvariantCulture)</strong>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="ui-card admin-form__panel" aria-labelledby="edit-data-title">
+        <div class="ui-card__header">
+            <div>
+                <p class="ui-section-label">Datos editables</p>
+                <h2 id="edit-data-title" class="ui-card__title">Información del usuario</h2>
+            </div>
+        </div>
+        <div class="ui-card__body admin-form-grid">
+            <partial name="_UpdateUserFields" model="Model.Form" />
+        </div>
+    </section>
+
+    <div class="page-actions">
+        <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Guardando…">
+            <span data-submit-label>Guardar cambios</span>
+        </button>
+        <a class="ui-button ui-button--secondary" asp-action="Users">Cancelar</a>
+    </div>
+</form>

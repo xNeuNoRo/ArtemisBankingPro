@@ -1,4 +1,6 @@
 using ArtemisBankingPro.Application.Features.Loans.Commands;
+using ArtemisBankingPro.Application.Features.Loans.DTOs;
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
@@ -17,7 +19,7 @@ namespace ArtemisBankingPro.Application.Features.Loans.Handlers;
 /// (<see cref="Domain.Lending.Entities.Loan.ChangeInterestRate"/>).
 /// </summary>
 public sealed class UpdateLoanRateCommandHandler
-    : IRequestHandler<UpdateLoanRateCommand, Result<Unit>> {
+    : IRequestHandler<UpdateLoanRateCommand, Result<LoanRateUpdateResponse>> {
     private readonly ILoanRepository _loanRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -41,37 +43,34 @@ public sealed class UpdateLoanRateCommandHandler
         _logger = logger;
     }
 
-    public async ValueTask<Result<Unit>> Handle(
+    public async ValueTask<Result<LoanRateUpdateResponse>> Handle(
         UpdateLoanRateCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. El préstamo debe existir con sus cuotas.
+        // El préstamo debe existir con sus cuotas.
         var loan = await _loanRepository.GetWithInstallmentsByIdAsync(
             message.LoanId,
             cancellationToken
         );
         if (loan is null) {
-            return Result.Failure<Unit>(
-                DomainError.NotFound(
-                    "Loan.NotFound",
-                    "El préstamo seleccionado no existe."
-                )
+            return Result.Failure<LoanRateUpdateResponse>(
+                DomainError.NotFound("Loan.NotFound", "El préstamo seleccionado no existe.")
             );
         }
 
-        // 2. Nueva tasa válida.
+        // Nueva tasa válida.
         var rateResult = InterestRate.Create(message.AnnualInterestRate);
         if (rateResult.IsFailure) {
-            return Result.Failure<Unit>(rateResult.Error!);
+            return Result.Failure<LoanRateUpdateResponse>(rateResult.Error!);
         }
 
-        // 3. Aplicar el cambio (dominio valida estado y cuotas elegibles).
+        // Aplicar el cambio (dominio valida estado y cuotas elegibles).
         var changeResult = loan.ChangeInterestRate(rateResult.Value, _clock.Today);
         if (changeResult.IsFailure) {
-            return Result.Failure<Unit>(changeResult.Error!);
+            return Result.Failure<LoanRateUpdateResponse>(changeResult.Error!);
         }
 
-        // 4. Persistir.
+        // Persistimos
         var persistResult = await _unitOfWork.ExecuteInTransactionAsync(
             _ => {
                 _loanRepository.Update(loan);
@@ -80,29 +79,26 @@ public sealed class UpdateLoanRateCommandHandler
             ct: cancellationToken
         );
         if (persistResult.IsFailure) {
-            return Result.Failure<Unit>(persistResult.Error!);
+            return Result.Failure<LoanRateUpdateResponse>(persistResult.Error!);
         }
 
-        // 5. Correo post-commit (fallo no revierte el cambio).
-        await SendRateChangedEmailAsync(loan, cancellationToken);
+        // Correo post-commit (fallo no revierte el cambio).
+        string? notificationWarning = await SendRateChangedEmailAsync(loan, CancellationToken.None);
 
-        return Result.Success(Unit.Value);
+        return Result.Success(new LoanRateUpdateResponse(notificationWarning));
     }
 
-    private async Task SendRateChangedEmailAsync(
+    private async Task<string?> SendRateChangedEmailAsync(
         Domain.Lending.Entities.Loan loan,
         CancellationToken cancellationToken
     ) {
-        var customer = await _userRepository.GetByIdAsync(
-            loan.CustomerUserId,
-            cancellationToken
-        );
+        var customer = await _userRepository.GetByIdAsync(loan.CustomerUserId, cancellationToken);
         if (customer is null) {
-            return;
+            return null;
         }
 
-        var nextInstallment = loan.Installments
-            .OrderBy(i => i.Number)
+        var nextInstallment = loan
+            .Installments.OrderBy(i => i.Number)
             .FirstOrDefault(i => i.Status == Domain.Lending.Enums.InstallmentStatus.Pending);
 
         try {
@@ -117,13 +113,15 @@ public sealed class UpdateLoanRateCommandHandler
                 ),
                 cancellationToken
             );
+            return null;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
-                "No se pudo enviar el correo de cambio de tasa para el préstamo {LoanNumber}.",
-                loan.Number.Value
+                "No se pudo enviar el correo de cambio de tasa para el préstamo terminado en {LoanLastFour}.",
+                loan.Number.Value[^4..]
             );
+            return NotificationMessages.EmailFailed;
         }
     }
 }

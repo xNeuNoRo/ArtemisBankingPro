@@ -1,0 +1,74 @@
+@model SidebarViewModel
+@{
+    string roleLabel = NavigationCatalog.RoleLabel(Model.Role);
+}
+<aside
+    id="primary-navigation"
+    class="app-sidebar"
+    data-navigation-drawer="primary"
+    aria-label="Navegación principal">
+    <div class="app-sidebar__inner">
+        <div class="app-sidebar__header">
+            <partial name="_Brand" />
+            <button
+                type="button"
+                class="ui-button ui-button--icon ui-button--quiet app-sidebar__close"
+                data-navigation-close="primary"
+                aria-label="Cerrar navegación">
+                <partial name="_Icon" model='@("close")' />
+            </button>
+        </div>
+
+        <div class="app-sidebar__role">
+            <span class="ui-section-label">Área activa</span>
+            <strong>@roleLabel</strong>
+        </div>
+
+        <nav class="app-sidebar__nav" aria-label="Secciones de la aplicación">
+            <ul class="app-sidebar__list">
+                @foreach (NavigationItem item in Model.Items) {
+                    bool isActive = string.Equals(
+                        item.Key,
+                        Model.ActiveNavigationItem,
+                        StringComparison.Ordinal
+                    );
+                    <li>
+                        @if (item.IsImplemented) {
+                            <a
+                                class="ui-nav-item @(isActive ? "is-active" : string.Empty)"
+                                asp-controller="@item.Controller"
+                                asp-action="@item.Action"
+                                aria-current="@(isActive ? "page" : null)">
+                                <span class="ui-nav-item__icon" aria-hidden="true">
+                                    <partial name="_Icon" model="item.Icon" />
+                                </span>
+                                <span class="ui-nav-item__label">@item.Label</span>
+                            </a>
+                        } else {
+                            <a
+                                class="ui-nav-item @(isActive ? "is-active" : string.Empty)"
+                                asp-controller="@item.Controller"
+                                asp-action="@item.Action"
+                                asp-route-key="@item.Key"
+                                aria-current="@(isActive ? "page" : null)">
+                                <span class="ui-nav-item__icon" aria-hidden="true">
+                                    <partial name="_Icon" model="item.Icon" />
+                                </span>
+                                <span class="ui-nav-item__label">@item.Label</span>
+                                <span class="ui-badge ui-badge--neutral app-sidebar__soon">Próximo</span>
+                            </a>
+                        }
+                    </li>
+                }
+            </ul>
+        </nav>
+
+        <footer class="app-sidebar__footer">
+            <span class="app-sidebar__footer-mark" aria-hidden="true">AB</span>
+            <span>
+                <strong>Sesión MVC</strong>
+                <small>Artemis Banking Pro</small>
+            </span>
+        </footer>
+    </div>
+</aside>

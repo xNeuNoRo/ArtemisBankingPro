@@ -2,7 +2,7 @@ using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Cards.Security;
-using ArtemisBankingPro.Domain.Settings;
+using ArtemisBankingPro.Infrastructure.Shared.Configuration;
 using ArtemisBankingPro.Infrastructure.Shared.Messaging;
 using ArtemisBankingPro.Infrastructure.Shared.Security;
 using ArtemisBankingPro.Infrastructure.Shared.Time;

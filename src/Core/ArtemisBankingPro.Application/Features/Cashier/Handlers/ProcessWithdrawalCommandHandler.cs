@@ -55,7 +55,7 @@ public sealed class ProcessWithdrawalCommandHandler
         ProcessWithdrawalCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. Cuenta activa (estado mutable re-leído).
+        // Cuenta activa (estado mutable re-leído).
         var accountNumberResult = AccountNumber.Create(message.AccountNumber);
         if (accountNumberResult.IsFailure) {
             return Result.Failure<CashierOperationResponse>(accountNumberResult.Error!);
@@ -69,13 +69,13 @@ public sealed class ProcessWithdrawalCommandHandler
             return Result.Failure<CashierOperationResponse>(AccountErrors.SourceNotFound);
         }
 
-        // 2. Monto válido.
+        // Monto válido.
         var amountResult = Money.Create(message.Amount);
         if (amountResult.IsFailure) {
             return Result.Failure<CashierOperationResponse>(amountResult.Error!);
         }
 
-        // 3. Núcleo financiero atómico (estado, fondos, débito, operación o
+        // Núcleo financiero atómico (estado, fondos, débito, operación o
         // rechazo persistido).
         var outcomeResult = await _processor.WithdrawAsync(
             account,
@@ -89,13 +89,13 @@ public sealed class ProcessWithdrawalCommandHandler
 
         var outcome = outcomeResult.Value;
 
-        // 4. Correo post-commit (fallo no revierte el retiro; la respuesta
+        // Correo post-commit (fallo no revierte el retiro; la respuesta
         // informa el warning de notificación).
         bool notificationsOk = await SendNotificationAsync(
             account,
             outcome.AppliedAmount,
             outcome.OccurredAt,
-            cancellationToken
+            CancellationToken.None
         );
 
         return Result.Success(
@@ -117,10 +117,7 @@ public sealed class ProcessWithdrawalCommandHandler
         DateTimeOffset occurredAt,
         CancellationToken cancellationToken
     ) {
-        var owner = await _userRepository.GetByIdAsync(
-            account.OwnerUserId,
-            cancellationToken
-        );
+        var owner = await _userRepository.GetByIdAsync(account.OwnerUserId, cancellationToken);
         if (owner is null) {
             return true;
         }
@@ -153,9 +150,9 @@ public sealed class ProcessWithdrawalCommandHandler
         catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
-                "No se pudo enviar el correo {Template} tras el retiro de la cuenta {AccountNumber}.",
+                "No se pudo enviar el correo {Template} tras el retiro de la cuenta terminada en {AccountLastFour}.",
                 model.TemplateName,
-                accountNumber
+                accountNumber[^4..]
             );
             return false;
         }

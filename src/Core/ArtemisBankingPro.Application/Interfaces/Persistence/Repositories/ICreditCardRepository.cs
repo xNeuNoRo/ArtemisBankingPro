@@ -1,6 +1,5 @@
 using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Application.Features.HermesPay.DTOs;
-using ArtemisBankingPro.Domain.Cards.Details;
 using ArtemisBankingPro.Domain.Cards.Entities;
 using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Common.Pagination;
@@ -13,6 +12,12 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard> {
     Task<PageResult<CardConsumptionView>> GetConsumptionsPagedAsync(
         int creditCardId,
         PageRequest page,
+        CancellationToken ct = default
+    );
+
+    /// <summary>Todos los consumos de una tarjeta, más recientes primero.</summary>
+    Task<IReadOnlyList<CardConsumptionView>> GetConsumptionsAsync(
+        int creditCardId,
         CancellationToken ct = default
     );
 

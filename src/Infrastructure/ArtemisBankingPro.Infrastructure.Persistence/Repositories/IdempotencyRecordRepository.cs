@@ -2,6 +2,7 @@ using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
@@ -32,8 +33,13 @@ public sealed class IdempotencyRecordRepository : IIdempotencyRecordRepository {
         return record;
     }
 
-    public void Update(IdempotencyRecord record) =>
-        _context.Set<IdempotencyRecord>().Update(record);
+    public void Update(IdempotencyRecord record) {
+        EntityEntry<IdempotencyRecord> entry = _context.Entry(record);
+        if (entry.State == EntityState.Detached) {
+            _context.Attach(record);
+            entry.State = EntityState.Modified;
+        }
+    }
 
     public void Delete(IdempotencyRecord record) =>
         _context.Set<IdempotencyRecord>().Remove(record);

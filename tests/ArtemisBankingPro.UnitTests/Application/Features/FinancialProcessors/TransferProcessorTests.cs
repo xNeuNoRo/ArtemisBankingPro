@@ -248,7 +248,7 @@ public sealed class TransferProcessorTests {
     }
 
     [Fact]
-    public async Task TransferAsync_InactiveSource_ReturnsNotActiveWithoutPersistence() {
+    public async Task TransferAsync_InactiveSource_RecordsRejectedOperationWithoutStateChanges() {
         SavingsAccount source = Account(
             "100000001",
             "client-source",
@@ -271,11 +271,13 @@ public sealed class TransferProcessorTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.NotActive");
         destination.Balance.Amount.Should().Be(500m);
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Account.NotActive");
     }
 
     [Fact]
-    public async Task TransferAsync_InactiveDestination_ReturnsNotActiveWithoutPersistence() {
+    public async Task TransferAsync_InactiveDestination_RecordsRejectedOperationWithoutStateChanges() {
         SavingsAccount source = Account("100000001", "client-source", 1_000m, id: 1);
         SavingsAccount destination = Account(
             "100000002",
@@ -298,7 +300,9 @@ public sealed class TransferProcessorTests {
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.NotActive");
         source.Balance.Amount.Should().Be(1_000m);
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Account.NotActive");
     }
     [Fact]
     public async Task TransferAsync_UnitOfWorkFails_PropagatesError() {

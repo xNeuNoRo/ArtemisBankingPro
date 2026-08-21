@@ -44,6 +44,7 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository {
                 && loan.Installments.Any(installment =>
                     installment.DueDate < businessDate
                     && installment.PaidAmount != installment.ScheduledAmount
+                    && !installment.IsOverdue
                 )
             )
             .OrderBy(loan => loan.Id)
@@ -70,7 +71,9 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository {
         PageRequest page,
         CancellationToken ct = default
     ) {
-        IQueryable<Loan> query = DbSet.AsNoTracking();
+        IQueryable<Loan> query = DbSet
+            .AsNoTracking()
+            .Include(loan => loan.Installments);
 
         if (!string.IsNullOrWhiteSpace(customerUserId)) {
             query = query.Where(loan => loan.CustomerUserId == customerUserId);
@@ -78,12 +81,14 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository {
 
         if (status is null) {
             query = query.OrderByDescending(loan => loan.Status == LoanStatus.Active)
-                .ThenByDescending(loan => loan.IssuedAt);
+                .ThenByDescending(loan => loan.IssuedAt)
+                .ThenByDescending(loan => loan.Id);
         }
         else {
             query = query
                 .Where(loan => loan.Status == status)
-                .OrderByDescending(loan => loan.IssuedAt);
+                .OrderByDescending(loan => loan.IssuedAt)
+                .ThenByDescending(loan => loan.Id);
         }
 
         int totalCount = await query.CountAsync(ct);
@@ -93,53 +98,34 @@ public sealed class LoanRepository : GenericRepository<Loan>, ILoanRepository {
     }
 
     public async Task<Money> GetTotalActiveDebtAsync(CancellationToken ct = default) {
-        int[] activeLoanIds = await Context
-            .Set<Loan>()
-            .AsNoTracking()
-            .Where(loan => loan.Status == LoanStatus.Active)
-            .Select(loan => loan.Id)
-            .ToArrayAsync(ct);
-
-        if (activeLoanIds.Length == 0) {
-            return Money.Zero;
-        }
-
-        decimal[] remainders = await Context
-            .Set<Installment>()
-            .Where(installment => activeLoanIds.Contains(installment.LoanId))
-            .Select(installment =>
-                installment.ScheduledAmount.Amount - installment.PaidAmount.Amount
-            )
-            .ToArrayAsync(ct);
-
-        return Money.FromDecimal(remainders.Sum());
+        return await GetActiveDebtAsync(customerUserId: null, ct: ct);
     }
 
     public async Task<Money> GetClientActiveDebtAsync(
         string customerUserId,
         CancellationToken ct = default
     ) {
-        int[] activeLoanIds = await Context
-            .Set<Loan>()
+        return await GetActiveDebtAsync(customerUserId, ct);
+    }
+
+    private async Task<Money> GetActiveDebtAsync(
+        string? customerUserId,
+        CancellationToken ct
+    ) {
+        IQueryable<Installment> installments = Context
+            .Loans
             .AsNoTracking()
-            .Where(loan =>
-                loan.CustomerUserId == customerUserId && loan.Status == LoanStatus.Active
-            )
-            .Select(loan => loan.Id)
-            .ToArrayAsync(ct);
+            .Where(loan => loan.Status == LoanStatus.Active)
+            .Where(loan => customerUserId == null || loan.CustomerUserId == customerUserId)
+            .SelectMany(loan => loan.Installments);
 
-        if (activeLoanIds.Length == 0) {
-            return Money.Zero;
-        }
-
-        decimal[] remainders = await Context
-            .Set<Installment>()
-            .Where(installment => activeLoanIds.Contains(installment.LoanId))
-            .Select(installment =>
-                installment.ScheduledAmount.Amount - installment.PaidAmount.Amount
-            )
-            .ToArrayAsync(ct);
-
-        return Money.FromDecimal(remainders.Sum());
+        var amounts = await installments
+            .Select(installment => new {
+                installment.ScheduledAmount,
+                installment.PaidAmount,
+            })
+            .ToListAsync(ct);
+        decimal debt = amounts.Sum(item => item.ScheduledAmount.Amount - item.PaidAmount.Amount);
+        return Money.FromDecimal(debt);
     }
 }

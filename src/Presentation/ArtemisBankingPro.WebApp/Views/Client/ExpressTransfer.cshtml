@@ -1,0 +1,50 @@
+@model ClientOperationPageViewModel<ExpressTransactionViewModel>
+@{
+    ViewData["Title"] = Model.PageTitle;
+    bool canSubmit = Model.Form.SourceAccountOptions.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="express-transfer-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cliente / Transacciones</p>
+        <h1 id="express-transfer-title" class="page-header__title">Transferencia express</h1>
+        <p class="page-header__description">Envíe fondos desde una cuenta activa hacia otra cuenta de ahorro activa.</p>
+    </div>
+</section>
+
+@if (!canSubmit) {
+    ViewData["EmptyTitle"] = "No tiene cuentas activas para transferir.";
+    ViewData["EmptyDescription"] = "La transferencia express estará disponible cuando tenga una cuenta de ahorro activa.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="ui-card client-form-panel" aria-labelledby="express-form-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="express-form-title" class="ui-card__title">Datos de la transferencia</h2></div></div>
+        <div class="ui-card__body">
+            <partial name="_ValidationSummary" />
+            <form asp-controller="Client" asp-action="ExpressTransfer" method="post" data-submit-lock data-autofocus-error class="client-form">
+                <input asp-for="Form.SubmissionToken" type="hidden" />
+                <div class="client-form__grid">
+                    <div class="ui-field">
+                        <label class="ui-label" asp-for="Form.SourceAccountNumber">Cuenta de origen</label>
+                        <select class="ui-control" asp-for="Form.SourceAccountNumber" required>
+                            <option value="" disabled>Seleccione una cuenta</option>
+                            @foreach (SelectOptionViewModel option in Model.Form.SourceAccountOptions) { <option value="@option.Value">@option.Text</option> }
+                        </select>
+                        <span class="ui-error" asp-validation-for="Form.SourceAccountNumber"></span>
+                    </div>
+                    <div class="ui-field">
+                        <label class="ui-label" asp-for="Form.DestinationAccountNumber">Cuenta de destino</label>
+                        <input class="ui-control" asp-for="Form.DestinationAccountNumber" inputmode="numeric" autocomplete="off" maxlength="9" pattern="[0-9]{9}" required />
+                        <span class="ui-error" asp-validation-for="Form.DestinationAccountNumber"></span>
+                    </div>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Form.Amount">Monto a transferir</label>
+                    <input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required />
+                    <span class="ui-error" asp-validation-for="Form.Amount"></span>
+                </div>
+                <div class="page-actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Cancelar</a><button class="ui-button ui-button--primary" type="submit"><span data-submit-label>Continuar</span></button></div>
+            </form>
+        </div>
+    </section>
+}

@@ -295,7 +295,7 @@ public sealed class HermesPayIntegrationTests(SqlServerFixture fixture)
                 .SingleAsync(item => item.CreditCardId == cardId);
             operation.Kind.Should().Be(FinancialOperationKind.HermesPayment);
             operation.Status.Should().Be(FinancialOperationStatus.Rejected);
-            operation.RejectionCode.Should().Be("InsufficientCredit");
+            operation.RejectionCode.Should().Be("Card.InsufficientCredit");
             operation.AppliedAmount.Amount.Should().Be(0m);
 
             Assert.NotNull(operation.CardConsumption);

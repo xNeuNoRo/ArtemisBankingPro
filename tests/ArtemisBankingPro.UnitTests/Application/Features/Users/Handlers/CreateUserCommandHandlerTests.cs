@@ -162,7 +162,6 @@ public sealed class CreateUserCommandHandlerTests {
         var result = await handler.Handle(ValidClientCommand(), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.MainAccountNumber.Should().Be("123456789");
         accountRepository.Verify(
             r => r.AddAsync(It.IsAny<SavingsAccountEntity>(), It.IsAny<CancellationToken>()),
             Times.Once
@@ -211,7 +210,6 @@ public sealed class CreateUserCommandHandlerTests {
         );
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.MainAccountNumber.Should().BeNull();
         accountRepository.Verify(
             r => r.AddAsync(It.IsAny<SavingsAccountEntity>(), It.IsAny<CancellationToken>()),
             Times.Never
@@ -219,7 +217,7 @@ public sealed class CreateUserCommandHandlerTests {
     }
 
     [Fact]
-    public async Task Handle_AccountCreationFails_DeletesUserAndReturnsFailure() {
+    public async Task Handle_AccountCreationFails_RollsBackWithoutCompensatingDelete() {
         var failingUnitOfWork = new Mock<IUnitOfWork>();
         failingUnitOfWork
             .Setup(u => u.ExecuteInTransactionAsync(
@@ -242,8 +240,8 @@ public sealed class CreateUserCommandHandlerTests {
 
         result.IsFailure.Should().BeTrue();
         userService.Verify(
-            s => s.DeleteUserAsync("user-1", It.IsAny<CancellationToken>()),
-            Times.Once
+            s => s.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never
         );
     }
 
@@ -268,7 +266,7 @@ public sealed class CreateUserCommandHandlerTests {
         var result = await handler.Handle(ValidClientCommand(), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.MainAccountNumber.Should().Be("123456789");
+        result.Value.ActivationEmailSent.Should().BeFalse();
         userService.Verify(
             s => s.DeleteUserAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never

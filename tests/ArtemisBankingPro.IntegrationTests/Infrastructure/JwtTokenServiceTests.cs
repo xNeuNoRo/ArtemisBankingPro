@@ -25,6 +25,7 @@ public sealed class JwtTokenServiceTests(SqlServerFixture fixture) : SqlServerTe
         decoded.Claims.First(claim => claim.Type == ClaimTypes.NameIdentifier).Value.Should().Be("user-1");
         decoded.Claims.First(claim => claim.Type == ClaimTypes.Name).Value.Should().Be("admin");
         decoded.Claims.First(claim => claim.Type == ClaimTypes.Role).Value.Should().Be("Administrador");
+        decoded.Claims.Should().Contain(claim => claim.Type == JwtRegisteredClaimNames.Iat);
         decoded.Claims.Should().Contain(claim => claim.Type == JwtRegisteredClaimNames.Jti);
         decoded.Claims.Should().NotContain(claim => claim.Type == CurrentUserService.CommerceIdClaim);
     }
@@ -112,5 +113,29 @@ public sealed class JwtTokenServiceTests(SqlServerFixture fixture) : SqlServerTe
 
         Action act = () => handler.ValidateToken(tampered, parameters, out _);
         act.Should().Throw<SecurityTokenException>();
+    }
+
+    [Fact]
+    public void GenerateToken_RejectsRolesOutsideApiChannel() {
+        using var scope = Fixture.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
+
+        Action act = () => service.GenerateToken(
+            new JwtTokenRequest("user-1", "cliente", "Cliente", null, NowUtc)
+        );
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void GenerateToken_RejectsCommerceAssociationOnNonCommerceRole() {
+        using var scope = Fixture.Services.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
+
+        Action act = () => service.GenerateToken(
+            new JwtTokenRequest("user-1", "admin", "Administrador", 7, NowUtc)
+        );
+
+        act.Should().Throw<InvalidOperationException>();
     }
 }

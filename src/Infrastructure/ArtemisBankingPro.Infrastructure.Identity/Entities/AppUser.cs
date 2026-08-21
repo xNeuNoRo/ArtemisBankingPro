@@ -21,6 +21,12 @@ public sealed class AppUser : IdentityUser {
     /// <summary>Usuarios creados por seeding inician activos; los creados en el sistema inician inactivos.</summary>
     public bool Active { get; set; }
 
+    /// <summary>
+    /// Versión interna que serializa la emisión concurrente de tokens de cuenta
+    /// sin invalidar sesiones ni convertirla en una revocación global.
+    /// </summary>
+    public long AccountTokenVersion { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public string FullName => $"{FirstName} {LastName}".Trim();

@@ -10,7 +10,7 @@ public sealed record UserMainAccountResponse(
 
 /// <summary>Detalle de usuario con su cuenta principal.</summary>
 public sealed record UserDetailResponse(
-    string UserId,
+    string Id,
     string UserName,
     string Identification,
     string FirstName,

@@ -13,4 +13,13 @@ public sealed class AccountTokenOptions {
     public int ActivationLifetimeMinutes { get; set; } = 24 * 60;
 
     public int ResetLifetimeMinutes { get; set; } = 30;
+
+    /// <summary>Tiempo mínimo entre solicitudes de reset del mismo usuario.</summary>
+    public int ResetRequestCooldownSeconds { get; set; } = 60;
+
+    /// <summary>Ventana usada para limitar la generación de resets.</summary>
+    public int ResetRequestWindowMinutes { get; set; } = 15;
+
+    /// <summary>Máximo de solicitudes dentro de la ventana configurada.</summary>
+    public int MaxResetRequestsPerWindow { get; set; } = 3;
 }

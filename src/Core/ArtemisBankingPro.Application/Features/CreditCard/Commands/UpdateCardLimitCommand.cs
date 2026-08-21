@@ -1,7 +1,9 @@
 using ArtemisBankingPro.Application.Common.Interfaces;
+using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
+using System.Globalization;
 
 namespace ArtemisBankingPro.Application.Features.CreditCard.Commands;
 
@@ -12,10 +14,14 @@ namespace ArtemisBankingPro.Application.Features.CreditCard.Commands;
 /// sin movimientos de saldo.
 /// </summary>
 public sealed record UpdateCardLimitCommand(int CardId, decimal NewLimit)
-    : IRequest<Result<Unit>>, IAuthorize, IIdempotentCommand {
+    : IRequest<Result<CreditCardMutationResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
 
     public string IdempotencyKey { get; init; } = string.Empty;
 
-    public string RequestFingerprint => $"{CardId}|{NewLimit}";
+    public string RequestFingerprint => string.Join(
+        '|',
+        CardId.ToString(CultureInfo.InvariantCulture),
+        NewLimit.ToString(CultureInfo.InvariantCulture)
+    );
 }

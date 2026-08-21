@@ -9,6 +9,9 @@ public static class OperationErrors {
     public static DomainError InvalidKind { get; } =
         DomainError.Validation("Operation.InvalidKind", "El tipo de operación financiera no es válido.");
 
+    public static DomainError InvalidStatus { get; } =
+        DomainError.Validation("Operation.InvalidStatus", "El estado de la operación financiera no es válido.");
+
     public static DomainError InvalidActor { get; } =
         DomainError.Validation("Operation.InvalidActor", "Se requiere el actor de la operación financiera.");
 

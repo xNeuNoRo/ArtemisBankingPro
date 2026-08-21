@@ -1,34 +1,23 @@
 using ArtemisBankingPro.Application.Common.Errors;
+using ArtemisBankingPro.Api.Infrastructure;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ArtemisBankingPro.Api.Controllers;
 
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status400BadRequest, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status401Unauthorized, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status403Forbidden, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status404NotFound, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status405MethodNotAllowed, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status409Conflict, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status415UnsupportedMediaType, "application/problem+json")]
+[ProducesResponseType(typeof(ApiProblemDetailsContract), StatusCodes.Status500InternalServerError, "application/problem+json")]
 public abstract class ApiControllerBase(IErrorResponseMapper errorMapper) : ControllerBase {
     protected ObjectResult ToProblem(DomainError error) {
         ErrorResponse response = errorMapper.Map(error);
-        var problem = new ProblemDetails {
-            Status = response.StatusCode,
-            Title = response.Title,
-            Detail = response.Detail,
-            Type = "about:blank",
-        };
-
-        if (response.ErrorCode is not null) {
-            problem.Extensions["errorCode"] = response.ErrorCode;
-        }
-
-        if (response.Category is not null) {
-            problem.Extensions["category"] = response.Category;
-        }
-
-        if (response.Extensions is not null) {
-            foreach ((string key, object? value) in response.Extensions) {
-                problem.Extensions[key] = value;
-            }
-        }
-
-        return StatusCode(response.StatusCode, problem);
+        return ApiProblemDetailsFactory.ToResult(HttpContext, response);
     }
 }
 

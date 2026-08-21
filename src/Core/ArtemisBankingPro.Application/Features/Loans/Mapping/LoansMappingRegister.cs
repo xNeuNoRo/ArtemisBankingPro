@@ -82,6 +82,10 @@ public sealed class LoansMappingRegister : IRegister {
     ) => new() {
         Status = status,
         Identification = identification,
+        StatusOptions = LoanListViewModel.BuildStatusOptions(
+            status,
+            !string.IsNullOrWhiteSpace(identification)
+        ),
         Loans = loans.Select(mapper.Map<LoanListItemViewModel>).ToArray(),
         Pagination = new PaginationViewModel {
             Page = page,

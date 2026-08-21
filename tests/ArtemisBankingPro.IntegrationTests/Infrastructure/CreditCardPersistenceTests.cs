@@ -99,11 +99,10 @@ public sealed class CreditCardPersistenceTests(SqlServerFixture fixture)
 
         await WithContextAsync(async context => {
             int cardId = (await context.CreditCards.FirstAsync()).Id;
-            Func<Task> act = () =>
-                context.Database.ExecuteSqlRawAsync(
-                    "UPDATE dbo.CreditCards SET CurrentDebt = 10001 WHERE Id = {0}",
-                    cardId
-                );
+            Func<Task> act = () => context.CreditCards
+                .Where(card => card.Id == cardId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(card => card.CurrentDebt, Money.Create(10_001m).Value));
 
             await act.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>();
         });
@@ -112,14 +111,14 @@ public sealed class CreditCardPersistenceTests(SqlServerFixture fixture)
     [Fact]
     public async Task MalformedFingerprint_IsRejectedByCheckConstraint() {
         await WithContextAsync(async context => {
-            Func<Task> act = () =>
-                context.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO dbo.CreditCards "
-                        + "(CustomerUserId, LastFour, PanFingerprint, CvcDigest, CreditLimit, CurrentDebt, Status, AssignedByUserId, IssuedAt, ExpirationMonth, ExpirationYear, CreatedAt) "
-                        + "VALUES ('customer-1', '1234', 'tooshort', '"
-                        + new string('c', 64)
-                        + "', 10000, 0, 1, 'admin', GETUTCDATE(), 8, 2029, GETUTCDATE())"
-                );
+            CreditCard card = NewCard();
+            context.CreditCards.Add(card);
+            await context.SaveChangesAsync();
+
+            Func<Task> act = () => context.CreditCards
+                .Where(item => item.Id == card.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.PanFingerprint, "tooshort"));
 
             await act.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>();
         });
