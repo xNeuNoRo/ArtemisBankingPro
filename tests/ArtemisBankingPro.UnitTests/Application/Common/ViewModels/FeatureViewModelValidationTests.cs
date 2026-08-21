@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Common.ViewModels;
 using ArtemisBankingPro.Application.Features.Admin.ViewModels;
 using ArtemisBankingPro.Application.Features.Cashier.ViewModels;
@@ -30,6 +31,31 @@ public sealed class FeatureViewModelValidationTests {
             ValidationResult[] errors = Validate(model);
 
             errors.Should().Contain(error => error.MemberNames.Contains(property));
+        }
+    }
+
+    [Fact]
+    public void IdentificationViewModels_UseTheSqlColumnLimitAndContractMessage() {
+        string tooLong = new(
+            '1',
+            IdentityValidationLimits.IdentificationMaxLength + 1
+        );
+        var models = new object[] {
+            new CreateUserViewModel { Identification = tooLong },
+            new UpdateUserViewModel { Identification = tooLong },
+            new CreateCommerceUserViewModel { Identification = tooLong },
+            new AssignCommerceUserViewModel { Identification = tooLong },
+            new EligibleClientsViewModel { Identification = tooLong },
+            new LoanListViewModel { Identification = tooLong },
+            new CreditCardListViewModel { Identification = tooLong },
+            new SavingsAccountListViewModel { Identification = tooLong },
+        };
+
+        foreach (object model in models) {
+            Validate(model).Should().Contain(error =>
+                error.MemberNames.Contains("Identification")
+                && error.ErrorMessage == IdentityValidationLimits.IdentificationMaxLengthMessage
+            );
         }
     }
 

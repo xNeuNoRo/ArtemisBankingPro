@@ -4,6 +4,7 @@ using ArtemisBankingPro.Application.Features.Admin.Services;
 using ArtemisBankingPro.Application.Features.Users.ViewModels;
 using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Domain.Common.Enums;
+using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Enums;
 using ArtemisBankingPro.WebApp.Navigation;
@@ -25,6 +26,7 @@ public sealed class AdminController : Controller {
     private const string AccessDeniedMessageKey = "AccessDeniedMessage";
     private const string SubmissionTokenViewDataKey = "SubmissionToken";
     private static readonly TimeSpan SubmissionTokenLifetime = TimeSpan.FromMinutes(30);
+    private static readonly string[] AllowedUserRoles = ["Administrador", "Cajero", "Cliente"];
 
     private readonly IAdminUserService _adminUserService;
     private readonly IConfirmationTokenService _confirmationTokens;
@@ -53,7 +55,16 @@ public sealed class AdminController : Controller {
         int pageSize = 20,
         CancellationToken cancellationToken = default
     ) {
-        var request = new UserListViewModel { Role = role };
+        UserListViewModel request = new() { Role = Normalize(role) };
+        if (!ValidateUserListRequest(request, page, pageSize)) {
+            return View(CreateUserListErrorModel(
+                request,
+                SafePage(page),
+                SafePageSize(pageSize),
+                includeLoadError: false
+            ));
+        }
+
         Result<UserListViewModel> result = await _adminUserService.GetUsersAsync(
             request,
             page,
@@ -62,8 +73,7 @@ public sealed class AdminController : Controller {
         );
 
         if (result.IsFailure) {
-            AddResultError(result.Error, "No fue posible cargar los usuarios.");
-            return View(CreateUserListErrorModel(request, page, pageSize));
+            return View(CreateUserListErrorModel(request, page, pageSize, result.Error));
         }
 
         return View(result.Value);
@@ -160,6 +170,10 @@ public sealed class AdminController : Controller {
         string id,
         CancellationToken cancellationToken
     ) {
+        if (!IsUserId(id)) {
+            return NotFound();
+        }
+
         Result<UserDetailViewModel> result = await _adminUserService.GetUserAsync(
             id,
             cancellationToken
@@ -198,6 +212,10 @@ public sealed class AdminController : Controller {
         string? submissionToken,
         CancellationToken cancellationToken
     ) {
+        if (!IsUserId(id)) {
+            return NotFound();
+        }
+
         Result<UserDetailViewModel> detailResult = await _adminUserService.GetUserAsync(
             id,
             cancellationToken
@@ -252,7 +270,12 @@ public sealed class AdminController : Controller {
         );
         if (updateResult.IsFailure) {
             if (updateResult.Error?.Category == ErrorCategory.Forbidden) {
-                return RedirectToAccessDenied(updateResult.Error.Message);
+                return RedirectToAccessDenied(
+                    WebAppErrorMessages.For(
+                        updateResult.Error,
+                        "No posee permisos para acceder a este recurso."
+                    )
+                );
             }
 
             AddResultError(updateResult.Error, "No fue posible actualizar el usuario.");
@@ -270,7 +293,7 @@ public sealed class AdminController : Controller {
         bool? targetActive,
         CancellationToken cancellationToken
     ) {
-        if (targetActive is null) {
+        if (!IsUserId(id) || targetActive is null) {
             return BadRequest();
         }
 
@@ -315,7 +338,7 @@ public sealed class AdminController : Controller {
         UserStatusConfirmationViewModel model,
         CancellationToken cancellationToken
     ) {
-        if (targetActive is null) {
+        if (!IsUserId(id) || targetActive is null) {
             return BadRequest();
         }
 
@@ -378,15 +401,22 @@ public sealed class AdminController : Controller {
         );
         if (statusResult.IsFailure) {
             if (statusResult.Error?.Category == ErrorCategory.Forbidden) {
-                return RedirectToAccessDenied(statusResult.Error.Message);
+                return RedirectToAccessDenied(
+                    WebAppErrorMessages.For(
+                        statusResult.Error,
+                        "No posee permisos para acceder a este recurso."
+                    )
+                );
             }
 
             if (statusResult.Error?.Category == ErrorCategory.NotFound) {
                 return NotFound();
             }
 
-            TempData["Error"] = statusResult.Error?.Message
-                ?? "No fue posible actualizar el estado del usuario.";
+            TempData["Error"] = WebAppErrorMessages.For(
+                statusResult.Error,
+                "No fue posible actualizar el estado del usuario."
+            );
             return RedirectToAction(nameof(Users));
         }
 
@@ -399,14 +429,22 @@ public sealed class AdminController : Controller {
     private UserListViewModel CreateUserListErrorModel(
         UserListViewModel request,
         int page,
-        int pageSize
+        int pageSize,
+        DomainError? error = null,
+        bool includeLoadError = true
     ) => new() {
         PageTitle = "Gestión de usuarios",
         Role = request.Role,
         RoleOptions = UserListViewModel.BuildRoleOptions(request.Role),
+        LoadErrorMessage = includeLoadError
+            ? WebAppErrorMessages.For(
+                error,
+                "No fue posible cargar los usuarios. Intente nuevamente más tarde."
+            )
+            : null,
         Pagination = new PaginationViewModel {
-            Page = page,
-            PageSize = pageSize,
+            Page = SafePage(page),
+            PageSize = SafePageSize(pageSize),
         },
         CurrentUserId = CurrentUserId,
         CurrentUserName = User.Identity?.Name,
@@ -414,6 +452,45 @@ public sealed class AdminController : Controller {
         IsAuthenticated = true,
         ActiveNavigationItem = NavigationKeys.AdministratorUsers,
     };
+
+    private bool ValidateUserListRequest(UserListViewModel request, int page, int pageSize) {
+        TryValidateModel(request);
+
+        if (page < PageRequest.DefaultPage) {
+            ModelState.AddModelError(string.Empty, "La página debe ser mayor o igual a 1.");
+        }
+
+        if (pageSize is < 1 or > PageRequest.MaxPageSize) {
+            ModelState.AddModelError(
+                string.Empty,
+                $"El tamaño de página debe estar entre 1 y {PageRequest.MaxPageSize}."
+            );
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Role)
+            && !AllowedUserRoles.Contains(request.Role, StringComparer.OrdinalIgnoreCase)) {
+            ModelState.AddModelError(
+                nameof(request.Role),
+                "El rol debe ser Administrador, Cajero o Cliente."
+            );
+        }
+
+        return ModelState.IsValid;
+    }
+
+    private static int SafePage(int page) =>
+        page < PageRequest.DefaultPage ? PageRequest.DefaultPage : page;
+
+    private static int SafePageSize(int pageSize) =>
+        pageSize is < 1 or > PageRequest.MaxPageSize
+            ? PageRequest.DefaultPageSize
+            : pageSize;
+
+    private static bool IsUserId(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= 450;
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private EditUserPageViewModel BuildEditPage(
         UserDetailViewModel user,
@@ -557,7 +634,12 @@ public sealed class AdminController : Controller {
         }
 
         if (error?.Category == ErrorCategory.Forbidden) {
-            return RedirectToAccessDenied(error.Message);
+            return RedirectToAccessDenied(
+                WebAppErrorMessages.For(
+                    error,
+                    "No posee permisos para acceder a este recurso."
+                )
+            );
         }
 
         _logger.LogError("No se pudo cargar un recurso administrativo: {ErrorCode}", error?.Code);
@@ -570,7 +652,7 @@ public sealed class AdminController : Controller {
     }
 
     private void AddResultError(DomainError? error, string fallback) {
-        ModelState.AddModelError(string.Empty, error?.Message ?? fallback);
+        ModelState.AddModelError(string.Empty, WebAppErrorMessages.For(error, fallback));
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);

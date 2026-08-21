@@ -242,6 +242,20 @@ public sealed class ClientValidatorsTests {
         result.Errors.Should().Contain(e => e.PropertyName == "PageSize");
     }
 
+    [Theory]
+    [InlineData("INVALIDO")]
+    [InlineData("CRÉDITO DESCONOCIDO")]
+    public async Task GetMyAccountTransactions_InvalidTransactionType_Fails(string transactionType) {
+        var validator = new GetMyAccountTransactionsQueryValidator();
+
+        var result = await validator.ValidateAsync(
+            new GetMyAccountTransactionsQuery(ValidAccount, TransactionType: transactionType)
+        );
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "TransactionType");
+    }
+
     [Fact]
     public async Task GetMyCardDetail_Valid_Passes() {
         var validator = new GetMyCardDetailQueryValidator();

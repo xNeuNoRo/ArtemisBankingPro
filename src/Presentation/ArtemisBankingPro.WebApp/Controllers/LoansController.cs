@@ -47,9 +47,24 @@ public sealed class LoansController : AdminProductControllerBase {
         CancellationToken cancellationToken = default
     ) {
         LoanListViewModel request = new() {
-            Status = Normalize(status),
+            Status = NormalizeChoice(status),
             Identification = Normalize(identification),
         };
+        if (!ValidateListRequest(request, page, pageSize)
+            || !ValidateAllowedValue(
+                nameof(request.Status),
+                request.Status,
+                ["activos", "completados", "todos"],
+                "El estado debe ser activos, completados o todos."
+            )) {
+            return View(BuildListError(
+                request,
+                SafePage(page),
+                SafePageSize(pageSize),
+                includeLoadError: false
+            ));
+        }
+
         Result<LoanListViewModel> result = await _loans.GetLoansAsync(
             request,
             page,
@@ -70,6 +85,10 @@ public sealed class LoansController : AdminProductControllerBase {
         int id,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return BadRequest();
+        }
+
         Result<LoanDetailViewModel> result = await _loans.GetLoanAsync(id, cancellationToken);
         if (result.IsFailure) {
             return HandleReadFailure(result.Error, "El préstamo seleccionado no existe.");
@@ -88,6 +107,10 @@ public sealed class LoansController : AdminProductControllerBase {
         EligibleClientsViewModel model = new() {
             Identification = Normalize(identification),
         };
+        if (!ValidateListRequest(model, page, pageSize)) {
+            return View(BuildEligibleError(model, SafePage(page), SafePageSize(pageSize)));
+        }
+
         return await RenderEligibleClientsAsync(model, page, pageSize, cancellationToken);
     }
 
@@ -105,8 +128,20 @@ public sealed class LoansController : AdminProductControllerBase {
             );
         }
 
+        if (!ValidatePagination(page, pageSize)
+            || ModelState[nameof(model.Identification)]?.Errors.Count > 0) {
+            return View(BuildEligibleError(model, SafePage(page), SafePageSize(pageSize)));
+        }
+
+        EligibleClientsViewModel queryModel = new() {
+            Identification = model.Identification,
+            SelectedClientId = ModelState[nameof(model.SelectedClientId)]?.Errors.Count > 0
+                ? null
+                : model.SelectedClientId,
+        };
+
         Result<EligibleClientsViewModel> result = await _adminUsers.GetEligibleClientsAsync(
-            model,
+            queryModel,
             ClientAssignmentProduct.Loan,
             page,
             pageSize,
@@ -142,6 +177,10 @@ public sealed class LoansController : AdminProductControllerBase {
         string customerId,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsCustomerId(customerId)) {
+            return NotFound();
+        }
+
         Result<EligibleClientItemViewModel> customer = await GetEligibleCustomerAsync(
             customerId,
             cancellationToken
@@ -168,6 +207,10 @@ public sealed class LoansController : AdminProductControllerBase {
         string? submissionToken,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsCustomerId(customerId)) {
+            return NotFound();
+        }
+
         Result<EligibleClientItemViewModel> customer = await GetEligibleCustomerAsync(
             customerId,
             cancellationToken
@@ -292,6 +335,10 @@ public sealed class LoansController : AdminProductControllerBase {
         int id,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return BadRequest();
+        }
+
         Result<LoanDetailViewModel> result = await _loans.GetLoanAsync(id, cancellationToken);
         if (result.IsFailure) {
             return HandleReadFailure(result.Error, "El préstamo seleccionado no existe.");
@@ -322,6 +369,10 @@ public sealed class LoansController : AdminProductControllerBase {
         string? submissionToken,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return BadRequest();
+        }
+
         Result<LoanDetailViewModel> detail = await _loans.GetLoanAsync(id, cancellationToken);
         if (detail.IsFailure) {
             return HandleReadFailure(detail.Error, "El préstamo seleccionado no existe.");
@@ -460,8 +511,7 @@ public sealed class LoansController : AdminProductControllerBase {
             AverageDebt = DecimalExtension(riskError, "averageDebt"),
             ConfirmationToken = token.Value,
             Title = "Confirmar préstamo de alto riesgo",
-            Message = riskError?.Message
-                ?? "La deuda del cliente supera el umbral promedio del sistema.",
+            Message = WebAppErrorMessages.HighRisk(riskError),
             ConfirmButtonText = "Confirmar asignación",
             CancelButtonText = "Cancelar",
             CurrentUserId = CurrentUserId,
@@ -508,7 +558,8 @@ public sealed class LoansController : AdminProductControllerBase {
         LoanListViewModel request,
         int page,
         int pageSize,
-        DomainError? error = null
+        DomainError? error = null,
+        bool includeLoadError = true
     ) => new() {
         Status = request.Status,
         Identification = request.Identification,
@@ -516,9 +567,16 @@ public sealed class LoansController : AdminProductControllerBase {
             request.Status,
             !string.IsNullOrWhiteSpace(request.Identification)
         ),
-        LoadErrorMessage = error?.Message
-            ?? "No fue posible cargar los préstamos. Intente nuevamente más tarde.",
-        Pagination = new PaginationViewModel { Page = page, PageSize = pageSize },
+        LoadErrorMessage = includeLoadError
+            ? WebAppErrorMessages.For(
+                error,
+                "No fue posible cargar los préstamos. Intente nuevamente más tarde."
+            )
+            : null,
+        Pagination = new PaginationViewModel {
+            Page = SafePage(page),
+            PageSize = SafePageSize(pageSize),
+        },
         PageTitle = "Gestión de préstamos",
         CurrentUserId = CurrentUserId,
         CurrentUserName = CurrentUserName,
@@ -534,7 +592,10 @@ public sealed class LoansController : AdminProductControllerBase {
     ) => new() {
         Identification = request.Identification,
         SelectedClientId = request.SelectedClientId,
-        Pagination = new PaginationViewModel { Page = page, PageSize = pageSize },
+        Pagination = new PaginationViewModel {
+            Page = SafePage(page),
+            PageSize = SafePageSize(pageSize),
+        },
         PageTitle = "Seleccionar cliente",
         CurrentUserId = CurrentUserId,
         CurrentUserName = CurrentUserName,
@@ -559,4 +620,6 @@ public sealed class LoansController : AdminProductControllerBase {
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeChoice(string? value) => Normalize(value)?.ToLowerInvariant();
 }

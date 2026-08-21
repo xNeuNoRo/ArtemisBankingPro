@@ -2,16 +2,21 @@
 @{
     ViewData["Title"] = "Detalle del préstamo";
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool loanIsActive = Model.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
+        || Model.Status.Equals("Activo", StringComparison.OrdinalIgnoreCase);
 }
 
 <section class="page-header" aria-labelledby="loan-detail-title">
     <div class="page-header__content">
         <p class="page-header__eyebrow">Administración / Préstamos</p>
         <h1 id="loan-detail-title" class="page-header__title">Préstamo @Model.LoanNumber</h1>
-        <p class="page-header__description">Tabla de amortización y estado calculados por Application.</p>
+        <p class="page-header__description">Consulte la tabla de amortización y el estado actualizado del préstamo.</p>
     </div>
     <div class="page-header__actions">
-        <a class="ui-button ui-button--secondary" asp-action="EditRate" asp-route-id="@Model.LoanId">Editar tasa</a>
+        @if (loanIsActive) {
+            <a class="ui-button ui-button--secondary" asp-action="EditRate" asp-route-id="@Model.LoanId">Editar tasa</a>
+        }
+        <a class="ui-button ui-button--secondary" asp-action="Index">Volver al listado</a>
     </div>
 </section>
 
@@ -22,7 +27,7 @@
             <h2 id="loan-summary-title" class="ui-card__title">@Model.CustomerFullName</h2>
             <p class="ui-card__description">Cliente asociado al préstamo</p>
         </div>
-        <div class="admin-product__actions"><partial name="_StatusBadge" model="Model.Status" /><partial name="_StatusBadge" model="Model.CustomerPaymentStatus" /></div>
+        <div class="admin-product__actions" aria-label="Estados del préstamo"><partial name="_StatusBadge" model="Model.Status" /><partial name="_StatusBadge" model="Model.CustomerPaymentStatus" /></div>
     </div>
     <div class="ui-card__body admin-product__metric-grid">
         <div class="admin-product__metric"><span class="admin-product__metric-label">Capital aprobado</span><strong class="admin-product__metric-value">@Money(Model.CapitalAmount)</strong></div>
@@ -45,7 +50,18 @@
         <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de amortización del préstamo">
             <table class="ui-table admin-product__table">
                 <caption class="ui-visually-hidden">Tabla de amortización del préstamo @Model.LoanNumber</caption>
-                <thead><tr><th scope="col">Cuota</th><th scope="col">Vencimiento</th><th scope="col">Valor</th><th scope="col">Interés</th><th scope="col">Capital</th><th scope="col">Pendiente</th><th scope="col">Pago</th><th scope="col">Atraso</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th scope="col">Cuota</th>
+                        <th scope="col">Vencimiento</th>
+                        <th scope="col">Valor</th>
+                        <th scope="col">Interés</th>
+                        <th scope="col">Capital</th>
+                        <th scope="col">Saldo pendiente</th>
+                        <th scope="col">Estado de pago</th>
+                        <th scope="col">Atraso</th>
+                    </tr>
+                </thead>
                 <tbody>
                     @foreach (LoanInstallmentViewModel installment in Model.Amortization) {
                         <tr>

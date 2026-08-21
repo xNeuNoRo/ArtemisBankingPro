@@ -40,8 +40,9 @@ public sealed class ProcessOverdueLoansFunctionTests {
 
         var functionContext = new Mock<FunctionContext>();
         functionContext.SetupGet(item => item.InvocationId).Returns("invocation-123");
-        using TelemetryConfiguration telemetryConfiguration = TelemetryConfiguration.CreateDefault();
-        telemetryConfiguration.DisableTelemetry = true;
+        using var telemetryConfiguration = new TelemetryConfiguration {
+            DisableTelemetry = true,
+        };
         var function = new ProcessOverdueLoansFunction(
             mediator.Object,
             clock.Object,
@@ -57,5 +58,46 @@ public sealed class ProcessOverdueLoansFunctionTests {
                 command.BusinessDate == new DateOnly(2026, 8, 19)),
             It.IsAny<CancellationToken>()
         ), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(0, true)]
+    public async Task Run_ThrowsWhenTheBatchRequiresAnotherExecution(
+        int failedCount,
+        bool hasMore
+    ) {
+        var clock = new Mock<IBusinessClock>();
+        clock.SetupGet(item => item.Today).Returns(new DateOnly(2026, 8, 19));
+
+        var mediator = new Mock<IMediator>();
+        mediator
+            .Setup(item => item.Send(
+                It.IsAny<ProcessOverdueLoansCommand>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .Returns(new ValueTask<Result<OverdueProcessingResult>>(Result.Success(
+                new OverdueProcessingResult(2, 1, 100m, failedCount, 0, hasMore)
+            )));
+
+        var functionContext = new Mock<FunctionContext>();
+        functionContext.SetupGet(item => item.InvocationId).Returns("invocation-retry");
+        using var telemetryConfiguration = new TelemetryConfiguration {
+            DisableTelemetry = true,
+        };
+        var function = new ProcessOverdueLoansFunction(
+            mediator.Object,
+            clock.Object,
+            NullLogger<ProcessOverdueLoansFunction>.Instance,
+            new TelemetryClient(telemetryConfiguration)
+        );
+
+        Func<Task> act = () => function.Run(
+            new TimerInfo(),
+            functionContext.Object,
+            CancellationToken.None
+        );
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 }

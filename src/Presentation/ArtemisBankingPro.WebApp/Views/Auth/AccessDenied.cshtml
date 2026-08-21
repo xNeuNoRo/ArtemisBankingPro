@@ -12,9 +12,13 @@
     <h1 class="auth-content__title">Acceso denegado</h1>
     <p class="auth-content__description">@Model.Message</p>
 
-    <div class="ui-alert ui-alert--warning" role="alert">
+    <div class="ui-alert ui-alert--@(Model.IsAuthenticated ? "warning" : "info")" role="alert">
         <p class="ui-alert__content">
-            Su sesión permanece activa, pero esta sección no está disponible para su rol.
+            @if (Model.IsAuthenticated) {
+                <text>Su sesión permanece activa, pero esta sección no está disponible para su rol.</text>
+            } else {
+                <text>Inicie sesión para acceder a las secciones protegidas.</text>
+            }
         </p>
     </div>
 

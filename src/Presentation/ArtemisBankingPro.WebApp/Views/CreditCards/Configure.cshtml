@@ -2,13 +2,14 @@
 @{
     ViewData["Title"] = "Asignar tarjeta de crédito";
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool limitInvalid = ViewData.ModelState["Form.CreditLimit"]?.Errors.Count > 0;
 }
 
 <section class="page-header" aria-labelledby="card-configure-title">
     <div class="page-header__content">
         <p class="page-header__eyebrow">Administración / Tarjetas</p>
         <h1 id="card-configure-title" class="page-header__title">Asignar tarjeta de crédito</h1>
-        <p class="page-header__description">El número, CVC y fecha de vencimiento se generan y validan server-side.</p>
+        <p class="page-header__description">El número, CVC y fecha de vencimiento se generan y validan de forma segura.</p>
     </div>
 </section>
 
@@ -22,8 +23,13 @@
     <section class="ui-card" aria-labelledby="card-limit-title">
         <div class="ui-card__header"><div><p class="ui-section-label">Condiciones</p><h2 id="card-limit-title" class="ui-card__title">Límite inicial</h2></div></div>
         <div class="ui-card__body admin-product__form-grid">
-            <div class="ui-field"><label class="ui-label" asp-for="Form.CreditLimit">Límite de crédito</label><input class="ui-control" asp-for="Form.CreditLimit" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required /><span class="ui-error" asp-validation-for="Form.CreditLimit"></span></div>
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Form.CreditLimit">Límite de crédito</label>
+                <input class="ui-control" asp-for="Form.CreditLimit" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required aria-invalid="@(limitInvalid ? "true" : "false")" aria-describedby="Form_CreditLimit-help Form_CreditLimit-error" />
+                <p id="Form_CreditLimit-help" class="ui-field-description">Monto en RD$, mayor que RD$ 0.00 y con hasta dos decimales. La deuda inicial será RD$ 0.00.</p>
+                <span class="ui-error" asp-validation-for="Form.CreditLimit"></span>
+            </div>
         </div>
     </section>
-    <div class="page-actions"><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Validando…"><span data-submit-label>Asignar tarjeta</span></button><a class="ui-button ui-button--secondary" asp-action="Assign">Volver atrás</a></div>
+    <div class="page-actions"><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Asignando…"><span data-submit-label>Asignar tarjeta de crédito</span></button><a class="ui-button ui-button--secondary" asp-action="Assign">Volver atrás</a></div>
 </form>

@@ -1,3 +1,4 @@
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -27,7 +28,9 @@ public sealed class IdentityContext : IdentityDbContext<AppUser> {
             user.ToTable("Users");
             user.Property(item => item.FirstName).HasMaxLength(100).IsRequired();
             user.Property(item => item.LastName).HasMaxLength(100).IsRequired();
-            user.Property(item => item.IdentityDocument).HasMaxLength(11).IsRequired();
+            user.Property(item => item.IdentityDocument)
+                .HasMaxLength(IdentityValidationLimits.IdentificationMaxLength)
+                .IsRequired();
             user.Property(item => item.Active).IsRequired().HasDefaultValue(false);
             user.Property(item => item.AccountTokenVersion).IsRequired().HasDefaultValue(0L);
             user.Property(item => item.CreatedAt).IsRequired().HasDefaultValueSql("GETUTCDATE()");

@@ -91,6 +91,25 @@ public sealed class CreditCardPersistenceTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task GetActiveSummariesByCustomer_PreservesCardIdForClientActions() {
+        CreditCard card = NewCard();
+
+        await WithContextAsync(async context => {
+            context.CreditCards.Add(card);
+            await context.SaveChangesAsync();
+        });
+
+        await WithContextAsync(async context => {
+            var repository = new CreditCardRepository(context);
+
+            var summaries = await repository.GetActiveSummariesByCustomerAsync("customer-1");
+
+            summaries.Should().ContainSingle();
+            summaries[0].Id.Should().Be(card.Id);
+        });
+    }
+
+    [Fact]
     public async Task DebtAboveLimit_IsRejectedByCheckConstraint() {
         await WithContextAsync(async context => {
             context.CreditCards.Add(NewCard());

@@ -1,9 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Common.ViewModels;
 
 namespace ArtemisBankingPro.Application.Features.Users.ViewModels;
 
 public sealed class UserListViewModel : BaseViewModel {
+    public string? LoadErrorMessage { get; init; }
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
     [StringLength(50, ErrorMessage = "El rol no debe exceder 50 caracteres.")]
     public string? Role { get; set; }
     public IReadOnlyList<SelectOptionViewModel> RoleOptions { get; init; } = [];
@@ -76,7 +80,10 @@ public sealed class CreateUserViewModel : BaseViewModel, IValidatableObject {
     public string LastName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La cédula es requerida.")]
-    [StringLength(20, ErrorMessage = "La cédula no debe exceder 20 caracteres.")]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string Identification { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo electrónico es requerido.")]
@@ -135,7 +142,10 @@ public sealed class CreateCommerceUserViewModel : IValidatableObject {
     public string LastName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La cédula es requerida.")]
-    [StringLength(20)]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string Identification { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo electrónico es requerido.")]
@@ -179,7 +189,10 @@ public sealed class UpdateUserViewModel : BaseViewModel, IValidatableObject {
     public string LastName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La cédula es requerida.")]
-    [StringLength(20)]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string Identification { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo electrónico es requerido.")]

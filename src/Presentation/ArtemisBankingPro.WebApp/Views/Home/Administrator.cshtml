@@ -23,11 +23,54 @@
     </div>
 </section>
 
+<section class="admin-dashboard__section" aria-labelledby="admin-modules-title">
+    <div class="admin-dashboard__section-heading">
+        <div>
+            <p class="ui-section-label">Accesos administrativos</p>
+            <h2 id="admin-modules-title" class="ui-card__title">Gestionar productos financieros</h2>
+        </div>
+        <span class="ui-badge ui-badge--info">Solo Administrador</span>
+    </div>
+    <div class="app-grid">
+        <article class="ui-card">
+            <div class="ui-card__body">
+                <p class="ui-section-label">Préstamos</p>
+                <h3 class="ui-card__title">Asignaciones y tasas</h3>
+                <p class="ui-card__description">Consulte amortizaciones, asigne préstamos y modifique tasas futuras.</p>
+                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Loans" asp-action="Index">
+                    Gestionar préstamos
+                </a>
+            </div>
+        </article>
+        <article class="ui-card">
+            <div class="ui-card__body">
+                <p class="ui-section-label">Tarjetas de crédito</p>
+                <h3 class="ui-card__title">Límites y cancelaciones</h3>
+                <p class="ui-card__description">Consulte consumos, actualice límites y gestione tarjetas activas.</p>
+                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="CreditCards" asp-action="Index">
+                    Gestionar tarjetas de crédito
+                </a>
+            </div>
+        </article>
+        <article class="ui-card">
+            <div class="ui-card__body">
+                <p class="ui-section-label">Cuentas de ahorro</p>
+                <h3 class="ui-card__title">Cuentas secundarias</h3>
+                <p class="ui-card__description">Consulte movimientos y cancele cuentas secundarias elegibles.</p>
+                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="SavingsAccounts" asp-action="Index">
+                    Gestionar cuentas de ahorro
+                </a>
+            </div>
+        </article>
+    </div>
+</section>
+
 @if (Model.HasLoadError) {
-    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive">
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive" aria-labelledby="admin-load-error-title">
+        <h2 id="admin-load-error-title" class="ui-visually-hidden">No fue posible cargar los indicadores</h2>
         <p class="ui-alert__content">@Model.LoadErrorMessage</p>
-        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Administrator">
-            Reintentar
+        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Administrator" aria-label="Reintentar la carga de los indicadores">
+            Reintentar indicadores
         </a>
     </section>
 } else {

@@ -322,7 +322,10 @@
     inset: 0 auto 0 0;
     display: flex;
     width: min(var(--ui-sidebar-width), calc(100vw - 2rem));
+    min-width: 0;
+    max-width: 100vw;
     flex-direction: column;
+    overflow-x: hidden;
     border-right: 1px solid var(--ui-border);
     background: var(--ui-surface);
     box-shadow: var(--ui-shadow-floating);
@@ -454,15 +457,19 @@
 
   .app-sidebar__inner {
     display: flex;
+    min-width: 0;
+    max-width: 100%;
     min-height: 100%;
     width: 100%;
     flex-direction: column;
+    overflow-x: hidden;
     gap: 1.5rem;
     padding: 1.25rem 1rem;
   }
 
   .app-sidebar__header {
     display: flex;
+    min-width: 0;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
@@ -484,11 +491,15 @@
 
   .app-sidebar__nav {
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
     overflow-y: auto;
   }
 
   .app-sidebar__list {
     display: grid;
+    min-width: 0;
     gap: 0.25rem;
     margin: 0;
     padding: 0;

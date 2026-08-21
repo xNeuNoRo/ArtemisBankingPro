@@ -11,9 +11,11 @@
     if (!string.IsNullOrWhiteSpace(text)) {
         <div
             class="ui-alert ui-alert--@message.Variant"
+            data-ui-state="@message.Variant"
             data-feedback-message="@text"
             data-feedback-variant="@message.Variant"
-            role="@(message.Variant == "error" ? "alert" : "status")">
+            role="@(message.Variant == "error" ? "alert" : "status")"
+            aria-atomic="true">
             <p class="ui-alert__content">@text</p>
         </div>
     }

@@ -2,13 +2,14 @@
 @{
     ViewData["Title"] = "Asignar préstamo";
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool Invalid(string field) => ViewData.ModelState[field]?.Errors.Count > 0;
 }
 
 <section class="page-header" aria-labelledby="loan-create-title">
     <div class="page-header__content">
         <p class="page-header__eyebrow">Administración / Préstamos</p>
         <h1 id="loan-create-title" class="page-header__title">Configurar préstamo</h1>
-        <p class="page-header__description">Los cálculos, el riesgo y el desembolso se validan nuevamente en Application.</p>
+        <p class="page-header__description">Los cálculos, el riesgo y el desembolso se validan nuevamente antes de guardar.</p>
     </div>
 </section>
 
@@ -47,29 +48,32 @@
         <div class="ui-card__body admin-product__form-grid">
             <div class="ui-field">
                 <label class="ui-label" asp-for="Form.TermMonths">Plazo del préstamo</label>
-                <select class="ui-control" asp-for="Form.TermMonths" autocomplete="off" required>
+                <select class="ui-control" asp-for="Form.TermMonths" autocomplete="off" required aria-invalid="@(Invalid("Form.TermMonths") ? "true" : "false")" aria-describedby="Form_TermMonths-help Form_TermMonths-error">
                     <option value="" disabled>Seleccione un plazo</option>
                     @foreach (int term in new[] { 6, 12, 18, 24, 30, 36, 42, 48, 54, 60 }) {
                         <option value="@term">@term meses</option>
                     }
                 </select>
+                <p id="Form_TermMonths-help" class="ui-field-description">Rango permitido: 6 a 60 meses, únicamente en intervalos de 6.</p>
                 <span class="ui-error" asp-validation-for="Form.TermMonths"></span>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="Form.CapitalAmount">Monto a prestar</label>
-                <input class="ui-control" asp-for="Form.CapitalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required />
+                <input class="ui-control" asp-for="Form.CapitalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required aria-invalid="@(Invalid("Form.CapitalAmount") ? "true" : "false")" aria-describedby="Form_CapitalAmount-help Form_CapitalAmount-error" />
+                <p id="Form_CapitalAmount-help" class="ui-field-description">Monto en RD$, mayor que RD$ 0.00 y con hasta dos decimales.</p>
                 <span class="ui-error" asp-validation-for="Form.CapitalAmount"></span>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="Form.AnnualInterestRate">Tasa de interés anual</label>
-                <input class="ui-control" asp-for="Form.AnnualInterestRate" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" required />
+                <input class="ui-control" asp-for="Form.AnnualInterestRate" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" required aria-invalid="@(Invalid("Form.AnnualInterestRate") ? "true" : "false")" aria-describedby="Form_AnnualInterestRate-help Form_AnnualInterestRate-error" />
+                <p id="Form_AnnualInterestRate-help" class="ui-field-description">Porcentaje anual permitido: 0% o mayor. Use un número con hasta dos decimales.</p>
                 <span class="ui-error" asp-validation-for="Form.AnnualInterestRate"></span>
             </div>
         </div>
     </section>
 
     <div class="page-actions">
-        <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Validando…">
+        <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Asignando…">
             <span data-submit-label>Asignar préstamo</span>
         </button>
         <a class="ui-button ui-button--secondary" asp-action="Assign">Volver atrás</a>

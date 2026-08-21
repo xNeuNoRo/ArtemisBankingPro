@@ -21,7 +21,8 @@
         <form method="get" asp-controller="@controller" asp-action="@action" class="admin-filter" data-submit-lock>
             <div class="ui-field">
                 <label id="eligible-filter-title" class="ui-label" asp-for="Identification">Buscar por cédula</label>
-                <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" />
+                <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-describedby="Identification-error" />
+                <span class="ui-error" asp-validation-for="Identification"></span>
             </div>
             <input type="hidden" name="page" value="1" />
             <input type="hidden" name="pageSize" value="20" />
@@ -33,7 +34,7 @@
 <form method="post" asp-controller="@controller" asp-action="@action" class="admin-product__list" data-submit-lock data-autofocus-error>
     <partial name="_ValidationSummary" />
     <input type="hidden" name="Identification" value="@Model.Identification" />
-    @if (Model.Clients.Count == 0) {
+    @if (ViewData.ModelState.IsValid && Model.Clients.Count == 0) {
         ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Identification)
             ? "No hay clientes elegibles"
             : "No se encontraron clientes elegibles";

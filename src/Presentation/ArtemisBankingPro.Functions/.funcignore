@@ -1,0 +1,9 @@
+local.settings.json
+bin/
+obj/
+.git/
+.vs/
+*.user
+*.suo
+tests/
+docs/

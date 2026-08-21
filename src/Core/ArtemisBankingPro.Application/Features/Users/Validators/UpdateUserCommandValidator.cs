@@ -20,7 +20,8 @@ public sealed class UpdateUserCommandValidator : AbstractValidator<UpdateUserCom
 
         RuleFor(x => x.Identification)
             .NotEmpty().WithMessage("La cédula es requerida.")
-            .MaximumLength(IdentityValidationLimits.IdentificationMaxLength);
+            .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
+            .WithMessage(IdentityValidationLimits.IdentificationMaxLengthMessage);
 
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("El correo electrónico es requerido.")

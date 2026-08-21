@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Common.ViewModels;
 
 namespace ArtemisBankingPro.Application.Features.Merchants.ViewModels;
@@ -109,7 +110,10 @@ public sealed class AssignCommerceUserViewModel : IValidatableObject {
     public string LastName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La cédula es requerida.")]
-    [StringLength(20)]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string Identification { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo electrónico es requerido.")]

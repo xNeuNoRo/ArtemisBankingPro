@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Data;
 
@@ -25,17 +26,20 @@ public sealed class AccountTokenService : IAccountTokenService {
     private readonly AccountTokenOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly byte[] _pepperKey;
+    private readonly ILogger<AccountTokenService> _logger;
 
     public AccountTokenService(
         IdentityContext context,
         UserManager<AppUser> userManager,
         IOptions<AccountTokenOptions> options,
-        TimeProvider timeProvider
+        TimeProvider timeProvider,
+        ILogger<AccountTokenService> logger
     ) {
         _context = context;
         _userManager = userManager;
         _options = options.Value;
         _timeProvider = timeProvider;
+        _logger = logger;
 
         if (string.IsNullOrWhiteSpace(_options.PepperKey)) {
             throw new InvalidOperationException(
@@ -421,10 +425,7 @@ public sealed class AccountTokenService : IAccountTokenService {
                 IdentityResult addResult = await _userManager.AddPasswordAsync(user, newPassword);
                 if (!addResult.Succeeded) {
                     return Result.Failure<AccountTokenVerificationResult>(
-                        DomainError.Conflict(
-                            "User.PasswordChangeFailed",
-                            "No fue posible cambiar la contraseña del usuario."
-                        )
+                        PasswordChangeError(addResult, userId)
                     );
                 }
 
@@ -551,6 +552,49 @@ public sealed class AccountTokenService : IAccountTokenService {
         type == AccountTokenType.PasswordReset
             ? _options.ResetLifetimeMinutes
             : _options.ActivationLifetimeMinutes;
+
+    private DomainError PasswordChangeError(IdentityResult result, string userId) {
+        IdentityError[] errors = result.Errors.ToArray();
+        string[] unknownCodes = errors
+            .Select(error => error.Code)
+            .Where(code => code is not (
+                "PasswordTooShort"
+                or "PasswordRequiresNonAlphanumeric"
+                or "PasswordRequiresDigit"
+                or "PasswordRequiresLower"
+                or "PasswordRequiresUpper"
+                or "PasswordRequiresUniqueChars"
+            ))
+            .ToArray();
+        if (unknownCodes.Length > 0) {
+            _logger.LogError(
+                "Password reset failed for user {UserId}; Identity error codes {ErrorCodes}",
+                userId,
+                string.Join(",", unknownCodes)
+            );
+        }
+
+        string[] messages = errors
+            .Select(error => error.Code switch {
+                "PasswordTooShort" => "La contraseña debe tener al menos 8 caracteres.",
+                "PasswordRequiresNonAlphanumeric" => "La contraseña debe incluir al menos un símbolo.",
+                "PasswordRequiresDigit" => "La contraseña debe incluir al menos un número.",
+                "PasswordRequiresLower" => "La contraseña debe incluir al menos una letra minúscula.",
+                "PasswordRequiresUpper" => "La contraseña debe incluir al menos una letra mayúscula.",
+                "PasswordRequiresUniqueChars" => "La contraseña debe incluir más caracteres diferentes.",
+                _ => null,
+            })
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return messages.Length == errors.Length && messages.Length > 0
+            ? DomainError.Validation("Auth.PasswordPolicy", string.Join(" ", messages))
+            : DomainError.Conflict(
+                "User.PasswordChangeFailed",
+                "No fue posible cambiar la contraseña del usuario."
+            );
+    }
 
     private static string CreateRawToken() {
         Span<byte> bytes = stackalloc byte[32];

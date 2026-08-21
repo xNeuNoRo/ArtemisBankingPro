@@ -49,6 +49,11 @@ public sealed class WebAppAuthenticationIntegrationTests(SqlServerFixture fixtur
 
         authenticatedLogin.StatusCode.Should().Be(HttpStatusCode.Redirect);
         authenticatedLogin.Headers.Location!.ToString().Should().Be("/Home/Administrator");
+
+        using HttpResponseMessage home = await client.GetAsync("/Home/Administrator");
+        string homeBody = await home.Content.ReadAsStringAsync();
+        homeBody.Should().NotContain("Identity");
+        homeBody.Should().NotContain("Sesión MVC");
     }
 
     [Theory]
@@ -76,6 +81,38 @@ public sealed class WebAppAuthenticationIntegrationTests(SqlServerFixture fixtur
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Be(expectedLocation);
+    }
+
+    [Fact]
+    public async Task Logout_requires_the_antiforgery_form_and_returns_to_login() {
+        using WebApplicationFactory<WebApp::Program> factory = CreateFactory();
+        string userName = UniqueUserName("logout");
+        await CreateUserAsync(factory, userName, "Cliente");
+        using HttpClient client = CreateClient(factory);
+
+        string loginBody = await GetBodyWithAntiforgeryAsync(client, "/Auth/Login");
+        using HttpResponseMessage loginResponse = await client.PostAsync(
+            "/Auth/Login",
+            Form(
+                ("__RequestVerificationToken", ExtractInput(loginBody, "__RequestVerificationToken")),
+                ("UserName", userName),
+                ("Password", Password)
+            )
+        );
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.Redirect);
+
+        string homeBody = await GetBodyWithAntiforgeryAsync(client, "/Home/Client");
+        using HttpResponseMessage logoutResponse = await client.PostAsync(
+            "/Auth/Logout",
+            Form(("__RequestVerificationToken", ExtractInput(homeBody, "__RequestVerificationToken")))
+        );
+
+        logoutResponse.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        logoutResponse.Headers.Location!.ToString().Should().Be("/Auth/Login");
+
+        using HttpResponseMessage protectedResponse = await client.GetAsync("/Home/Client");
+        protectedResponse.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        protectedResponse.Headers.Location!.AbsolutePath.Should().Be("/Auth/Login");
     }
 
     [Fact]
@@ -268,6 +305,64 @@ public sealed class WebAppAuthenticationIntegrationTests(SqlServerFixture fixtur
 
         replayResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         replayBody.Should().Contain("Este enlace de restablecimiento ya fue utilizado.");
+    }
+
+    [Fact]
+    public async Task Password_reset_policy_errors_are_spanish_and_do_not_consume_the_token() {
+        using WebApplicationFactory<WebApp::Program> factory = CreateFactory();
+        string userName = UniqueUserName("reset-policy");
+        AppUser user = await CreateUserAsync(factory, userName, "Cliente");
+        using HttpClient client = CreateClient(factory);
+
+        string requestBody = await GetBodyWithAntiforgeryAsync(client, "/Auth/RequestPasswordReset");
+        using HttpResponseMessage requestResponse = await client.PostAsync(
+            "/Auth/RequestPasswordReset",
+            Form(
+                ("__RequestVerificationToken", ExtractInput(requestBody, "__RequestVerificationToken")),
+                ("UserName", userName)
+            )
+        );
+        requestResponse.StatusCode.Should().Be(HttpStatusCode.Redirect);
+
+        RecordingEmailService email = factory.Services.GetRequiredService<RecordingEmailService>();
+        PasswordResetModel resetEmail = Assert.IsType<PasswordResetModel>(email.LastModel);
+        Uri resetLink = new(resetEmail.ResetLink);
+        using HttpResponseMessage linkResponse = await client.GetAsync(resetLink.PathAndQuery);
+        linkResponse.StatusCode.Should().Be(HttpStatusCode.Redirect);
+
+        string resetPage = await GetBodyWithAntiforgeryAsync(client, "/Auth/ResetPassword");
+        using HttpResponseMessage invalidResponse = await client.PostAsync(
+            "/Auth/ResetPassword",
+            Form(
+                ("__RequestVerificationToken", ExtractInput(resetPage, "__RequestVerificationToken")),
+                ("UserId", ExtractInput(resetPage, "UserId")),
+                ("Token", ExtractInput(resetPage, "Token")),
+                ("Password", "passwordonly"),
+                ("ConfirmPassword", "passwordonly")
+            )
+        );
+        string invalidBody = WebUtility.HtmlDecode(await invalidResponse.Content.ReadAsStringAsync());
+
+        invalidResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        invalidBody.Should().Contain("La contraseña debe incluir al menos una letra mayúscula.");
+        invalidBody.Should().Contain("La contraseña debe incluir al menos un número.");
+        invalidBody.Should().Contain("La contraseña debe incluir al menos un símbolo.");
+        Assert.DoesNotContain("PasswordRequires", invalidBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("Passwords must", invalidBody, StringComparison.OrdinalIgnoreCase);
+
+        using HttpResponseMessage retryResponse = await client.PostAsync(
+            "/Auth/ResetPassword",
+            Form(
+                ("__RequestVerificationToken", ExtractInput(invalidBody, "__RequestVerificationToken")),
+                ("UserId", ExtractInput(invalidBody, "UserId")),
+                ("Token", ExtractInput(invalidBody, "Token")),
+                ("Password", NewPassword),
+                ("ConfirmPassword", NewPassword)
+            )
+        );
+
+        retryResponse.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        (await IsActiveAsync(factory, user.Id)).Should().BeTrue();
     }
 
     [Fact]

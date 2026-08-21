@@ -48,9 +48,24 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         CancellationToken cancellationToken = default
     ) {
         CreditCardListViewModel request = new() {
-            Status = Normalize(status),
+            Status = NormalizeChoice(status),
             Identification = Normalize(identification),
         };
+        if (!ValidateListRequest(request, page, pageSize)
+            || !ValidateAllowedValue(
+                nameof(request.Status),
+                request.Status,
+                ["activa", "cancelada", "todas"],
+                "El estado debe ser activa, cancelada o todas."
+            )) {
+            return View(BuildListError(
+                request,
+                SafePage(page),
+                SafePageSize(pageSize),
+                includeLoadError: false
+            ));
+        }
+
         Result<CreditCardListViewModel> result = await _cards.GetCardsAsync(
             request,
             page,
@@ -73,6 +88,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         int pageSize = 20,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0 || !ValidatePagination(page, pageSize)) {
+            return BadRequest();
+        }
+
         Result<CreditCardDetailViewModel> result = await _cards.GetCardAsync(
             id,
             page,
@@ -91,12 +110,14 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         int pageSize = 20,
         CancellationToken cancellationToken = default
     ) {
-        return await RenderEligibleClientsAsync(
-            new EligibleClientsViewModel { Identification = Normalize(identification) },
-            page,
-            pageSize,
-            cancellationToken
-        );
+        EligibleClientsViewModel model = new() {
+            Identification = Normalize(identification),
+        };
+        if (!ValidateListRequest(model, page, pageSize)) {
+            return View(BuildEligibleError(model, SafePage(page), SafePageSize(pageSize)));
+        }
+
+        return await RenderEligibleClientsAsync(model, page, pageSize, cancellationToken);
     }
 
     [HttpPost("assign")]
@@ -113,8 +134,20 @@ public sealed class CreditCardsController : AdminProductControllerBase {
             );
         }
 
+        if (!ValidatePagination(page, pageSize)
+            || ModelState[nameof(model.Identification)]?.Errors.Count > 0) {
+            return View(BuildEligibleError(model, SafePage(page), SafePageSize(pageSize)));
+        }
+
+        EligibleClientsViewModel queryModel = new() {
+            Identification = model.Identification,
+            SelectedClientId = ModelState[nameof(model.SelectedClientId)]?.Errors.Count > 0
+                ? null
+                : model.SelectedClientId,
+        };
+
         Result<EligibleClientsViewModel> result = await _adminUsers.GetEligibleClientsAsync(
-            model,
+            queryModel,
             ClientAssignmentProduct.CreditCard,
             page,
             pageSize,
@@ -146,6 +179,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         string customerId,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsCustomerId(customerId)) {
+            return NotFound();
+        }
+
         Result<EligibleClientItemViewModel> customer = await GetEligibleCustomerAsync(
             customerId,
             cancellationToken
@@ -172,6 +209,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         string? submissionToken,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsCustomerId(customerId)) {
+            return NotFound();
+        }
+
         Result<EligibleClientItemViewModel> customer = await GetEligibleCustomerAsync(
             customerId,
             cancellationToken
@@ -235,6 +276,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         int id,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return BadRequest();
+        }
+
         Result<CreditCardDetailViewModel> result = await _cards.GetCardAsync(
             id,
             page: 1,
@@ -270,6 +315,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         string? submissionToken,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return BadRequest();
+        }
+
         Result<CreditCardDetailViewModel> detail = await _cards.GetCardAsync(
             id,
             page: 1,
@@ -335,6 +384,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         int id,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return BadRequest();
+        }
+
         Result<CreditCardDetailViewModel> result = await _cards.GetCardAsync(
             id,
             page: 1,
@@ -367,6 +420,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         CancelCreditCardViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return BadRequest();
+        }
+
         Result<CreditCardDetailViewModel> detail = await _cards.GetCardAsync(
             id,
             page: 1,
@@ -499,7 +556,8 @@ public sealed class CreditCardsController : AdminProductControllerBase {
         CreditCardListViewModel request,
         int page,
         int pageSize,
-        DomainError? error = null
+        DomainError? error = null,
+        bool includeLoadError = true
     ) => new() {
         Status = request.Status,
         Identification = request.Identification,
@@ -507,9 +565,16 @@ public sealed class CreditCardsController : AdminProductControllerBase {
             request.Status,
             !string.IsNullOrWhiteSpace(request.Identification)
         ),
-        LoadErrorMessage = error?.Message
-            ?? "No fue posible cargar las tarjetas. Intente nuevamente más tarde.",
-        Pagination = new PaginationViewModel { Page = page, PageSize = pageSize },
+        LoadErrorMessage = includeLoadError
+            ? WebAppErrorMessages.For(
+                error,
+                "No fue posible cargar las tarjetas. Intente nuevamente más tarde."
+            )
+            : null,
+        Pagination = new PaginationViewModel {
+            Page = SafePage(page),
+            PageSize = SafePageSize(pageSize),
+        },
         PageTitle = "Gestión de tarjetas de crédito",
         CurrentUserId = CurrentUserId,
         CurrentUserName = CurrentUserName,
@@ -525,7 +590,10 @@ public sealed class CreditCardsController : AdminProductControllerBase {
     ) => new() {
         Identification = request.Identification,
         SelectedClientId = request.SelectedClientId,
-        Pagination = new PaginationViewModel { Page = page, PageSize = pageSize },
+        Pagination = new PaginationViewModel {
+            Page = SafePage(page),
+            PageSize = SafePageSize(pageSize),
+        },
         PageTitle = "Seleccionar cliente",
         CurrentUserId = CurrentUserId,
         CurrentUserName = CurrentUserName,
@@ -544,4 +612,6 @@ public sealed class CreditCardsController : AdminProductControllerBase {
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeChoice(string? value) => Normalize(value)?.ToLowerInvariant();
 }

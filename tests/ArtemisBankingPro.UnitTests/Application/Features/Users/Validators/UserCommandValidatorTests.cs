@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Features.Users.Commands;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Features.Users.Queries;
 using ArtemisBankingPro.Application.Features.Users.Validators;
 
@@ -50,7 +51,10 @@ public sealed class CreateUserCommandValidatorTests {
         );
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "Identification");
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == "Identification"
+            && e.ErrorMessage == IdentityValidationLimits.IdentificationMaxLengthMessage
+        );
     }
 
     [Fact]

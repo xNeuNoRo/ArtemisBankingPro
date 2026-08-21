@@ -23,7 +23,7 @@ public sealed class GetEligibleClientsQueryValidator
         RuleFor(query => query.Identification)
             .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
             .When(query => query.Identification is not null)
-            .WithMessage("La cédula no debe exceder 20 caracteres.");
+            .WithMessage(IdentityValidationLimits.IdentificationMaxLengthMessage);
 
         RuleFor(query => query.SelectedClientId)
             .MaximumLength(450)

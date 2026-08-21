@@ -34,6 +34,14 @@ public sealed class PageRequestTests {
         new PageRequest(page: 2, pageSize: 20).Skip.Should().Be(20);
         new PageRequest(page: 5, pageSize: 10).Skip.Should().Be(40);
     }
+
+    [Fact]
+    public void Skip_DoesNotWrapForTheLargestSupportedPageValue() {
+        new PageRequest(page: int.MaxValue, pageSize: PageRequest.MaxPageSize)
+            .Skip
+            .Should()
+            .Be(int.MaxValue);
+    }
 }
 
 public sealed class PageResultTests {

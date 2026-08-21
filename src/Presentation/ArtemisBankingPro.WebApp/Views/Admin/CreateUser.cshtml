@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Crear usuario";
     string? submissionToken = ViewData["SubmissionToken"] as string;
+    bool Invalid(string field) => ViewData.ModelState[field]?.Errors.Count > 0;
 }
 
 <section class="page-header" aria-labelledby="create-user-title">
@@ -33,37 +34,41 @@
         <div class="ui-card__body admin-form-grid">
             <div class="ui-field">
                 <label class="ui-label" asp-for="FirstName">Nombre</label>
-                <input class="ui-control" asp-for="FirstName" autocomplete="given-name" />
+                <input class="ui-control" asp-for="FirstName" autocomplete="given-name" aria-invalid="@(Invalid(nameof(Model.FirstName)) ? "true" : "false")" aria-describedby="FirstName-error" />
                 <span class="ui-error" asp-validation-for="FirstName"></span>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="LastName">Apellido</label>
-                <input class="ui-control" asp-for="LastName" autocomplete="family-name" />
+                <input class="ui-control" asp-for="LastName" autocomplete="family-name" aria-invalid="@(Invalid(nameof(Model.LastName)) ? "true" : "false")" aria-describedby="LastName-error" />
                 <span class="ui-error" asp-validation-for="LastName"></span>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="Identification">Cédula</label>
-                <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" />
+                <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-invalid="@(Invalid(nameof(Model.Identification)) ? "true" : "false")" aria-describedby="Identification-help Identification-error" />
+                <p id="Identification-help" class="ui-field-description">Consérvela como texto y mantenga los ceros iniciales.</p>
                 <span class="ui-error" asp-validation-for="Identification"></span>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="Email">Correo electrónico</label>
-                <input class="ui-control" asp-for="Email" autocomplete="email" inputmode="email" />
+                <input class="ui-control" asp-for="Email" autocomplete="email" inputmode="email" aria-invalid="@(Invalid(nameof(Model.Email)) ? "true" : "false")" aria-describedby="Email-help Email-error" />
+                <p id="Email-help" class="ui-field-description">Se usará para activación, notificaciones y recuperación de acceso.</p>
                 <span class="ui-error" asp-validation-for="Email"></span>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="UserName">Nombre de usuario</label>
-                <input class="ui-control" asp-for="UserName" autocomplete="username" />
+                <input class="ui-control" asp-for="UserName" autocomplete="username" aria-invalid="@(Invalid(nameof(Model.UserName)) ? "true" : "false")" aria-describedby="UserName-help UserName-error" />
+                <p id="UserName-help" class="ui-field-description">Será la credencial para iniciar sesión.</p>
                 <span class="ui-error" asp-validation-for="UserName"></span>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="Role">Tipo de usuario</label>
-                    <select class="ui-control" asp-for="Role" data-user-role autocomplete="off" required>
-                    <option value="" disabled>Seleccione un tipo</option>
+                <select class="ui-control" asp-for="Role" data-user-role autocomplete="off" required aria-invalid="@(Invalid(nameof(Model.Role)) ? "true" : "false")" aria-describedby="Role-help Role-error">
+                    <option value="" disabled selected="@(string.IsNullOrWhiteSpace(Model.Role) ? "selected" : null)">Seleccione un tipo</option>
                     <option value="Administrador">Administrador</option>
                     <option value="Cajero">Cajero</option>
                     <option value="Cliente">Cliente</option>
                 </select>
+                <p id="Role-help" class="ui-field-description">Solo se permiten Administrador, Cajero o Cliente. Comercio se gestiona desde su módulo específico.</p>
                 <span class="ui-error" asp-validation-for="Role"></span>
             </div>
         </div>
@@ -80,18 +85,19 @@
             <div class="ui-field">
                 <label class="ui-label" asp-for="Password">Contraseña</label>
                 <div class="ui-control-group">
-                    <input class="ui-control" asp-for="Password" autocomplete="new-password" data-password-input="create-password" />
+                    <input class="ui-control" asp-for="Password" type="password" autocomplete="new-password" data-password-input="create-password" aria-invalid="@(Invalid(nameof(Model.Password)) ? "true" : "false")" aria-describedby="Password-help Password-error" />
                     <button class="ui-control-group__action" type="button" data-password-toggle="Password" aria-label="Ver" aria-pressed="false"><span aria-hidden="true" data-password-label>Ver</span></button>
                 </div>
                 <span class="ui-error" asp-validation-for="Password"></span>
-                <p class="ui-field-description">Debe tener entre 8 y 128 caracteres.</p>
+                <p id="Password-help" class="ui-field-description">Debe tener entre 8 y 128 caracteres. No comparta esta credencial.</p>
             </div>
             <div class="ui-field">
                 <label class="ui-label" asp-for="ConfirmPassword">Confirmar contraseña</label>
                 <div class="ui-control-group">
-                    <input class="ui-control" asp-for="ConfirmPassword" autocomplete="new-password" />
+                    <input class="ui-control" asp-for="ConfirmPassword" type="password" autocomplete="new-password" aria-invalid="@(Invalid(nameof(Model.ConfirmPassword)) ? "true" : "false")" aria-describedby="ConfirmPassword-help ConfirmPassword-error" />
                     <button class="ui-control-group__action" type="button" data-password-toggle="ConfirmPassword" aria-label="Ver" aria-pressed="false"><span aria-hidden="true" data-password-label>Ver</span></button>
                 </div>
+                <p id="ConfirmPassword-help" class="ui-field-description">Repita exactamente la contraseña inicial.</p>
                 <span class="ui-error" asp-validation-for="ConfirmPassword"></span>
             </div>
             <div class="ui-field admin-form__role-dependent" data-role-dependent="Cliente">
@@ -99,9 +105,9 @@
                     Monto inicial
                     <span class="ui-label__optional">Solo para Cliente</span>
                 </label>
-                <input class="ui-control" asp-for="InitialAmount" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" />
+                <input class="ui-control" asp-for="InitialAmount" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" aria-invalid="@(Invalid(nameof(Model.InitialAmount)) ? "true" : "false")" aria-describedby="InitialAmount-help InitialAmount-error" />
                 <span class="ui-error" asp-validation-for="InitialAmount"></span>
-                <p class="ui-field-description">Si se omite, la cuenta principal inicia en RD$ 0.00.</p>
+                <p id="InitialAmount-help" class="ui-field-description">Monto en RD$, desde RD$ 0.00 y hasta dos decimales. Solo aplica a Cliente; si se omite, inicia en RD$ 0.00.</p>
             </div>
         </div>
     </section>

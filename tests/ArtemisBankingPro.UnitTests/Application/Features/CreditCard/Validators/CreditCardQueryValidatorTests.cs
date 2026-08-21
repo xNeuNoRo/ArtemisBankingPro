@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Features.CreditCard.Queries;
 using ArtemisBankingPro.Application.Features.CreditCard.Validator;
+using ArtemisBankingPro.Application.Common.Validation;
 
 namespace ArtemisBankingPro.UnitTests.Application.Features.CreditCard.Validators;
 
@@ -114,10 +115,15 @@ public sealed class GetCreditCardsPagedQueryValidatorTests {
     [Fact]
     public async Task Validate_IdentificationTooLong_Fails() {
         var result = await _validator.ValidateAsync(
-            new GetCreditCardsPagedQuery(Identification: new string('1', 21))
+            new GetCreditCardsPagedQuery(
+                Identification: new string('1', IdentityValidationLimits.IdentificationMaxLength + 1)
+            )
         );
 
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "Identification");
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == "Identification"
+            && e.ErrorMessage == IdentityValidationLimits.IdentificationMaxLengthMessage
+        );
     }
 }

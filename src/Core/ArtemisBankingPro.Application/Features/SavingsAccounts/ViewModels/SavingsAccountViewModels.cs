@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Features.Admin.ViewModels;
 using ArtemisBankingPro.Application.Common.ViewModels;
 
@@ -14,7 +15,10 @@ public sealed class SavingsAccountListViewModel : BaseViewModel {
     [StringLength(50, ErrorMessage = "El tipo no debe exceder 50 caracteres.")]
     public string? Type { get; set; }
 
-    [StringLength(20, ErrorMessage = "La cédula no debe exceder 20 caracteres.")]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string? Identification { get; set; }
 
     public IReadOnlyList<SelectOptionViewModel> StatusOptions { get; init; } = [];

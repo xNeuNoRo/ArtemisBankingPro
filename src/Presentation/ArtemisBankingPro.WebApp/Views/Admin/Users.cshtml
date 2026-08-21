@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Gestión de usuarios";
     ViewData["PaginationRole"] = Model.Role;
+    bool roleInvalid = ViewData.ModelState[nameof(Model.Role)]?.Errors.Count > 0;
 }
 
 <section class="page-header" aria-labelledby="users-title">
@@ -24,31 +25,42 @@
 
 <section class="ui-card admin-users__filter" aria-labelledby="users-filter-title">
     <div class="ui-card__body">
+        <h2 id="users-filter-title" class="ui-card__title">Filtros del listado</h2>
         <form method="get" asp-action="Users" class="admin-filter" data-submit-lock>
             <div class="ui-field">
-                <label id="users-filter-title" class="ui-label" asp-for="Role">Filtrar por tipo de usuario</label>
-                <select class="ui-control" asp-for="Role" autocomplete="off">
+                <label class="ui-label" asp-for="Role">Filtrar por tipo de usuario</label>
+                <select class="ui-control" asp-for="Role" autocomplete="off" aria-invalid="@(roleInvalid ? "true" : "false")" aria-describedby="Role-help Role-error">
                     @foreach (SelectOptionViewModel option in Model.RoleOptions) {
                         <option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option>
                     }
                 </select>
+                <p id="Role-help" class="ui-field-description">Puede mostrar todos los usuarios web o filtrar por Administrador, Cajero o Cliente. Comercio no pertenece a este módulo.</p>
+                <span class="ui-error" asp-validation-for="Role"></span>
             </div>
             <input type="hidden" name="page" value="1" />
             <input type="hidden" name="pageSize" value="20" />
-            <button class="ui-button ui-button--secondary" type="submit">
-                Aplicar filtro
+            <button class="ui-button ui-button--secondary" type="submit" data-submitting-label="Filtrando…">
+                <span data-submit-label>Aplicar filtro</span>
             </button>
         </form>
     </div>
 </section>
 
-@if (Model.Users.Count == 0) {
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--error" role="alert" aria-live="assertive" aria-labelledby="users-load-error-title">
+        <h2 id="users-load-error-title" class="ui-visually-hidden">No fue posible cargar los usuarios</h2>
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Users" asp-route-role="@Model.Role" asp-route-page="1" asp-route-pageSize="20" aria-label="Reintentar la carga de usuarios">
+            Reintentar usuarios
+        </a>
+    </section>
+} else if (ViewData.ModelState.IsValid && Model.Users.Count == 0) {
     ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Role)
         ? "No hay usuarios registrados"
         : "No hay usuarios para este filtro";
     ViewData["EmptyDescription"] = "Los usuarios Comercio no se muestran en la aplicación web administrativa.";
     <partial name="_EmptyState" />
-} else {
+} else if (ViewData.ModelState.IsValid && Model.Users.Count > 0) {
     <section class="admin-users__list" aria-labelledby="users-list-title">
         <div class="admin-users__list-heading">
             <div>
@@ -87,28 +99,32 @@
                             </td>
                             <td>
                                 <div class="admin-users__actions">
-                                    <a
-                                        class="ui-button ui-button--secondary ui-button--small"
-                                        asp-action="EditUser"
-                                        asp-route-id="@user.UserId">
-                                        Editar
-                                    </a>
-                                    @if (user.IsActive) {
-                                        <a
-                                            class="ui-button ui-button--danger ui-button--small"
-                                            asp-action="ConfirmUserStatus"
-                                            asp-route-id="@user.UserId"
-                                            asp-route-targetActive="false">
-                                            Inactivar
-                                        </a>
+                                    @if (string.Equals(user.UserId, Model.CurrentUserId, StringComparison.Ordinal)) {
+                                        <span class="ui-badge ui-badge--neutral">Cuenta actual</span>
                                     } else {
                                         <a
                                             class="ui-button ui-button--secondary ui-button--small"
-                                            asp-action="ConfirmUserStatus"
-                                            asp-route-id="@user.UserId"
-                                            asp-route-targetActive="true">
-                                            Activar
+                                            asp-action="EditUser"
+                                            asp-route-id="@user.UserId">
+                                            Editar usuario
                                         </a>
+                                        @if (user.IsActive) {
+                                            <a
+                                                class="ui-button ui-button--danger ui-button--small"
+                                                asp-action="ConfirmUserStatus"
+                                                asp-route-id="@user.UserId"
+                                                asp-route-targetActive="false">
+                                                Inactivar usuario
+                                            </a>
+                                        } else {
+                                            <a
+                                                class="ui-button ui-button--secondary ui-button--small"
+                                                asp-action="ConfirmUserStatus"
+                                                asp-route-id="@user.UserId"
+                                                asp-route-targetActive="true">
+                                                Activar usuario
+                                            </a>
+                                        }
                                     }
                                 </div>
                             </td>

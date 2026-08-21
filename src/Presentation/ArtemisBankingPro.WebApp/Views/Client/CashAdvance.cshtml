@@ -3,11 +3,17 @@
     ViewData["Title"] = Model.PageTitle;
     bool canSubmit = Model.Form.CardOptions.Count > 0 && Model.Form.DestinationAccountOptions.Count > 0;
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool cardInvalid = ViewData.ModelState["Form.CardId"]?.Errors.Count > 0;
+    bool destinationInvalid = ViewData.ModelState["Form.DestinationAccountNumber"]?.Errors.Count > 0;
+    bool amountInvalid = ViewData.ModelState["Form.Amount"]?.Errors.Count > 0;
 }
 
 <section class="page-header" aria-labelledby="cash-advance-title">
-    <div class="page-header__content"><p class="page-header__eyebrow">Cliente / Crédito</p><h1 id="cash-advance-title" class="page-header__title">Avance de efectivo</h1><p class="page-header__description">Reciba el monto solicitado en una cuenta propia; la tarjeta se cargará con el principal más el interés calculado por Application.</p></div>
+    <div class="page-header__content"><p class="page-header__eyebrow">Cliente / Crédito</p><h1 id="cash-advance-title" class="page-header__title">Avance de efectivo</h1><p class="page-header__description">Reciba el monto solicitado en una cuenta propia; la tarjeta se cargará con el principal más el interés correspondiente.</p></div>
+    <div class="page-header__actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Volver al Home</a></div>
 </section>
+
+<partial name="_ValidationSummary" />
 
 @if (!canSubmit) {
     ViewData["EmptyTitle"] = Model.Form.CardOptions.Count == 0 ? "No tiene tarjetas activas." : "No tiene cuentas activas para recibir el avance.";
@@ -17,18 +23,21 @@
     <section class="ui-card client-form-panel" aria-labelledby="cash-advance-form-title">
         <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="cash-advance-form-title" class="ui-card__title">Datos del avance</h2><p class="ui-card__description">La tasa del avance es 6.25% y el crédito disponible se revisa nuevamente al confirmar.</p></div></div>
         <div class="ui-card__body">
-            <partial name="_ValidationSummary" />
-            <form asp-controller="Client" asp-action="CashAdvanceQuote" method="post" data-submit-lock data-autofocus-error class="client-form">
+            <aside class="ui-alert ui-alert--info" role="note" aria-labelledby="cash-advance-calculation-title">
+                <p id="cash-advance-calculation-title" class="ui-alert__content"><strong>Cómo se calcula</strong></p>
+                <p class="ui-alert__content">El interés es el 6.25% del monto solicitado. La cuenta recibe únicamente el monto del avance y la tarjeta se carga con el monto más el interés. El crédito disponible se verifica otra vez antes de ejecutar.</p>
+            </aside>
+            <form asp-controller="Client" asp-action="CashAdvanceQuote" method="post" data-submit-lock data-autofocus-error class="client-form" aria-labelledby="cash-advance-form-title">
                 <input asp-for="Form.SubmissionToken" type="hidden" />
                 <div class="client-form__grid">
-                    <div class="ui-field"><label class="ui-label" asp-for="Form.CardId">Tarjeta de crédito</label><select class="ui-control" asp-for="Form.CardId" required><option value="0" disabled>Seleccione una tarjeta</option>@foreach (SelectOptionViewModel option in Model.Form.CardOptions) { <option value="@option.Value">@option.Text</option> }</select><span class="ui-error" asp-validation-for="Form.CardId"></span></div>
-                    <div class="ui-field"><label class="ui-label" asp-for="Form.DestinationAccountNumber">Cuenta destino</label><select class="ui-control" asp-for="Form.DestinationAccountNumber" required><option value="" disabled>Seleccione una cuenta</option>@foreach (SelectOptionViewModel option in Model.Form.DestinationAccountOptions) { <option value="@option.Value">@option.Text</option> }</select><span class="ui-error" asp-validation-for="Form.DestinationAccountNumber"></span></div>
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.CardId">Tarjeta de crédito origen</label><select class="ui-control" asp-for="Form.CardId" aria-invalid="@(cardInvalid ? "true" : "false")" aria-describedby="Form_CardId-help Form_CardId-error" required><option value="0" disabled selected="@(Model.Form.CardId <= 0 ? "selected" : null)">Seleccione una tarjeta</option>@foreach (SelectOptionViewModel option in Model.Form.CardOptions) { <option value="@option.Value">@option.Text</option> }</select><p id="Form_CardId-help" class="ui-field-description">Solo se muestran tarjetas propias activas; se identifican por su terminación.</p><span id="Form_CardId-error" class="ui-error" asp-validation-for="Form.CardId"></span></div>
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.DestinationAccountNumber">Cuenta destino</label><select class="ui-control" asp-for="Form.DestinationAccountNumber" aria-invalid="@(destinationInvalid ? "true" : "false")" aria-describedby="Form_DestinationAccountNumber-help Form_DestinationAccountNumber-error" required><option value="" disabled selected="@(string.IsNullOrWhiteSpace(Model.Form.DestinationAccountNumber) ? "selected" : null)">Seleccione una cuenta</option>@foreach (SelectOptionViewModel option in Model.Form.DestinationAccountOptions) { <option value="@option.Value">@option.Text</option> }</select><p id="Form_DestinationAccountNumber-help" class="ui-field-description">El monto del avance se acreditará en una cuenta de ahorro activa propia.</p><span id="Form_DestinationAccountNumber-error" class="ui-error" asp-validation-for="Form.DestinationAccountNumber"></span></div>
                 </div>
-                <div class="ui-field"><label class="ui-label" asp-for="Form.Amount">Monto del avance</label><input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required /><span class="ui-error" asp-validation-for="Form.Amount"></span></div>
+                <div class="ui-field"><label class="ui-label" asp-for="Form.Amount">Monto del avance</label><input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" aria-invalid="@(amountInvalid ? "true" : "false")" aria-describedby="Form_Amount-help Form_Amount-error" required /><p id="Form_Amount-help" class="ui-field-description">Es el monto que recibirá en la cuenta; debe ser mayor que RD$ 0.00.</p><span id="Form_Amount-error" class="ui-error" asp-validation-for="Form.Amount"></span></div>
                 @if (Model.Form.Quote is not null) {
-                    <div class="client-quote" aria-live="polite"><div><span>Principal</span><strong>@Money(Model.Form.Quote.PrincipalAmount)</strong></div><div><span>Interés</span><strong>@Money(Model.Form.Quote.InterestAmount)</strong></div><div><span>Total cargado</span><strong>@Money(Model.Form.Quote.TotalToCharge)</strong></div></div>
+                    <div class="client-quote" aria-live="polite" aria-label="Cálculo del avance"><div><span>Principal recibido</span><strong>@Money(Model.Form.Quote.PrincipalAmount)</strong></div><div><span>Interés (6.25%)</span><strong>@Money(Model.Form.Quote.InterestAmount)</strong></div><div><span>Total cargado a la tarjeta</span><strong>@Money(Model.Form.Quote.TotalToCharge)</strong></div><div><span>Crédito disponible</span><strong>@Money(Model.Form.Quote.AvailableCredit)</strong></div></div>
                 }
-                <div class="page-actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Cancelar</a><button class="ui-button ui-button--primary" type="submit"><span data-submit-label>Calcular y continuar</span></button></div>
+                <div class="page-actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client" aria-label="Cancelar y volver al Home">Cancelar</a><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Calculando avance…"><span data-submit-label>Realizar avance</span></button></div>
             </form>
         </div>
     </section>

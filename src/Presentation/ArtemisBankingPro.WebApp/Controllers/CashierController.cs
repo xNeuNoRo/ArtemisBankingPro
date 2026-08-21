@@ -44,6 +44,7 @@ public sealed class CashierController : Controller {
         [Bind(Prefix = "Form")] DepositViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(("Form.Amount", "El monto a depositar debe ser mayor que cero."));
         if (!ModelState.IsValid) {
             return View(BuildPage(model, "Depósito", NavigationKeys.CashierDeposit));
         }
@@ -72,8 +73,9 @@ public sealed class CashierController : Controller {
         CashierOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(("RequestedAmount", "El monto de la operación no es válido."));
         if (!ModelState.IsValid) {
-            return InvalidConfirmation(model);
+            return InvalidConfirmation(nameof(Deposit));
         }
 
         Result<TransactionResultViewModel> result = await _cashier.ConfirmDepositAsync(
@@ -110,6 +112,7 @@ public sealed class CashierController : Controller {
         [Bind(Prefix = "Form")] WithdrawalViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(("Form.Amount", "El monto a retirar debe ser mayor que cero."));
         if (!ModelState.IsValid) {
             return View(BuildPage(model, "Retiro", NavigationKeys.CashierWithdrawal));
         }
@@ -138,8 +141,9 @@ public sealed class CashierController : Controller {
         CashierOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(("RequestedAmount", "El monto de la operación no es válido."));
         if (!ModelState.IsValid) {
-            return InvalidConfirmation(model);
+            return InvalidConfirmation(nameof(Withdrawal));
         }
 
         Result<TransactionResultViewModel> result = await _cashier.ConfirmWithdrawalAsync(
@@ -171,6 +175,10 @@ public sealed class CashierController : Controller {
         [Bind(Prefix = "Form")] CardPaymentViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(
+            ("Form.CardId", "La tarjeta seleccionada no es válida."),
+            ("Form.Amount", "El monto a pagar debe ser mayor que cero.")
+        );
         if (!ModelState.IsValid) {
             return await RenderCardPaymentAsync(model, null, cancellationToken);
         }
@@ -199,8 +207,12 @@ public sealed class CashierController : Controller {
         CashierOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(
+            ("CardId", "La tarjeta seleccionada no es válida."),
+            ("RequestedAmount", "El monto de la operación no es válido.")
+        );
         if (!ModelState.IsValid) {
-            return InvalidConfirmation(model);
+            return InvalidConfirmation(nameof(CardPayment));
         }
 
         Result<TransactionResultViewModel> result = await _cashier.ConfirmCardPaymentAsync(
@@ -233,6 +245,10 @@ public sealed class CashierController : Controller {
         [Bind(Prefix = "Form")] LoanPaymentViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(
+            ("Form.LoanId", "El préstamo seleccionado no es válido."),
+            ("Form.Amount", "El monto a pagar debe ser mayor que cero.")
+        );
         if (!ModelState.IsValid) {
             return await RenderLoanPaymentAsync(model, null, cancellationToken);
         }
@@ -261,8 +277,12 @@ public sealed class CashierController : Controller {
         CashierOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(
+            ("LoanId", "El préstamo seleccionado no es válido."),
+            ("RequestedAmount", "El monto de la operación no es válido.")
+        );
         if (!ModelState.IsValid) {
-            return InvalidConfirmation(model);
+            return InvalidConfirmation(nameof(LoanPayment));
         }
 
         Result<TransactionResultViewModel> result = await _cashier.ConfirmLoanPaymentAsync(
@@ -290,7 +310,7 @@ public sealed class CashierController : Controller {
     public IActionResult ThirdPartyTransfer() => View(
         BuildPage(
             new ThirdPartyTransferViewModel(),
-            "Transacciones a terceros",
+            "Transacciones a cuentas de terceros",
             NavigationKeys.CashierThirdPartyTransfer
         )
     );
@@ -300,11 +320,12 @@ public sealed class CashierController : Controller {
         [Bind(Prefix = "Form")] ThirdPartyTransferViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(("Form.Amount", "El monto de la transacción debe ser mayor que cero."));
         if (!ModelState.IsValid) {
             return View(
                 BuildPage(
                     model,
-                    "Transacciones a terceros",
+                    "Transacciones a cuentas de terceros",
                     NavigationKeys.CashierThirdPartyTransfer
                 )
             );
@@ -313,11 +334,11 @@ public sealed class CashierController : Controller {
         Result<CashierOperationConfirmationViewModel> result =
             await _cashier.PrepareThirdPartyTransferConfirmationAsync(model, cancellationToken);
         if (result.IsFailure) {
-            AddOperationError(result.Error, "No fue posible validar la transferencia.");
+            AddOperationError(result.Error, "No fue posible validar la transferencia.", thirdParty: true);
             return View(
                 BuildPage(
                     model,
-                    "Transacciones a terceros",
+                    "Transacciones a cuentas de terceros",
                     NavigationKeys.CashierThirdPartyTransfer
                 )
             );
@@ -328,8 +349,8 @@ public sealed class CashierController : Controller {
             BuildConfirmation(
                 result.Value,
                 "ConfirmThirdPartyTransfer",
-                "Transacciones a terceros",
-                "¿Está seguro que desea realizar esta transacción?",
+                "Transacciones a cuentas de terceros",
+                "¿Está seguro de que desea realizar esta transacción?",
                 NavigationKeys.CashierThirdPartyTransfer
             )
         );
@@ -340,8 +361,9 @@ public sealed class CashierController : Controller {
         CashierOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(("RequestedAmount", "El monto de la operación no es válido."));
         if (!ModelState.IsValid) {
-            return InvalidConfirmation(model);
+            return InvalidConfirmation(nameof(ThirdPartyTransfer));
         }
 
         Result<ThirdPartyTransferResultViewModel> result =
@@ -358,7 +380,8 @@ public sealed class CashierController : Controller {
             return RedirectWithOperationError(
                 nameof(ThirdPartyTransfer),
                 result.Error,
-                "No fue posible realizar la transferencia."
+                "No fue posible realizar la transferencia.",
+                thirdParty: true
             );
         }
 
@@ -377,6 +400,11 @@ public sealed class CashierController : Controller {
         int page = 1,
         CancellationToken cancellationToken = default
     ) {
+        ReplaceBindingErrors(
+            ("dateFrom", "La fecha inicial no es válida."),
+            ("dateTo", "La fecha final no es válida."),
+            ("page", "La página solicitada no es válida.")
+        );
         CashierOperationListViewModel request = new() {
             DateFrom = dateFrom,
             DateTo = dateTo,
@@ -528,32 +556,34 @@ public sealed class CashierController : Controller {
     private RedirectToActionResult RedirectWithOperationError(
         string action,
         DomainError? error,
-        string fallback
+        string fallback,
+        bool thirdParty = false
     ) {
         if (error?.Category == ErrorCategory.Forbidden) {
-            TempData["AccessDeniedMessage"] = error.Message;
+            TempData["AccessDeniedMessage"] = WebAppErrorMessages.For(
+                error,
+                "No tiene permiso para realizar esta operación."
+            );
             return RedirectToAction(nameof(AuthController.AccessDenied), "Auth");
         }
 
-        TempData["Error"] = PublicOperationMessage(error) ?? fallback;
+        TempData["Error"] = PublicOperationMessage(error, thirdParty) ?? fallback;
         return RedirectToAction(action);
     }
 
-    private ViewResult InvalidConfirmation(CashierOperationConfirmationViewModel model) {
-        ModelState.AddModelError(
-            string.Empty,
-            "La confirmación de la operación no es válida. Inicie nuevamente la operación."
-        );
-        return View("ConfirmOperation", model);
+    private RedirectToActionResult InvalidConfirmation(string action) {
+        TempData["Error"] =
+            "La confirmación de la operación no es válida. Inicie nuevamente la operación.";
+        return RedirectToAction(action);
     }
 
-    private void AddOperationError(DomainError? error, string fallback) {
+    private void AddOperationError(DomainError? error, string fallback, bool thirdParty = false) {
         if (error?.Category == ErrorCategory.Forbidden) {
             ModelState.AddModelError(string.Empty, "No tiene permiso para realizar esta operación.");
             return;
         }
 
-        ModelState.AddModelError(string.Empty, PublicOperationMessage(error) ?? fallback);
+        ModelState.AddModelError(string.Empty, PublicOperationMessage(error, thirdParty) ?? fallback);
     }
 
     private void SetMutationOutcome(TransactionResultViewModel result, string success) {
@@ -568,18 +598,46 @@ public sealed class CashierController : Controller {
     private RedirectToActionResult RedirectToCashierHome() =>
         RedirectToAction(nameof(HomeController.Cashier), "Home");
 
-    private static string? PublicOperationMessage(DomainError? error) => error?.Code switch {
-        "Account.SourceNotFound" or "Account.DestinationNotFound" or "Account.NotActive"
-            => "El número de cuenta ingresado no corresponde a una cuenta válida.",
-        "Account.InsufficientFunds" => "El monto ingresado excede el saldo disponible de la cuenta.",
-        "Card.NotFound" or "Card.NotActive" => "El número de tarjeta ingresado no corresponde a una tarjeta válida.",
-        "Card.NoDebt" => "La tarjeta seleccionada no tiene deuda pendiente.",
-        "Loan.NotFound" or "Loan.NotActive" => "El número de préstamo ingresado no corresponde a un préstamo válido.",
-        "Loan.NoPendingInstallments" => "El préstamo seleccionado no tiene cuotas pendientes de pago.",
-        "Operation.SameAccount" => "La cuenta origen y la cuenta destino no pueden ser la misma.",
-        "Operation.DestinationMustBeThirdParty" => "La cuenta destino debe pertenecer a un tercero.",
-        _ => error?.Message,
-    };
+    private static string? PublicOperationMessage(DomainError? error, bool thirdParty = false) =>
+        error?.Code switch {
+            "Account.SourceNotFound" when thirdParty
+                => "El número de cuenta origen ingresado no corresponde a una cuenta válida.",
+            "Account.DestinationNotFound" when thirdParty
+                => "El número de cuenta destino ingresado no corresponde a una cuenta válida.",
+            "Account.NotActive" when thirdParty
+                => "Las cuentas de origen y destino deben estar activas.",
+            "Account.SourceNotFound" or "Account.DestinationNotFound" or "Account.NotActive"
+                => "El número de cuenta ingresado no corresponde a una cuenta válida.",
+            "Account.InsufficientFunds" => "El monto ingresado excede el saldo disponible de la cuenta.",
+            "Card.NotFound" or "Card.NotActive" => "El número de tarjeta ingresado no corresponde a una tarjeta válida.",
+            "Card.NoDebt" => "La tarjeta seleccionada no tiene deuda pendiente.",
+            "Loan.NotFound" or "Loan.NotActive" => "El número de préstamo ingresado no corresponde a un préstamo válido.",
+            "Loan.NoPendingInstallments" => "El préstamo seleccionado no tiene cuotas pendientes de pago.",
+            "Operation.SameAccount" => "La cuenta origen y la cuenta destino no pueden ser la misma.",
+            "Operation.DestinationMustBeThirdParty" => "La cuenta destino debe pertenecer a un tercero.",
+            "Confirmation.Invalid" => "La confirmación no corresponde a esta operación.",
+            "Concurrency.Conflict" => "La operación no pudo completarse porque el estado cambió. Revise los datos e intente nuevamente.",
+            _ => null,
+        };
+
+    private void ReplaceBindingErrors(params (string Key, string Message)[] bindings) {
+        foreach ((string key, string message) in bindings) {
+            if (!ModelState.TryGetValue(key, out var entry)
+                || entry.Errors.All(error =>
+                    error.Exception is null && !IsTechnicalBindingMessage(error.ErrorMessage))) {
+                continue;
+            }
+
+            entry.Errors.Clear();
+            entry.Errors.Add(message);
+        }
+    }
+
+    private static bool IsTechnicalBindingMessage(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && (message.Contains("The value '", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("must be a number", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("no es válido", StringComparison.OrdinalIgnoreCase));
 
     private string? CurrentUserId => User.FindFirst(
         System.Security.Claims.ClaimTypes.NameIdentifier

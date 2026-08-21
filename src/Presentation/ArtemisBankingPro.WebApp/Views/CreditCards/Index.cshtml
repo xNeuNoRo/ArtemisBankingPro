@@ -4,6 +4,8 @@
     ViewData["PaginationStatus"] = Model.Status;
     ViewData["PaginationIdentification"] = Model.Identification;
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool identificationInvalid = ViewData.ModelState[nameof(Model.Identification)]?.Errors.Count > 0;
+    bool statusInvalid = ViewData.ModelState[nameof(Model.Status)]?.Errors.Count > 0;
 }
 
 <section class="page-header" aria-labelledby="cards-title">
@@ -15,45 +17,55 @@
     <div class="page-header__actions">
         <a class="ui-button ui-button--primary" asp-action="Assign">
             <partial name="_Icon" model='@("card")' />
-            Asignar tarjeta
+            Asignar tarjeta de crédito
         </a>
     </div>
 </section>
 
 @if (Model.HasLoadError) {
-    <div class="ui-alert ui-alert--error" role="alert"><p class="ui-alert__content">@Model.LoadErrorMessage</p></div>
+    <section class="ui-alert ui-alert--error" role="alert" aria-live="assertive" aria-labelledby="cards-load-error-title">
+        <h2 id="cards-load-error-title" class="ui-visually-hidden">No fue posible cargar las tarjetas</h2>
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Index" asp-route-status="@Model.Status" asp-route-identification="@Model.Identification" asp-route-page="1" asp-route-pageSize="20" aria-label="Reintentar la carga de tarjetas">
+            Reintentar tarjetas
+        </a>
+    </section>
 } else {
+    <partial name="_ValidationSummary" />
     <section class="ui-card admin-product__filter" aria-labelledby="cards-filter-title">
         <div class="ui-card__body">
+            <h2 id="cards-filter-title" class="ui-card__title">Buscar y filtrar tarjetas</h2>
             <form method="get" asp-action="Index" class="admin-filter" data-submit-lock>
                 <div class="ui-field">
-                    <label id="cards-filter-title" class="ui-label" asp-for="Identification">Buscar por cédula</label>
-                    <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-describedby="Identification-error" />
+                    <label class="ui-label" asp-for="Identification">Buscar por cédula</label>
+                    <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-invalid="@(identificationInvalid ? "true" : "false")" aria-describedby="Identification-help Identification-error" />
+                    <p id="Identification-help" class="ui-field-description">Ingrese la cédula como texto y conserve los ceros iniciales.</p>
                     <span class="ui-error" asp-validation-for="Identification"></span>
                 </div>
                 <div class="ui-field">
                     <label class="ui-label" asp-for="Status">Estado</label>
-                    <select class="ui-control" asp-for="Status" autocomplete="off">
+                    <select class="ui-control" asp-for="Status" autocomplete="off" aria-invalid="@(statusInvalid ? "true" : "false")" aria-describedby="Status-help Status-error">
                         @foreach (SelectOptionViewModel option in Model.StatusOptions) {
                             <option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option>
                         }
                     </select>
+                    <p id="Status-help" class="ui-field-description">Por defecto muestra tarjetas activas. Puede revisar canceladas o todas.</p>
                     <span class="ui-error" asp-validation-for="Status"></span>
                 </div>
                 <input type="hidden" name="page" value="1" />
                 <input type="hidden" name="pageSize" value="20" />
-                <button class="ui-button ui-button--secondary" type="submit">Aplicar filtros</button>
+                <button class="ui-button ui-button--secondary" type="submit" data-submitting-label="Filtrando…"><span data-submit-label>Aplicar filtros</span></button>
             </form>
         </div>
     </section>
 
-    @if (Model.Cards.Count == 0) {
+    @if (ViewData.ModelState.IsValid && Model.Cards.Count == 0) {
         ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Identification)
             ? "No hay tarjetas para mostrar"
             : "Este cliente no tiene tarjetas de crédito registradas.";
         ViewData["EmptyDescription"] = "Pruebe con otra cédula o cambie el filtro de estado.";
         <partial name="_EmptyState" />
-    } else {
+    } else if (ViewData.ModelState.IsValid && Model.Cards.Count > 0) {
         <section class="admin-product__list" aria-labelledby="cards-list-title">
             <div class="admin-users__list-heading">
                 <div>
@@ -75,14 +87,14 @@
                     <tbody>
                         @foreach (CreditCardSummaryViewModel card in Model.Cards) {
                             <tr>
-                                <td><span class="admin-product__person"><strong>@card.MaskedNumber</strong><span>@card.Expiration</span></span></td>
+                                <td><span class="admin-product__person"><strong>@card.MaskedNumber</strong></span></td>
                                 <td><span class="admin-product__person"><strong>@card.ClientFullName</strong><span>@card.ClientId</span></span></td>
                                 <td class="ui-table__numeric">@Money(card.CreditLimit)</td>
                                 <td class="ui-table__numeric">@Money(card.CurrentDebt)</td>
                                 <td class="ui-table__numeric">@Money(card.AvailableCredit)</td>
                                 <td class="ui-table__numeric">@card.Expiration</td>
                                 <td><partial name="_StatusBadge" model="card.Status" /></td>
-                                <td><div class="admin-product__actions">
+                                <td><div class="admin-product__actions" aria-label="Acciones para la tarjeta @card.MaskedNumber">
                                     <a class="ui-button ui-button--secondary ui-button--small" asp-action="Details" asp-route-id="@card.Id">Ver detalles</a>
                                     @if (card.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) || card.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase)) {
                                         <a class="ui-button ui-button--secondary ui-button--small" asp-action="EditLimit" asp-route-id="@card.Id">Editar límite</a>

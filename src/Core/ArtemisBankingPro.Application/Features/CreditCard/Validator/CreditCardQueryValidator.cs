@@ -42,7 +42,7 @@ public sealed class GetCreditCardsPagedQueryValidator : AbstractValidator<GetCre
         When(x => x.Identification is not null, () => {
             RuleFor(x => x.Identification)
                 .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
-                .WithMessage("La cédula no debe exceder 20 caracteres.");
+                .WithMessage(IdentityValidationLimits.IdentificationMaxLengthMessage);
         });
     }
 }

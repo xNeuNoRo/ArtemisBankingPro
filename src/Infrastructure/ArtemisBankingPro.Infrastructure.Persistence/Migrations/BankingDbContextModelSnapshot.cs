@@ -51,8 +51,8 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("OperationType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("RequestFingerprint")
                         .IsRequired()

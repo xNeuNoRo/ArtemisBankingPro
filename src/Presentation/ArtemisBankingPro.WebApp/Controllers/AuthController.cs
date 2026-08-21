@@ -325,8 +325,47 @@ public sealed class AuthController : Controller {
     }
 
     private void AddResultError(DomainError? error, string fallback) {
-        ModelState.AddModelError(string.Empty, error?.Message ?? fallback);
+        string message = PublicErrorMessage(error, fallback);
+        if (error is not null
+            && string.Equals(message, fallback, StringComparison.Ordinal)
+            && !string.Equals(error.Message, fallback, StringComparison.Ordinal)) {
+            _logger.LogWarning(
+                "WebApp authentication flow returned an unrecognized error {ErrorCode}; trace {TraceIdentifier}",
+                error.Code,
+                HttpContext.TraceIdentifier
+            );
+        }
+
+        ModelState.AddModelError(string.Empty, message);
     }
+
+    private static string PublicErrorMessage(DomainError? error, string fallback) =>
+        error?.Code switch {
+            "Auth.InvalidCredentials" => "Los datos de acceso son inválidos.",
+            "Auth.Inactive" => "Su cuenta se encuentra inactiva. Debe activar su cuenta mediante el enlace enviado a su correo electrónico registrado para poder acceder al sistema.",
+            "Auth.RoleNotAllowed" => "Este usuario no tiene permisos para acceder a la aplicación web.",
+            "Account.ResetUserNotFound" => "No existe un usuario registrado con este nombre de usuario.",
+            "Account.ResetEmailMissing" => "Este usuario no tiene un correo electrónico registrado. No es posible enviar la solicitud de restablecimiento.",
+            "Auth.ResetCooldown" => "Debe esperar antes de solicitar otro restablecimiento de contraseña.",
+            "Auth.ResetRateLimited" => "Se alcanzó el límite temporal de solicitudes de restablecimiento.",
+            "Auth.ResetEmailFailed" => "No fue posible enviar el correo de restablecimiento. Intente nuevamente más tarde.",
+            "Auth.PasswordPolicy" when error.Message.StartsWith("La contraseña debe", StringComparison.Ordinal)
+                => error.Message,
+            "User.PasswordChangeFailed" => "No fue posible cambiar la contraseña del usuario.",
+            "User.StatusUpdateFailed" => "No fue posible actualizar el estado del usuario.",
+            "Concurrency.Conflict" => "La cuenta cambió mientras se procesaba la solicitud. Intente nuevamente.",
+            "Account.InvalidActivationToken" => error.Message switch {
+                "Este enlace de activación ya fue utilizado." => error.Message,
+                "El enlace de activación ha expirado. Solicite un nuevo enlace." => error.Message,
+                _ => "El enlace de activación no es válido.",
+            },
+            "Account.InvalidResetToken" => error.Message switch {
+                "Este enlace de restablecimiento ya fue utilizado." => error.Message,
+                "El enlace de restablecimiento ha expirado. Solicite un nuevo restablecimiento de contraseña." => error.Message,
+                _ => "El enlace de restablecimiento no es válido.",
+            },
+            _ => fallback,
+        };
 
     private static bool TryProtectFlow(
         ITimeLimitedDataProtector protector,

@@ -5,13 +5,70 @@
     ViewData["PaginationPage"] = Model.Pagination.Page;
     ViewData["PaginationPageSize"] = Model.Pagination.PageSize;
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool cardIsActive = Model.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
+        || Model.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase);
 }
 
 <section class="page-header" aria-labelledby="card-details-title">
     <div class="page-header__content"><p class="page-header__eyebrow">Administración / Tarjetas</p><h1 id="card-details-title" class="page-header__title">Detalle de tarjeta</h1><p class="page-header__description">Información operativa sin exponer datos sensibles de la tarjeta.</p></div>
-    <div class="page-header__actions"><a class="ui-button ui-button--secondary" asp-action="Index">Volver al listado</a>@if (Model.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) || Model.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase)) {<a class="ui-button ui-button--secondary" asp-action="EditLimit" asp-route-id="@Model.Id">Editar límite</a><a class="ui-button ui-button--danger" asp-action="ConfirmCancel" asp-route-id="@Model.Id">Cancelar tarjeta</a>}</div>
+    <div class="page-header__actions">
+        @if (cardIsActive) {
+            <a class="ui-button ui-button--secondary" asp-action="EditLimit" asp-route-id="@Model.Id">Editar límite</a>
+            <a class="ui-button ui-button--danger" asp-action="ConfirmCancel" asp-route-id="@Model.Id">Cancelar tarjeta</a>
+        }
+        <a class="ui-button ui-button--secondary" asp-action="Index">Volver al listado</a>
+    </div>
 </section>
 
-<section class="ui-card" aria-labelledby="card-summary-title"><div class="ui-card__header"><div><p class="ui-section-label">Tarjeta protegida</p><h2 id="card-summary-title" class="ui-card__title">@Model.MaskedNumber</h2><p class="ui-card__description">@Model.ClientFullName · vencimiento @Model.Expiration</p></div><partial name="_StatusBadge" model="Model.Status" /></div><div class="ui-card__body admin-product__metric-grid"><div class="admin-product__metric"><span class="admin-product__metric-label">Límite</span><strong class="admin-product__metric-value">@Money(Model.CreditLimit)</strong></div><div class="admin-product__metric"><span class="admin-product__metric-label">Deuda</span><strong class="admin-product__metric-value">@Money(Model.CurrentDebt)</strong></div><div class="admin-product__metric"><span class="admin-product__metric-label">Disponible</span><strong class="admin-product__metric-value">@Money(Model.AvailableCredit)</strong></div></div></section>
+<section class="ui-card" aria-labelledby="card-summary-title">
+    <div class="ui-card__header">
+        <div>
+            <p class="ui-section-label">Tarjeta protegida</p>
+            <h2 id="card-summary-title" class="ui-card__title">@Model.MaskedNumber</h2>
+            <p class="ui-card__description">@Model.ClientFullName · vencimiento @Model.Expiration</p>
+        </div>
+        <partial name="_StatusBadge" model="Model.Status" />
+    </div>
+    <div class="ui-card__body admin-product__metric-grid">
+        <div class="admin-product__metric"><span class="admin-product__metric-label">Límite</span><strong class="admin-product__metric-value">@Money(Model.CreditLimit)</strong></div>
+        <div class="admin-product__metric"><span class="admin-product__metric-label">Deuda</span><strong class="admin-product__metric-value">@Money(Model.CurrentDebt)</strong></div>
+        <div class="admin-product__metric"><span class="admin-product__metric-label">Disponible</span><strong class="admin-product__metric-value">@Money(Model.AvailableCredit)</strong></div>
+    </div>
+</section>
 
-<section class="admin-product__list" aria-labelledby="card-consumptions-title"><div class="admin-users__list-heading"><div><p class="ui-section-label">Historial</p><h2 id="card-consumptions-title" class="ui-card__title">Consumos registrados</h2></div><span class="ui-badge ui-badge--neutral">@Model.Pagination.TotalItems registros</span></div>@if (Model.Consumptions.Count == 0) { ViewData["EmptyTitle"] = "No hay consumos registrados"; ViewData["EmptyDescription"] = "La tarjeta todavía no tiene consumos para mostrar."; <partial name="_EmptyState" /> } else { <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de consumos de la tarjeta"><table class="ui-table admin-product__table"><caption class="ui-visually-hidden">Consumos de la tarjeta @Model.MaskedNumber</caption><thead><tr><th scope="col">Fecha</th><th scope="col">Comercio</th><th scope="col">Monto</th><th scope="col">Estado</th></tr></thead><tbody>@foreach (CardConsumptionViewModel consumption in Model.Consumptions) {<tr><td>@BusinessClock.ToBusinessTime(consumption.Date).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)</td><td class="ui-table__primary">@consumption.CommerceName</td><td class="ui-table__numeric">@Money(consumption.Amount)</td><td><partial name="_StatusBadge" model="consumption.Status" /></td></tr>}</tbody></table></div><partial name="_Pagination" model="Model.Pagination" /> }</section>
+<section class="admin-product__list" aria-labelledby="card-consumptions-title">
+    <div class="admin-users__list-heading">
+        <div>
+            <p class="ui-section-label">Historial</p>
+            <h2 id="card-consumptions-title" class="ui-card__title">Consumos registrados</h2>
+        </div>
+        <span class="ui-badge ui-badge--neutral">@Model.Pagination.TotalItems registros</span>
+    </div>
+    @if (Model.Consumptions.Count == 0) {
+        ViewData["EmptyTitle"] = "No hay consumos registrados";
+        ViewData["EmptyDescription"] = "La tarjeta todavía no tiene consumos para mostrar.";
+        <partial name="_EmptyState" />
+    } else {
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de consumos de la tarjeta">
+            <table class="ui-table admin-product__table">
+                <caption class="ui-visually-hidden">Consumos de la tarjeta @Model.MaskedNumber</caption>
+                <thead>
+                    <tr><th scope="col">Fecha</th><th scope="col">Comercio</th><th scope="col">Monto consumido</th><th scope="col">Estado</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (CardConsumptionViewModel consumption in Model.Consumptions) {
+                        <tr>
+                            <td>@BusinessClock.ToBusinessTime(consumption.Date).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)</td>
+                            <td class="ui-table__primary">@consumption.CommerceName</td>
+                            <td class="ui-table__numeric">@Money(consumption.Amount)</td>
+                            <td><partial name="_StatusBadge" model="consumption.Status" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pagination" model="Model.Pagination" />
+    }
+</section>
+
+<div class="page-actions"><a class="ui-button ui-button--secondary" asp-action="Index">Volver atrás</a></div>

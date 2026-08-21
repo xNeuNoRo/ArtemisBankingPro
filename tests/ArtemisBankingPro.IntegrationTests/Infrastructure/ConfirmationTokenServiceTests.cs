@@ -85,6 +85,30 @@ public sealed class ConfirmationTokenServiceTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task IssueAndConsume_AllowsMvcOperationTypesLongerThanLegacyColumnLimit() {
+        const string operationType =
+            "ArtemisBankingPro.WebApp.Admin.AssignSecondarySavingsAccount";
+        await using var scope = Fixture.Services.CreateAsyncScope();
+        var service = ResolveService(scope.ServiceProvider);
+
+        string nonce = await service.IssueAsync(
+            ActorId,
+            operationType,
+            "fingerprint-long-operation",
+            TimeSpan.FromMinutes(30)
+        );
+
+        ConfirmationValidationResult result = await service.ValidateAndConsumeAsync(
+            nonce,
+            ActorId,
+            operationType,
+            "fingerprint-long-operation"
+        );
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Validate_ExpiredNonce_ReturnsExpired() {
         const string nonce = "expired-confirmation-nonce";
         await WithContextAsync(async context => {

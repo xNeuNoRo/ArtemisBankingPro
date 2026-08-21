@@ -23,7 +23,7 @@
 @if (Model.HasLoadError) {
     <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive">
         <p class="ui-alert__content">@Model.LoadErrorMessage</p>
-        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Client">Reintentar</a>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Home" asp-action="Client">Reintentar</a>
     </section>
 } else if (Model.HasNoActiveProducts) {
     ViewData["EmptyTitle"] = "No posee productos financieros activos.";
@@ -47,10 +47,10 @@
                                 <p class="ui-section-label">Cuenta @account.Type</p>
                                 <h3 class="ui-product-card__title">@account.AccountNumber</h3>
                             </div>
-                            <span class="ui-badge ui-badge--active">Activa</span>
+                            <span class="ui-badge ui-badge--active" aria-label="Estado: activa">Activa</span>
                         </div>
                         <strong class="ui-product-card__value">@Money(account.Balance)</strong>
-                        <p class="ui-product-card__meta">Balance disponible</p>
+                        <p class="ui-product-card__meta">Balance disponible para sus operaciones.</p>
                         <div class="ui-product-card__footer">
                             <a
                                 class="ui-button ui-button--secondary ui-button--small"
@@ -58,6 +58,12 @@
                                 asp-action="Transactions"
                                 asp-route-accountNumber="@account.AccountNumber">
                                 Ver detalles
+                            </a>
+                            <a
+                                class="ui-button ui-button--primary ui-button--small"
+                                asp-controller="Client"
+                                asp-action="ExpressTransfer">
+                                Realizar transferencia
                             </a>
                         </div>
                     </article>
@@ -82,13 +88,13 @@
                                 <p class="ui-section-label">Préstamo</p>
                                 <h3 class="ui-product-card__title">@loan.LoanNumber</h3>
                             </div>
-                            <span class="ui-badge ui-badge--@(loan.IsDelinquent ? "rejected" : "active")">
+                            <span class="ui-badge ui-badge--@(loan.IsDelinquent ? "rejected" : "active")" aria-label="Estado del préstamo: @(loan.IsDelinquent ? "en mora" : "al día")">
                                 @(loan.IsDelinquent ? "En mora" : "Al día")
                             </span>
                         </div>
                         <strong class="ui-product-card__value">@Money(loan.OutstandingAmount)</strong>
                         <p class="ui-product-card__meta">
-                            @loan.PaidInstallments de @loan.TotalInstallments cuotas pagadas · @loan.AnnualRate.ToString("N2", CultureInfo.InvariantCulture)% anual
+                            @loan.PaidInstallments de @loan.TotalInstallments cuotas pagadas · @loan.AnnualRate.ToString("N2", CultureInfo.InvariantCulture)% anual · plazo @loan.TermMonths meses
                         </p>
                         <div class="ui-product-card__footer">
                             <a
@@ -97,6 +103,12 @@
                                 asp-action="LoanDetails"
                                 asp-route-id="@loan.LoanId">
                                 Ver detalles
+                            </a>
+                            <a
+                                class="ui-button ui-button--primary ui-button--small"
+                                asp-controller="Client"
+                                asp-action="LoanPayment">
+                                Realizar pago de préstamo
                             </a>
                         </div>
                     </article>
@@ -121,11 +133,11 @@
                                 <p class="ui-section-label">Artemis Credit</p>
                                 <h3 class="ui-product-card__title">•••• @card.LastFour</h3>
                             </div>
-                            <span class="ui-badge ui-badge--active">Activa</span>
+                            <span class="ui-badge ui-badge--active" aria-label="Estado: activa">Activa</span>
                         </div>
                         <strong class="ui-product-card__value">@Money(card.AvailableCredit)</strong>
                         <p class="ui-product-card__meta">
-                            Disponible de @Money(card.CreditLimit) · Deuda @Money(card.CurrentDebt) · vence @card.Expiration
+                            Límite @Money(card.CreditLimit) · deuda @Money(card.CurrentDebt) · vence @card.Expiration
                         </p>
                         <div class="ui-product-card__footer">
                             <a
@@ -134,6 +146,12 @@
                                 asp-action="CardDetails"
                                 asp-route-id="@card.CardId">
                                 Ver detalles
+                            </a>
+                            <a
+                                class="ui-button ui-button--primary ui-button--small"
+                                asp-controller="Client"
+                                asp-action="CardPayment">
+                                Realizar pago a tarjeta
                             </a>
                         </div>
                     </article>

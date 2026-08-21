@@ -172,6 +172,8 @@ public sealed class WebAppShellTests {
         Assert.Contains("Restablecer contraseña", body, StringComparison.Ordinal);
         Assert.Contains("__RequestVerificationToken", body, StringComparison.Ordinal);
         Assert.DoesNotContain("RealEstateApp", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Identity", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("MVC", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -189,6 +191,21 @@ public sealed class WebAppShellTests {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("No tiene permiso para acceder a esta sección.", body, StringComparison.Ordinal);
         Assert.DoesNotContain("ReturnUrl", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Anonymous_access_denied_page_does_not_claim_an_active_session() {
+        using WebApplicationFactory<WebApp::Program> factory = CreateFactory();
+        using HttpClient client = factory.CreateClient(new WebApplicationFactoryClientOptions {
+            BaseAddress = new Uri("https://localhost"),
+        });
+
+        using HttpResponseMessage response = await client.GetAsync("/Auth/AccessDenied");
+        string body = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Inicie sesión para acceder a las secciones protegidas.", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Su sesión permanece activa", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -281,6 +298,7 @@ public sealed class WebAppShellTests {
             "/js/theme.js?v=",
             "/js/site.js?v=",
             "/js/auth.js?v=",
+            "/js/dialogs.js?v=",
             "/js/feedback.js?v=",
             "/js/forms.js?v=",
             "/js/user-form.js?v=",

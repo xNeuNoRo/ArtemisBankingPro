@@ -6,40 +6,47 @@
 <section class="page-header" aria-labelledby="cashier-third-party-title">
     <div class="page-header__content">
         <p class="page-header__eyebrow">Cajero / Transferencias</p>
-        <h1 id="cashier-third-party-title" class="page-header__title">Transacciones a terceros</h1>
+        <h1 id="cashier-third-party-title" class="page-header__title">Transacciones a cuentas de terceros</h1>
         <p class="page-header__description">Transfiera fondos entre cuentas de titulares distintos con débito y crédito atómicos.</p>
     </div>
 </section>
 
 @if (Model.HasLoadError) {
-    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive"><p class="ui-alert__content">@Model.LoadErrorMessage</p></section>
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive">
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Cashier" asp-action="ThirdPartyTransfer">Reintentar</a>
+    </section>
+} else {
+    <section class="ui-card client-form-panel" aria-labelledby="cashier-third-party-form-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="cashier-third-party-form-title" class="ui-card__title">Datos de la transferencia</h2></div></div>
+        <div class="ui-card__body">
+            <partial name="_ValidationSummary" />
+            <form asp-controller="Cashier" asp-action="ThirdPartyTransfer" method="post" data-submit-lock data-autofocus-error class="client-form">
+                <div class="client-form__grid">
+                    <div class="ui-field">
+                        <label class="ui-label" asp-for="Form.SourceAccountNumber">Número de cuenta origen</label>
+                        <input class="ui-control" asp-for="Form.SourceAccountNumber" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" autocomplete="off" aria-describedby="Form_SourceAccountNumber-error" required />
+                        <p class="ui-field-description">Ingrese los nueve dígitos de la cuenta de ahorro origen.</p>
+                        <span class="ui-error" asp-validation-for="Form.SourceAccountNumber"></span>
+                    </div>
+                    <div class="ui-field">
+                        <label class="ui-label" asp-for="Form.DestinationAccountNumber">Número de cuenta destino</label>
+                        <input class="ui-control" asp-for="Form.DestinationAccountNumber" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" autocomplete="off" aria-describedby="Form_DestinationAccountNumber-error" required />
+                        <p class="ui-field-description">Ingrese los nueve dígitos de una cuenta de ahorro de otro titular.</p>
+                        <span class="ui-error" asp-validation-for="Form.DestinationAccountNumber"></span>
+                    </div>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Form.Amount">Monto de la transacción</label>
+                    <input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" aria-describedby="Form_Amount-help Form_Amount-error" required />
+                    <p id="Form_Amount-help" class="ui-field-description">Debe ser mayor que cero; las cuentas origen y destino deben ser diferentes.</p>
+                    <span class="ui-error" asp-validation-for="Form.Amount"></span>
+                </div>
+                <div class="page-actions">
+                    <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Cashier">Cancelar</a>
+                    <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Validando…"><span data-submit-label>Realizar transacción</span></button>
+                </div>
+            </form>
+        </div>
+    </section>
 }
-<section class="ui-card client-form-panel" aria-labelledby="cashier-third-party-form-title">
-    <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="cashier-third-party-form-title" class="ui-card__title">Datos de la transferencia</h2></div></div>
-    <div class="ui-card__body">
-        <partial name="_ValidationSummary" />
-        <form asp-controller="Cashier" asp-action="ThirdPartyTransfer" method="post" data-submit-lock data-autofocus-error class="client-form">
-            <div class="client-form__grid">
-                <div class="ui-field">
-                    <label class="ui-label" asp-for="Form.SourceAccountNumber">Cuenta origen</label>
-                    <input class="ui-control" asp-for="Form.SourceAccountNumber" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" autocomplete="off" required />
-                    <span class="ui-error" asp-validation-for="Form.SourceAccountNumber"></span>
-                </div>
-                <div class="ui-field">
-                    <label class="ui-label" asp-for="Form.DestinationAccountNumber">Cuenta destino</label>
-                    <input class="ui-control" asp-for="Form.DestinationAccountNumber" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" autocomplete="off" required />
-                    <span class="ui-error" asp-validation-for="Form.DestinationAccountNumber"></span>
-                </div>
-            </div>
-            <div class="ui-field">
-                <label class="ui-label" asp-for="Form.Amount">Monto a transferir</label>
-                <input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required />
-                <span class="ui-error" asp-validation-for="Form.Amount"></span>
-            </div>
-            <div class="page-actions">
-                <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Cashier">Cancelar</a>
-                <button class="ui-button ui-button--primary" type="submit"><span data-submit-label>Continuar</span></button>
-            </div>
-        </form>
-    </div>
-</section>

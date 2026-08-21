@@ -95,6 +95,10 @@ public sealed class ProcessOverdueLoansFunction(
             );
             telemetryClient.TrackMetric("Artemis.Overdue.TotalProcessed", result.Value.TotalProcessed);
             telemetryClient.TrackMetric("Artemis.Overdue.NewDelinquent", result.Value.NewDelinquent);
+            telemetryClient.TrackMetric(
+                "Artemis.Overdue.TotalDelinquentAmount",
+                (double)result.Value.TotalDelinquentAmount
+            );
             telemetryClient.TrackMetric("Artemis.Overdue.ProcessingFailures", result.Value.FailedCount);
             telemetryClient.TrackMetric("Artemis.Overdue.EmailFailures", result.Value.EmailFailedCount);
             telemetryClient.TrackMetric("Artemis.Overdue.HasMore", result.Value.HasMore ? 1 : 0);

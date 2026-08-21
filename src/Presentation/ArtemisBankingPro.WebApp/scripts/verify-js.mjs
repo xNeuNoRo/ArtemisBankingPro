@@ -19,6 +19,7 @@ function collectJavaScript(directory) {
 const files = collectJavaScript(root).sort();
 const requiredFiles = [
   "auth.js",
+  "dialogs.js",
   "feedback.js",
   "forms.js",
   "navigation.js",
@@ -30,6 +31,20 @@ const requiredFiles = [
 const missingFiles = requiredFiles.filter((name) => !files.includes(join(root, name)));
 if (missingFiles.length > 0) {
   console.error(`Required JavaScript modules are missing: ${missingFiles.join(", ")}`);
+  process.exit(1);
+}
+
+const dialogSource = readFileSync(join(root, "dialogs.js"), "utf8");
+const requiredDialogContracts = [
+  /showModal\(\)/,
+  /addEventListener\("cancel"/,
+  /addEventListener\("close"/,
+  /data-dialog-open/,
+  /data-dialog-close/,
+];
+
+if (requiredDialogContracts.some((pattern) => !pattern.test(dialogSource))) {
+  console.error("Native dialog module is missing a required interaction contract.");
   process.exit(1);
 }
 

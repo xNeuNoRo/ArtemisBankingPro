@@ -192,6 +192,7 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
             .Where(card => card.CustomerUserId == customerUserId && card.Status == CreditCardStatus.Active)
             .OrderByDescending(card => card.Id)
             .Select(card => new {
+                card.Id,
                 card.LastFour,
                 card.CreditLimit,
                 card.CurrentDebt,
@@ -201,7 +202,7 @@ public sealed class CreditCardRepository : GenericRepository<CreditCard>, ICredi
 
         return rows
             .Select(card => new CreditCardSummaryDto(
-                0,
+                card.Id,
                 $"************{card.LastFour}",
                 card.LastFour,
                 customerUserId,

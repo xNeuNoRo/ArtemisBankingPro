@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Modificar tasa de interés";
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool rateInvalid = ViewData.ModelState["Form.AnnualInterestRate"]?.Errors.Count > 0;
 }
 
 <section class="page-header" aria-labelledby="loan-rate-title">
@@ -20,11 +21,11 @@
         <div class="ui-card__body admin-product__form-grid">
             <div class="ui-field">
                 <label class="ui-label" asp-for="Form.AnnualInterestRate">Tasa de interés anual</label>
-                <input class="ui-control" asp-for="Form.AnnualInterestRate" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" required />
+                <input class="ui-control" asp-for="Form.AnnualInterestRate" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" required aria-invalid="@(rateInvalid ? "true" : "false")" aria-describedby="Form_AnnualInterestRate-help Form_AnnualInterestRate-error" />
                 <span class="ui-error" asp-validation-for="Form.AnnualInterestRate"></span>
-                <p class="ui-field-description">Debe existir al menos una cuota futura pendiente para recalcular.</p>
+                <p id="Form_AnnualInterestRate-help" class="ui-field-description">Porcentaje anual permitido: 0% o mayor. Use un número con hasta dos decimales. Solo se recalculan cuotas futuras pendientes.</p>
             </div>
         </div>
     </section>
-    <div class="page-actions"><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Actualizando…"><span data-submit-label>Modificar tasa</span></button><a class="ui-button ui-button--secondary" asp-action="Index">Volver atrás</a></div>
+    <div class="page-actions"><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Modificando…"><span data-submit-label>Modificar tasa</span></button><a class="ui-button ui-button--secondary" asp-action="Index">Volver atrás</a></div>
 </form>

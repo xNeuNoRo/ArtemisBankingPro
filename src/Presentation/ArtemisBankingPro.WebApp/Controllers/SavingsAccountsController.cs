@@ -47,10 +47,31 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         CancellationToken cancellationToken = default
     ) {
         SavingsAccountListViewModel request = new() {
-            Status = Normalize(status),
-            Type = Normalize(type),
+            Status = NormalizeChoice(status),
+            Type = NormalizeChoice(type),
             Identification = Normalize(identification),
         };
+        if (!ValidateListRequest(request, page, pageSize)
+            || !ValidateAllowedValue(
+                nameof(request.Status),
+                request.Status,
+                ["activa", "cancelada", "todas"],
+                "El estado debe ser activa, cancelada o todas."
+            )
+            || !ValidateAllowedValue(
+                nameof(request.Type),
+                request.Type,
+                ["principal", "secundaria", "todas"],
+                "El tipo debe ser principal, secundaria o todas."
+            )) {
+            return View(BuildListError(
+                request,
+                SafePage(page),
+                SafePageSize(pageSize),
+                includeLoadError: false
+            ));
+        }
+
         Result<SavingsAccountListViewModel> result = await _accounts.GetAccountsAsync(
             request,
             page,
@@ -74,6 +95,10 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         int pageSize = 20,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsAccountNumber(accountNumber) || !ValidatePagination(page, pageSize)) {
+            return BadRequest();
+        }
+
         Result<AccountDetailViewModel> result = await _accounts.GetAccountAsync(
             accountNumber,
             page,
@@ -92,12 +117,14 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         int pageSize = 20,
         CancellationToken cancellationToken = default
     ) {
-        return await RenderEligibleClientsAsync(
-            new EligibleClientsViewModel { Identification = Normalize(identification) },
-            page,
-            pageSize,
-            cancellationToken
-        );
+        EligibleClientsViewModel model = new() {
+            Identification = Normalize(identification),
+        };
+        if (!ValidateListRequest(model, page, pageSize)) {
+            return View(BuildEligibleError(model, SafePage(page), SafePageSize(pageSize)));
+        }
+
+        return await RenderEligibleClientsAsync(model, page, pageSize, cancellationToken);
     }
 
     [HttpPost("assign")]
@@ -114,8 +141,20 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
             );
         }
 
+        if (!ValidatePagination(page, pageSize)
+            || ModelState[nameof(model.Identification)]?.Errors.Count > 0) {
+            return View(BuildEligibleError(model, SafePage(page), SafePageSize(pageSize)));
+        }
+
+        EligibleClientsViewModel queryModel = new() {
+            Identification = model.Identification,
+            SelectedClientId = ModelState[nameof(model.SelectedClientId)]?.Errors.Count > 0
+                ? null
+                : model.SelectedClientId,
+        };
+
         Result<EligibleClientsViewModel> result = await _adminUsers.GetEligibleClientsAsync(
-            model,
+            queryModel,
             ClientAssignmentProduct.SecondarySavingsAccount,
             page,
             pageSize,
@@ -147,6 +186,10 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         string customerId,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsCustomerId(customerId)) {
+            return NotFound();
+        }
+
         Result<EligibleClientItemViewModel> customer = await GetEligibleCustomerAsync(
             customerId,
             cancellationToken
@@ -173,6 +216,10 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         string? submissionToken,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsCustomerId(customerId)) {
+            return NotFound();
+        }
+
         Result<EligibleClientItemViewModel> customer = await GetEligibleCustomerAsync(
             customerId,
             cancellationToken
@@ -233,6 +280,10 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         string accountNumber,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsAccountNumber(accountNumber)) {
+            return NotFound();
+        }
+
         Result<AccountDetailViewModel> result = await _accounts.GetAccountAsync(
             accountNumber,
             page: 1,
@@ -265,6 +316,10 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         CancelSecondaryAccountViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        if (!IsAccountNumber(accountNumber)) {
+            return NotFound();
+        }
+
         Result<AccountDetailViewModel> detail = await _accounts.GetAccountAsync(
             accountNumber,
             page: 1,
@@ -385,7 +440,8 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
         SavingsAccountListViewModel request,
         int page,
         int pageSize,
-        DomainError? error = null
+        DomainError? error = null,
+        bool includeLoadError = true
     ) => new() {
         Status = request.Status,
         Type = request.Type,
@@ -395,9 +451,16 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
             !string.IsNullOrWhiteSpace(request.Identification)
         ),
         TypeOptions = SavingsAccountListViewModel.BuildTypeOptions(request.Type),
-        LoadErrorMessage = error?.Message
-            ?? "No fue posible cargar las cuentas de ahorro. Intente nuevamente más tarde.",
-        Pagination = new PaginationViewModel { Page = page, PageSize = pageSize },
+        LoadErrorMessage = includeLoadError
+            ? WebAppErrorMessages.For(
+                error,
+                "No fue posible cargar las cuentas de ahorro. Intente nuevamente más tarde."
+            )
+            : null,
+        Pagination = new PaginationViewModel {
+            Page = SafePage(page),
+            PageSize = SafePageSize(pageSize),
+        },
         PageTitle = "Gestión de cuentas de ahorro",
         CurrentUserId = CurrentUserId,
         CurrentUserName = CurrentUserName,
@@ -413,7 +476,10 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
     ) => new() {
         Identification = request.Identification,
         SelectedClientId = request.SelectedClientId,
-        Pagination = new PaginationViewModel { Page = page, PageSize = pageSize },
+        Pagination = new PaginationViewModel {
+            Page = SafePage(page),
+            PageSize = SafePageSize(pageSize),
+        },
         PageTitle = "Seleccionar cliente",
         CurrentUserId = CurrentUserId,
         CurrentUserName = CurrentUserName,
@@ -432,4 +498,9 @@ public sealed class SavingsAccountsController : AdminProductControllerBase {
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeChoice(string? value) => Normalize(value)?.ToLowerInvariant();
+
+    private static bool IsAccountNumber(string value) =>
+        value.Length == 9 && value.All(char.IsDigit);
 }

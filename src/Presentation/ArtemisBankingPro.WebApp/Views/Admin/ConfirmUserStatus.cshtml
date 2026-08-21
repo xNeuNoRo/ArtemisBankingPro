@@ -21,6 +21,7 @@
                 <p class="ui-card__description">
                     Usuario: <strong>@Model.UserName</strong> · @Model.FullName · Rol: @Model.Role
                 </p>
+                <p id="status-confirmation-help" class="ui-field-description">La cuenta conservará sus productos e historial. Solo cambiará su acceso a la aplicación.</p>
             </div>
             <div class="admin-confirmation__transition" aria-label="Cambio de estado">
                 <partial name="_StatusBadge" model='@(Model.CurrentIsActive ? "Activo" : "Inactivo")' />
@@ -35,7 +36,9 @@
             asp-route-id="@Model.UserId"
             asp-route-targetActive="@Model.TargetIsActive"
             class="page-actions"
-            data-submit-lock>
+            data-submit-lock
+            data-autofocus-error
+            aria-describedby="status-confirmation-help">
             <input asp-for="ConfirmationToken" type="hidden" />
             <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Aplicando…">
                 <span data-submit-label>@Model.ConfirmButtonText</span>

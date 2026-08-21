@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Globalization;
 using ArtemisBankingPro.Application.Common.Exceptions;
@@ -22,6 +23,7 @@ namespace ArtemisBankingPro.WebApp.Controllers;
 public sealed class ClientController : Controller {
     private const int PageSize = 20;
     private static readonly TimeSpan FormTokenLifetime = TimeSpan.FromMinutes(30);
+    private static readonly string[] AllowedTransactionTypes = ["CRÉDITO", "DÉBITO"];
 
     private const string AddBeneficiaryFormOperation =
         "WebApp.Client.AddBeneficiary";
@@ -64,6 +66,44 @@ public sealed class ClientController : Controller {
         int page = 1,
         CancellationToken cancellationToken = default
     ) {
+        bool accountWasProvided = !string.IsNullOrWhiteSpace(accountNumber);
+        MyAccountTransactionsViewModel request = new() {
+            // A missing account is resolved from the authenticated product list below.
+            // The placeholder lets MVC validate the remaining filter fields first.
+            AccountNumber = accountWasProvided
+                ? Normalize(accountNumber)!
+                : "000000000",
+            DateFrom = dateFrom,
+            DateTo = dateTo,
+            TransactionType = Normalize(transactionType),
+        };
+        _ = ValidateViewModel(request);
+        if (!string.IsNullOrWhiteSpace(request.TransactionType)
+            && !AllowedTransactionTypes.Contains(request.TransactionType, StringComparer.OrdinalIgnoreCase)) {
+            ModelState.AddModelError(
+                nameof(MyAccountTransactionsViewModel.TransactionType),
+                "El tipo de transacción debe ser crédito o débito."
+            );
+        }
+        if (!accountWasProvided) {
+            ModelState.Remove(nameof(MyAccountTransactionsViewModel.AccountNumber));
+        }
+
+        if (!ModelState.IsValid) {
+            Result<ClientDashboardViewModel> invalidFilterDashboard =
+                await _client.GetDashboardAsync(cancellationToken);
+            if (invalidFilterDashboard.IsFailure) {
+                return HandleReadFailure(invalidFilterDashboard.Error);
+            }
+
+            SelectOptionViewModel[] invalidFilterAccounts = AccountOptions(
+                invalidFilterDashboard.Value.Products
+            );
+            request.AccountNumber = Normalize(accountNumber)
+                ?? (invalidFilterAccounts.Length > 0 ? invalidFilterAccounts[0].Value : string.Empty);
+            return View(DecorateTransactions(request, invalidFilterAccounts, []));
+        }
+
         Result<ClientDashboardViewModel> dashboard = await _client.GetDashboardAsync(cancellationToken);
         if (dashboard.IsFailure) {
             return HandleReadFailure(dashboard.Error);
@@ -75,18 +115,9 @@ public sealed class ClientController : Controller {
                 ? dashboard.Value.Products.Accounts[0].AccountNumber
                 : null)
             ?? string.Empty;
-        MyAccountTransactionsViewModel request = new() {
-            AccountNumber = selectedAccount,
-            DateFrom = dateFrom,
-            DateTo = dateTo,
-            TransactionType = Normalize(transactionType),
-        };
+        request.AccountNumber = selectedAccount;
 
         if (string.IsNullOrWhiteSpace(selectedAccount)) {
-            return View(DecorateTransactions(request, accountOptions, []));
-        }
-
-        if (!TryValidateModel(request)) {
             return View(DecorateTransactions(request, accountOptions, []));
         }
 
@@ -107,6 +138,10 @@ public sealed class ClientController : Controller {
         int id,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return NotFound();
+        }
+
         Result<MyLoanDetailViewModel> result = await _client.GetLoanAsync(id, cancellationToken);
         return result.IsFailure
             ? HandleReadFailure(result.Error)
@@ -119,6 +154,10 @@ public sealed class ClientController : Controller {
         int page = 1,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return NotFound();
+        }
+
         Result<MyCardDetailViewModel> result = await _client.GetCardAsync(
             id,
             Math.Max(1, page),
@@ -180,14 +219,21 @@ public sealed class ClientController : Controller {
         ClientOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
-        if (!ModelState.IsValid) {
-            return View("ConfirmOperation", model);
-        }
-
         AddBeneficiaryViewModel form = new() {
             DestinationAccountNumber = model.DestinationAccountNumber ?? string.Empty,
             SubmissionToken = model.ConfirmationToken,
         };
+        IActionResult? invalid = InvalidConfirmationIfNeeded(
+            model,
+            form,
+            "Agregar beneficiario",
+            "¿Está seguro que desea registrar esta cuenta como beneficiario?",
+            nameof(ConfirmAddBeneficiary)
+        );
+        if (invalid is not null) {
+            return invalid;
+        }
+
         Result result = await _client.AddBeneficiaryAsync(
             form,
             model.ConfirmationToken,
@@ -267,6 +313,17 @@ public sealed class ClientController : Controller {
         RemoveBeneficiaryViewModel model,
         CancellationToken cancellationToken = default
     ) {
+        if (id <= 0) {
+            return NotFound();
+        }
+
+        if (!ModelState.IsValid) {
+            return View(BuildRemoveModel(
+                new BeneficiaryItemViewModel { BeneficiaryId = id },
+                model.ConfirmationToken
+            ));
+        }
+
         Result<BeneficiaryListViewModel> list = await _client.GetBeneficiariesAsync(cancellationToken);
         if (list.IsFailure) {
             return HandleReadFailure(list.Error);
@@ -276,10 +333,6 @@ public sealed class ClientController : Controller {
             .SingleOrDefault(item => item.BeneficiaryId == id);
         if (beneficiary is null) {
             return NotFound();
-        }
-
-        if (!ModelState.IsValid) {
-            return View(BuildRemoveModel(beneficiary, model.ConfirmationToken));
         }
 
         model = new RemoveBeneficiaryViewModel {
@@ -369,16 +422,23 @@ public sealed class ClientController : Controller {
         ClientOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
-        if (!ModelState.IsValid) {
-            return View("ConfirmOperation", model);
-        }
-
         ExpressTransactionViewModel form = new() {
             SourceAccountNumber = model.SourceAccountNumber ?? string.Empty,
             DestinationAccountNumber = model.DestinationAccountNumber ?? string.Empty,
             Amount = model.Amount,
             SubmissionToken = model.ConfirmationToken,
         };
+        IActionResult? invalid = InvalidConfirmationIfNeeded(
+            model,
+            form,
+            "Transferencia express",
+            "¿Está seguro de que desea realizar esta transacción?",
+            nameof(ConfirmExpressTransfer)
+        );
+        if (invalid is not null) {
+            return invalid;
+        }
+
         Result result = await _client.ExpressTransferAsync(
             form,
             model.ConfirmationToken,
@@ -462,16 +522,23 @@ public sealed class ClientController : Controller {
         ClientOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
-        if (!ModelState.IsValid) {
-            return View("ConfirmOperation", model);
-        }
-
         BeneficiaryTransferViewModel form = new() {
             BeneficiaryId = model.BeneficiaryId ?? 0,
             SourceAccountNumber = model.SourceAccountNumber ?? string.Empty,
             Amount = model.Amount,
             SubmissionToken = model.ConfirmationToken,
         };
+        IActionResult? invalid = InvalidConfirmationIfNeeded(
+            model,
+            form,
+            "Transferencia a beneficiario",
+            "¿Está seguro de que desea realizar esta transacción?",
+            nameof(ConfirmBeneficiaryTransfer)
+        );
+        if (invalid is not null) {
+            return invalid;
+        }
+
         Result result = await _client.BeneficiaryTransferAsync(
             form,
             model.ConfirmationToken,
@@ -543,16 +610,23 @@ public sealed class ClientController : Controller {
         ClientOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
-        if (!ModelState.IsValid) {
-            return View("ConfirmOperation", model);
-        }
-
         OwnAccountsTransferViewModel form = new() {
             SourceAccountNumber = model.SourceAccountNumber ?? string.Empty,
             DestinationAccountNumber = model.DestinationAccountNumber ?? string.Empty,
             Amount = model.Amount,
             SubmissionToken = model.ConfirmationToken,
         };
+        IActionResult? invalid = InvalidConfirmationIfNeeded(
+            model,
+            form,
+            "Transferencia entre cuentas propias",
+            "¿Está seguro de que desea realizar esta transferencia?",
+            nameof(ConfirmOwnAccountsTransfer)
+        );
+        if (invalid is not null) {
+            return invalid;
+        }
+
         Result result = await _client.OwnAccountsTransferAsync(
             form,
             model.ConfirmationToken,
@@ -632,16 +706,23 @@ public sealed class ClientController : Controller {
         ClientOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
-        if (!ModelState.IsValid) {
-            return View("ConfirmOperation", model);
-        }
-
         ClientCardPaymentViewModel form = new() {
             CardId = model.CardId ?? 0,
             AccountNumber = model.AccountNumber ?? string.Empty,
             Amount = model.Amount,
             SubmissionToken = model.ConfirmationToken,
         };
+        IActionResult? invalid = InvalidConfirmationIfNeeded(
+            model,
+            form,
+            "Pago de tarjeta de crédito",
+            "¿Está seguro de que desea realizar este pago?",
+            nameof(ConfirmCardPayment)
+        );
+        if (invalid is not null) {
+            return invalid;
+        }
+
         Result result = await _client.PayCardAsync(form, model.ConfirmationToken, cancellationToken);
         return await FinishFinancialMutationAsync(
             result,
@@ -718,16 +799,23 @@ public sealed class ClientController : Controller {
         ClientOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
-        if (!ModelState.IsValid) {
-            return View("ConfirmOperation", model);
-        }
-
         ClientLoanPaymentViewModel form = new() {
             LoanId = model.LoanId ?? 0,
             AccountNumber = model.AccountNumber ?? string.Empty,
             Amount = model.Amount,
             SubmissionToken = model.ConfirmationToken,
         };
+        IActionResult? invalid = InvalidConfirmationIfNeeded(
+            model,
+            form,
+            "Pago de préstamo",
+            "¿Está seguro de que desea realizar este pago?",
+            nameof(ConfirmLoanPayment)
+        );
+        if (invalid is not null) {
+            return invalid;
+        }
+
         Result result = await _client.PayLoanAsync(form, model.ConfirmationToken, cancellationToken);
         return await FinishFinancialMutationAsync(
             result,
@@ -818,16 +906,23 @@ public sealed class ClientController : Controller {
         ClientOperationConfirmationViewModel model,
         CancellationToken cancellationToken = default
     ) {
-        if (!ModelState.IsValid) {
-            return View("ConfirmOperation", model);
-        }
-
         CashAdvanceViewModel form = new() {
             CardId = model.CardId ?? 0,
             DestinationAccountNumber = model.DestinationAccountNumber ?? string.Empty,
             Amount = model.Amount,
             SubmissionToken = model.ConfirmationToken,
         };
+        IActionResult? invalid = InvalidConfirmationIfNeeded(
+            model,
+            form,
+            "Avance de efectivo",
+            "¿Está seguro de que desea realizar este avance?",
+            nameof(ConfirmCashAdvance)
+        );
+        if (invalid is not null) {
+            return invalid;
+        }
+
         Result result = await _client.CashAdvanceAsync(form, model.ConfirmationToken, cancellationToken);
         return await FinishFinancialMutationAsync(
             result,
@@ -855,8 +950,18 @@ public sealed class ClientController : Controller {
         CancellationToken cancellationToken
     ) {
         Result<BeneficiaryListViewModel> result = await _client.GetBeneficiariesAsync(cancellationToken);
+        IReadOnlyList<BeneficiaryItemViewModel> beneficiaries = [];
         if (result.IsFailure) {
-            return HandleReadFailure(result.Error);
+            IActionResult? failure = HandleFormReadFailure(
+                result.Error,
+                "No fue posible cargar sus beneficiarios. Intente nuevamente más tarde."
+            );
+            if (failure is not null) {
+                return failure;
+            }
+        }
+        else {
+            beneficiaries = result.Value.Beneficiaries;
         }
 
         bool showAddForm = issueNewToken || ModelState.ErrorCount > 0;
@@ -870,7 +975,7 @@ public sealed class ClientController : Controller {
         return View(
             "Beneficiaries",
             new ClientBeneficiariesPageViewModel {
-                Beneficiaries = result.Value.Beneficiaries,
+                Beneficiaries = beneficiaries,
                 AddForm = new AddBeneficiaryViewModel {
                     DestinationAccountNumber = form.DestinationAccountNumber,
                     SubmissionToken = token ?? string.Empty,
@@ -892,11 +997,21 @@ public sealed class ClientController : Controller {
         CancellationToken cancellationToken
     ) {
         Result<ClientDashboardViewModel> dashboard = await _client.GetDashboardAsync(cancellationToken);
+        MyProductsViewModel products = new();
         if (dashboard.IsFailure) {
-            return HandleReadFailure(dashboard.Error);
+            IActionResult? failure = HandleFormReadFailure(
+                dashboard.Error,
+                "No fue posible cargar sus cuentas activas. Intente nuevamente más tarde."
+            );
+            if (failure is not null) {
+                return failure;
+            }
+        }
+        else {
+            products = dashboard.Value.Products;
         }
 
-        SelectOptionViewModel[] accounts = AccountOptions(dashboard.Value.Products);
+        SelectOptionViewModel[] accounts = AccountOptions(products);
         string? token = await PrepareFormTokenAsync(
             form.SubmissionToken,
             issueNewToken,
@@ -928,17 +1043,39 @@ public sealed class ClientController : Controller {
         CancellationToken cancellationToken
     ) {
         Result<ClientDashboardViewModel> dashboard = await _client.GetDashboardAsync(cancellationToken);
+        MyProductsViewModel products = new();
         if (dashboard.IsFailure) {
-            return HandleReadFailure(dashboard.Error);
+            IActionResult? failure = HandleFormReadFailure(
+                dashboard.Error,
+                "No fue posible cargar sus cuentas activas. Intente nuevamente más tarde."
+            );
+            if (failure is not null) {
+                return failure;
+            }
+        }
+        else {
+            products = dashboard.Value.Products;
         }
 
-        Result<BeneficiaryListViewModel> beneficiaries = await _client.GetBeneficiariesAsync(cancellationToken);
-        if (beneficiaries.IsFailure) {
-            return HandleReadFailure(beneficiaries.Error);
+        IReadOnlyList<BeneficiaryItemViewModel> beneficiaryItems = [];
+        if (dashboard.IsSuccess) {
+            Result<BeneficiaryListViewModel> beneficiaries = await _client.GetBeneficiariesAsync(cancellationToken);
+            if (beneficiaries.IsFailure) {
+                IActionResult? failure = HandleFormReadFailure(
+                    beneficiaries.Error,
+                    "No fue posible cargar sus beneficiarios. Intente nuevamente más tarde."
+                );
+                if (failure is not null) {
+                    return failure;
+                }
+            }
+            else {
+                beneficiaryItems = beneficiaries.Value.Beneficiaries;
+            }
         }
 
-        SelectOptionViewModel[] accounts = AccountOptions(dashboard.Value.Products);
-        SelectOptionViewModel[] beneficiaryOptions = BeneficiaryOptions(beneficiaries.Value.Beneficiaries);
+        SelectOptionViewModel[] accounts = AccountOptions(products);
+        SelectOptionViewModel[] beneficiaryOptions = BeneficiaryOptions(beneficiaryItems);
         bool canSubmit = accounts.Length > 0 && beneficiaryOptions.Length > 0;
         string? token = await PrepareFormTokenAsync(
             form.SubmissionToken,
@@ -972,11 +1109,21 @@ public sealed class ClientController : Controller {
         CancellationToken cancellationToken
     ) {
         Result<ClientDashboardViewModel> dashboard = await _client.GetDashboardAsync(cancellationToken);
+        MyProductsViewModel products = new();
         if (dashboard.IsFailure) {
-            return HandleReadFailure(dashboard.Error);
+            IActionResult? failure = HandleFormReadFailure(
+                dashboard.Error,
+                "No fue posible cargar sus cuentas activas. Intente nuevamente más tarde."
+            );
+            if (failure is not null) {
+                return failure;
+            }
+        }
+        else {
+            products = dashboard.Value.Products;
         }
 
-        SelectOptionViewModel[] accounts = AccountOptions(dashboard.Value.Products);
+        SelectOptionViewModel[] accounts = AccountOptions(products);
         string? token = await PrepareFormTokenAsync(
             form.SubmissionToken,
             issueNewToken,
@@ -1008,12 +1155,22 @@ public sealed class ClientController : Controller {
         CancellationToken cancellationToken
     ) {
         Result<ClientDashboardViewModel> dashboard = await _client.GetDashboardAsync(cancellationToken);
+        MyProductsViewModel products = new();
         if (dashboard.IsFailure) {
-            return HandleReadFailure(dashboard.Error);
+            IActionResult? failure = HandleFormReadFailure(
+                dashboard.Error,
+                "No fue posible cargar sus productos activos. Intente nuevamente más tarde."
+            );
+            if (failure is not null) {
+                return failure;
+            }
+        }
+        else {
+            products = dashboard.Value.Products;
         }
 
-        SelectOptionViewModel[] accounts = AccountOptions(dashboard.Value.Products);
-        SelectOptionViewModel[] cards = CardOptions(dashboard.Value.Products);
+        SelectOptionViewModel[] accounts = AccountOptions(products);
+        SelectOptionViewModel[] cards = CardOptions(products);
         bool canSubmit = accounts.Length > 0 && cards.Length > 0;
         string? token = await PrepareFormTokenAsync(
             form.SubmissionToken,
@@ -1047,12 +1204,22 @@ public sealed class ClientController : Controller {
         CancellationToken cancellationToken
     ) {
         Result<ClientDashboardViewModel> dashboard = await _client.GetDashboardAsync(cancellationToken);
+        MyProductsViewModel products = new();
         if (dashboard.IsFailure) {
-            return HandleReadFailure(dashboard.Error);
+            IActionResult? failure = HandleFormReadFailure(
+                dashboard.Error,
+                "No fue posible cargar sus productos activos. Intente nuevamente más tarde."
+            );
+            if (failure is not null) {
+                return failure;
+            }
+        }
+        else {
+            products = dashboard.Value.Products;
         }
 
-        SelectOptionViewModel[] accounts = AccountOptions(dashboard.Value.Products);
-        SelectOptionViewModel[] loans = LoanOptions(dashboard.Value.Products);
+        SelectOptionViewModel[] accounts = AccountOptions(products);
+        SelectOptionViewModel[] loans = LoanOptions(products);
         bool canSubmit = accounts.Length > 0 && loans.Length > 0;
         string? token = await PrepareFormTokenAsync(
             form.SubmissionToken,
@@ -1087,12 +1254,22 @@ public sealed class ClientController : Controller {
         CashAdvanceQuoteViewModel? quote = null
     ) {
         Result<ClientDashboardViewModel> dashboard = await _client.GetDashboardAsync(cancellationToken);
+        MyProductsViewModel products = new();
         if (dashboard.IsFailure) {
-            return HandleReadFailure(dashboard.Error);
+            IActionResult? failure = HandleFormReadFailure(
+                dashboard.Error,
+                "No fue posible cargar sus productos activos. Intente nuevamente más tarde."
+            );
+            if (failure is not null) {
+                return failure;
+            }
+        }
+        else {
+            products = dashboard.Value.Products;
         }
 
-        SelectOptionViewModel[] accounts = AccountOptions(dashboard.Value.Products);
-        SelectOptionViewModel[] cards = CardOptions(dashboard.Value.Products);
+        SelectOptionViewModel[] accounts = AccountOptions(products);
+        SelectOptionViewModel[] cards = CardOptions(products);
         bool canSubmit = accounts.Length > 0 && cards.Length > 0;
         string? token = await PrepareFormTokenAsync(
             form.SubmissionToken,
@@ -1225,8 +1402,14 @@ public sealed class ClientController : Controller {
         string token
     ) => new() {
         BeneficiaryId = beneficiary.BeneficiaryId,
-        BeneficiaryName = $"{beneficiary.FirstName} {beneficiary.LastName}".Trim(),
-        AccountNumber = beneficiary.AccountNumber,
+        BeneficiaryName = string.IsNullOrWhiteSpace(
+            $"{beneficiary.FirstName} {beneficiary.LastName}".Trim()
+        )
+            ? "Beneficiario seleccionado"
+            : $"{beneficiary.FirstName} {beneficiary.LastName}".Trim(),
+        AccountNumber = string.IsNullOrWhiteSpace(beneficiary.AccountNumber)
+            ? "No disponible"
+            : beneficiary.AccountNumber,
         ConfirmationToken = token,
         PageTitle = "Eliminar beneficiario",
         Title = "Eliminar beneficiario",
@@ -1278,6 +1461,44 @@ public sealed class ClientController : Controller {
         IsAuthenticated = true,
         ActiveNavigationItem = NavigationKeys.ClientHome,
     };
+
+    private ViewResult InvalidConfirmation(
+        ClientOperationConfirmationViewModel model,
+        string title,
+        string message,
+        string confirmAction
+    ) {
+        AddConfirmationError();
+        return View(
+            "ConfirmOperation",
+            BuildConfirmation(
+                model.ConfirmationToken,
+                title,
+                message,
+                confirmAction,
+                model.TargetName,
+                model.SourceAccountNumber,
+                model.DestinationAccountNumber,
+                model.BeneficiaryId,
+                model.Amount,
+                model.AccountNumber,
+                model.CardId,
+                model.LoanId,
+                model.InterestAmount,
+                model.TotalToCharge
+            )
+        );
+    }
+
+    private ViewResult? InvalidConfirmationIfNeeded<TForm>(
+        ClientOperationConfirmationViewModel model,
+        TForm form,
+        string title,
+        string message,
+        string confirmAction
+    ) where TForm : notnull => ModelState.IsValid && ValidateViewModel(form)
+        ? null
+        : InvalidConfirmation(model, title, message, confirmAction);
 
     private async Task<string?> PrepareFormTokenAsync(
         string currentToken,
@@ -1346,6 +1567,50 @@ public sealed class ClientController : Controller {
         return result.IsValid;
     }
 
+    private bool ValidateViewModel(object model) {
+        List<ValidationResult> validationResults = [];
+        bool isValid = Validator.TryValidateObject(
+            model,
+            new ValidationContext(model),
+            validationResults,
+            validateAllProperties: true
+        );
+
+        foreach (ValidationResult validationResult in validationResults) {
+            string errorMessage = validationResult.ErrorMessage
+                ?? "Los datos ingresados no son válidos.";
+            string[] members = validationResult.MemberNames.ToArray();
+            if (members.Length == 0) {
+                ModelState.AddModelError(string.Empty, errorMessage);
+                continue;
+            }
+
+            foreach (string member in members) {
+                ModelState.AddModelError(member, errorMessage);
+            }
+        }
+
+        return isValid;
+    }
+
+    private IActionResult? HandleFormReadFailure(DomainError? error, string fallback) {
+        if (error?.Category == ErrorCategory.NotFound) {
+            return NotFound();
+        }
+
+        if (error?.Category == ErrorCategory.Forbidden) {
+            return RedirectToAccessDenied();
+        }
+
+        if (error?.Category == ErrorCategory.Unauthorized) {
+            return Challenge();
+        }
+
+        _logger.LogError("No se pudo cargar un formulario de Cliente: {ErrorCode}", error?.Code);
+        AddResultError(null, fallback);
+        return null;
+    }
+
     private IActionResult HandleReadFailure(DomainError? error) {
         if (error?.Category == ErrorCategory.NotFound) {
             return NotFound();
@@ -1353,6 +1618,10 @@ public sealed class ClientController : Controller {
 
         if (error?.Category == ErrorCategory.Forbidden) {
             return RedirectToAccessDenied();
+        }
+
+        if (error?.Category == ErrorCategory.Unauthorized) {
+            return Challenge();
         }
 
         _logger.LogError("No se pudo cargar un recurso de Cliente: {ErrorCode}", error?.Code);
@@ -1384,6 +1653,12 @@ public sealed class ClientController : Controller {
         ModelState.AddModelError(
             string.Empty,
             "El formulario ya fue utilizado o expiró. Cárguelo nuevamente."
+        );
+
+    private void AddConfirmationError() =>
+        ModelState.AddModelError(
+            string.Empty,
+            "La confirmación de la operación no es válida. Inicie nuevamente la operación."
         );
 
     private string? CurrentUserId => User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
@@ -1432,31 +1707,52 @@ public sealed class ClientController : Controller {
 
     private static string Money(decimal amount) => amount.ToString("N2", CultureInfo.InvariantCulture);
 
-    private static string? PublicOperationMessage(DomainError? error) => error?.Code switch {
-        "Account.SourceNotFound" or "Account.DestinationNotFound" or "Account.NotActive"
-            => "El número de cuenta ingresado no corresponde a una cuenta válida.",
-        "Account.InsufficientFunds"
-            => "El monto ingresado excede el saldo disponible de la cuenta.",
-        "Account.MinimumActiveAccounts"
-            => "Debe tener al menos dos cuentas de ahorro activas para realizar una transferencia entre cuentas.",
-        "Card.NotFound" or "Card.NotActive"
-            => "El número de tarjeta ingresado no corresponde a una tarjeta válida.",
-        "Card.Expired" => "La tarjeta seleccionada se encuentra vencida.",
-        "Card.NoDebt" => "La tarjeta seleccionada no tiene deuda pendiente.",
-        "Card.InsufficientCredit"
-            => "El avance solicitado excede el crédito disponible de la tarjeta seleccionada.",
-        "Loan.NotFound" or "Loan.NotActive"
-            => "El número de préstamo ingresado no corresponde a un préstamo válido.",
-        "Loan.NoPendingInstallments"
-            => "El préstamo seleccionado no tiene cuotas pendientes de pago.",
-        "Operation.SameAccount"
-            => "La cuenta de origen y la cuenta de destino no pueden ser la misma.",
-        "Beneficiary.NotFound" => "La cuenta del beneficiario no se encuentra disponible.",
-        "Beneficiary.OwnAccount"
-            => "No puede agregar una cuenta propia como beneficiario. Utilice la opción Transferencia para mover fondos entre sus cuentas.",
-        "Beneficiary.AlreadyExists" => "Esta cuenta ya se encuentra registrada como beneficiario.",
-        _ => null,
-    };
+    private string? PublicOperationMessage(DomainError? error) {
+        string? action = ControllerContext.ActionDescriptor?.ActionName;
+        return error?.Code switch {
+            "Account.SourceNotFound" or "Account.DestinationNotFound"
+                => "El número de cuenta ingresado no corresponde a una cuenta válida.",
+            "Account.NotActive" when IsAction(action, nameof(AddBeneficiary), nameof(ConfirmAddBeneficiary))
+                => "No puede agregar una cuenta cancelada como beneficiario.",
+            "Account.NotActive" when IsAction(action, nameof(BeneficiaryTransfer), nameof(ConfirmBeneficiaryTransfer))
+                => "La cuenta del beneficiario no se encuentra disponible.",
+            "Account.NotActive" when IsAction(action, nameof(CashAdvance), nameof(CashAdvanceQuote), nameof(ConfirmCashAdvance))
+                => "La cuenta de ahorro seleccionada no se encuentra activa.",
+            "Account.NotActive" => "El número de cuenta ingresado no corresponde a una cuenta válida.",
+            "Account.InsufficientFunds" when IsAction(action, nameof(ExpressTransfer), nameof(ConfirmExpressTransfer))
+                => "El monto ingresado excede el saldo disponible de la cuenta seleccionada.",
+            "Account.InsufficientFunds" when IsAction(action, nameof(BeneficiaryTransfer), nameof(ConfirmBeneficiaryTransfer))
+                => "No dispone de fondos suficientes para realizar esta transacción.",
+            "Account.InsufficientFunds"
+                => "No dispone del monto requerido en la cuenta seleccionada.",
+            "Account.MinimumActiveAccounts"
+                => "Debe tener al menos dos cuentas de ahorro activas para realizar una transferencia entre cuentas.",
+            "Card.NotFound" => "El número de tarjeta ingresado no corresponde a una tarjeta válida.",
+            "Card.NotActive" => "La tarjeta seleccionada no se encuentra activa.",
+            "Card.Expired" => "La tarjeta seleccionada se encuentra vencida.",
+            "Card.NoDebt" => "La tarjeta seleccionada no tiene deuda pendiente.",
+            "Card.InsufficientCredit"
+                => "El avance solicitado excede el crédito disponible de la tarjeta seleccionada.",
+            "Loan.NotFound" => "El número de préstamo ingresado no corresponde a un préstamo válido.",
+            "Loan.NotActive" => "El préstamo seleccionado no se encuentra activo.",
+            "Loan.NoPendingInstallments"
+                => "El préstamo seleccionado no tiene cuotas pendientes de pago.",
+            "Operation.SameAccount" when IsAction(action, nameof(ExpressTransfer), nameof(ConfirmExpressTransfer))
+                => "La cuenta destino no puede ser la misma cuenta de origen.",
+            "Operation.SameAccount"
+                => "La cuenta de origen y la cuenta de destino no pueden ser la misma.",
+            "Operation.DestinationMustBeThirdParty"
+                => "La cuenta destino debe pertenecer a otro cliente.",
+            "Beneficiary.NotFound" => "La cuenta del beneficiario no se encuentra disponible.",
+            "Beneficiary.OwnAccount"
+                => "No puede agregar una cuenta propia como beneficiario. Utilice la opción Transferencia para mover fondos entre sus cuentas.",
+            "Beneficiary.AlreadyExists" => "Esta cuenta ya se encuentra registrada como beneficiario.",
+            _ => null,
+        };
+    }
+
+    private static bool IsAction(string? action, params string[] candidates) =>
+        candidates.Contains(action, StringComparer.Ordinal);
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -4,11 +4,17 @@ using System.Net;
 using System.Text.RegularExpressions;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Models.Emails;
+using ArtemisBankingPro.Application.Features.Admin.Services;
+using ArtemisBankingPro.Application.Features.SavingsAccounts.Services;
+using ArtemisBankingPro.Application.Features.SavingsAccounts.ViewModels;
+using ArtemisBankingPro.Application.Features.Users.ViewModels;
+using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Moq;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -88,6 +94,111 @@ public sealed class WebAppAdminIntegrationTests(SqlServerFixture fixture)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(expectedMessage, WebUtility.HtmlDecode(body), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/admin/savings-accounts")]
+    [InlineData("/admin/loans")]
+    [InlineData("/admin/credit-cards")]
+    [InlineData("/admin/savings-accounts/assign")]
+    [InlineData("/admin/loans/assign")]
+    [InlineData("/admin/credit-cards/assign")]
+    public async Task Product_pages_return_model_state_for_an_overlong_identification(
+        string route
+    ) {
+        using WebApplicationFactory<WebApp::Program> factory = CreateFactory();
+        string admin = Unique("invalid-identification");
+        await CreateUserAsync(factory, admin, "Administrador");
+        using HttpClient client = CreateClient(factory);
+        await LoginAsync(client, admin);
+
+        const string invalidIdentification = "123456789012345678901";
+        using HttpResponseMessage response = await client.GetAsync(
+            $"{route}?identification={invalidIdentification}"
+        );
+        string body = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("La cédula no debe exceder 11 caracteres.", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Users_filter_returns_model_state_instead_of_calling_application_with_invalid_values() {
+        using WebApplicationFactory<WebApp::Program> factory = CreateFactory();
+        string admin = Unique("invalid-users-filter");
+        await CreateUserAsync(factory, admin, "Administrador");
+        using HttpClient client = CreateClient(factory);
+        await LoginAsync(client, admin);
+
+        using HttpResponseMessage response = await client.GetAsync(
+            "/Admin/Users?role=NoExiste&page=0&pageSize=21"
+        );
+        string body = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("El rol debe ser Administrador, Cajero o Cliente.", body, StringComparison.Ordinal);
+        Assert.Contains("La página debe ser mayor o igual a 1.", body, StringComparison.Ordinal);
+        Assert.Contains("El tamaño de página debe estar entre 1 y 20.", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Admin_load_errors_do_not_render_domain_or_identity_details() {
+        Mock<IAdminUserService> users = new();
+        users.Setup(service => service.GetUsersAsync(
+                It.IsAny<UserListViewModel>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync(Result.Failure<UserListViewModel>(
+                DomainError.Conflict("Identity.Internal", "IdentityUser internal details")
+            ));
+
+        using WebApplicationFactory<WebApp::Program> factory = CreateFactory(services => {
+            services.RemoveAll<IAdminUserService>();
+            services.AddSingleton(users.Object);
+        });
+        string admin = Unique("admin-redaction");
+        await CreateUserAsync(factory, admin, "Administrador");
+        using HttpClient client = CreateClient(factory);
+        await LoginAsync(client, admin);
+
+        using HttpResponseMessage response = await client.GetAsync("/Admin/Users");
+        string body = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No fue posible cargar los usuarios.", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("IdentityUser internal details", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Admin_product_load_errors_do_not_render_domain_or_identity_details() {
+        Mock<ISavingsAccountManagementService> accounts = new();
+        accounts.Setup(service => service.GetAccountsAsync(
+                It.IsAny<SavingsAccountListViewModel>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync(Result.Failure<SavingsAccountListViewModel>(
+                DomainError.Conflict("Identity.Internal", "IdentityUser internal details")
+            ));
+
+        using WebApplicationFactory<WebApp::Program> factory = CreateFactory(services => {
+            services.RemoveAll<ISavingsAccountManagementService>();
+            services.AddSingleton(accounts.Object);
+        });
+        string admin = Unique("product-redaction");
+        await CreateUserAsync(factory, admin, "Administrador");
+        using HttpClient client = CreateClient(factory);
+        await LoginAsync(client, admin);
+
+        using HttpResponseMessage response = await client.GetAsync("/admin/savings-accounts");
+        string body = WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("No fue posible cargar las cuentas de ahorro.", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("IdentityUser internal details", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -397,7 +508,9 @@ public sealed class WebAppAdminIntegrationTests(SqlServerFixture fixture)
         return await response.Content.ReadAsStringAsync();
     }
 
-    private WebApplicationFactory<WebApp::Program> CreateFactory() {
+    private WebApplicationFactory<WebApp::Program> CreateFactory(
+        Action<IServiceCollection>? configure = null
+    ) {
         string keyRingPath = Path.Combine(
             Path.GetTempPath(),
             "artemis-webapp-admin-tests",
@@ -418,6 +531,7 @@ public sealed class WebAppAdminIntegrationTests(SqlServerFixture fixture)
                 services.AddScoped<IEmailService>(provider =>
                     provider.GetRequiredService<RecordingEmailService>()
                 );
+                configure?.Invoke(services);
             });
         });
     }
@@ -432,7 +546,7 @@ public sealed class WebAppAdminIntegrationTests(SqlServerFixture fixture)
         new(values.Select(value => new KeyValuePair<string, string>(value.Name, value.Value)));
 
     private static string ExtractInput(string body, string name) {
-        Match match = Regex.Match(
+        System.Text.RegularExpressions.Match match = Regex.Match(
             body,
             $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*value=\"([^\"]*)\"",
             RegexOptions.CultureInvariant | RegexOptions.IgnoreCase

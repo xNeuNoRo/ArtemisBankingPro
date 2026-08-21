@@ -1,6 +1,34 @@
 @model CashierOperationConfirmationViewModel
 @{
     ViewData["Title"] = Model.PageTitle;
+    string ownerSourceLabel = Model.OperationLabel switch {
+        "Depósito" => "Titular de la cuenta destino",
+        "Retiro" => "Titular de la cuenta origen",
+        "Pago a tarjeta de crédito" or "Pago a préstamo" => "Titular de la cuenta origen",
+        _ => "Titular origen",
+    };
+    string ownerDestinationLabel = Model.OperationLabel switch {
+        "Pago a tarjeta de crédito" => "Titular de la tarjeta de crédito",
+        "Pago a préstamo" => "Titular del préstamo",
+        "Transacciones a cuentas de terceros" => "Titular de la cuenta destino",
+        _ => "Titular destino",
+    };
+    string accountLabel = Model.OperationLabel switch {
+        "Depósito" => "Número de cuenta destino",
+        _ => "Número de cuenta origen",
+    };
+    string requestedAmountLabel = Model.OperationLabel switch {
+        "Depósito" => "Monto a depositar",
+        "Retiro" => "Monto a retirar",
+        "Pago a tarjeta de crédito" or "Pago a préstamo" => "Monto ingresado",
+        "Transacciones a cuentas de terceros" => "Monto de la transacción",
+        _ => "Monto solicitado",
+    };
+    string effectiveAmountLabel = Model.OperationLabel switch {
+        "Pago a tarjeta de crédito" => "Monto efectivo a pagar",
+        "Pago a préstamo" => "Monto efectivo a pagar",
+        _ => "Monto aplicado",
+    };
     string Money(decimal? amount) => amount is null
         ? "No indicado"
         : $"RD$ {amount.Value.ToString("N2", CultureInfo.InvariantCulture)}";
@@ -10,23 +38,24 @@
     <div class="page-header__content">
         <p class="page-header__eyebrow">Cajero / Confirmación</p>
         <h1 id="cashier-confirmation-title" class="page-header__title">Confirmar @Model.OperationLabel.ToLowerInvariant()</h1>
-        <p class="page-header__description">Revise los datos antes de confirmar. El servidor volverá a validar el estado financiero y la huella de la solicitud.</p>
+        <p class="page-header__description">Revise los datos antes de confirmar. La operación se validará nuevamente antes de aplicarse.</p>
     </div>
 </section>
 
-<section class="ui-card ui-confirmation-panel client-confirmation" aria-labelledby="cashier-confirmation-message">
+<section class="ui-card ui-confirmation-panel client-confirmation" aria-labelledby="cashier-confirmation-message" aria-describedby="cashier-confirmation-context">
     <div class="ui-card__body">
-        <p id="cashier-confirmation-message" class="ui-confirmation-panel__title">@Model.ConfirmationMessage</p>
+        <h2 id="cashier-confirmation-message" class="ui-confirmation-panel__title">@Model.ConfirmationMessage</h2>
+        <p id="cashier-confirmation-context" class="ui-card__description">Confirme únicamente después de revisar los titulares, los identificadores mostrados y el monto. El servidor volverá a validar el estado antes de aplicar la operación.</p>
         <dl class="client-confirmation__summary">
-            @if (!string.IsNullOrWhiteSpace(Model.SourceOwnerName)) { <div><dt>Titular origen</dt><dd>@Model.SourceOwnerName</dd></div> }
-            @if (!string.IsNullOrWhiteSpace(Model.DestinationOwnerName)) { <div><dt>Titular destino</dt><dd>@Model.DestinationOwnerName</dd></div> }
-            @if (!string.IsNullOrWhiteSpace(Model.AccountNumber)) { <div><dt>Cuenta</dt><dd>@Model.AccountNumber</dd></div> }
-            @if (!string.IsNullOrWhiteSpace(Model.SourceAccountNumber)) { <div><dt>Cuenta origen</dt><dd>@Model.SourceAccountNumber</dd></div> }
-            @if (!string.IsNullOrWhiteSpace(Model.DestinationAccountNumber)) { <div><dt>Cuenta destino</dt><dd>@Model.DestinationAccountNumber</dd></div> }
-            @if (!string.IsNullOrWhiteSpace(Model.CardLastFour)) { <div><dt>Tarjeta</dt><dd>•••• @Model.CardLastFour</dd></div> }
-            @if (!string.IsNullOrWhiteSpace(Model.LoanNumber)) { <div><dt>Préstamo</dt><dd>@Model.LoanNumber</dd></div> }
-            @if (Model.RequestedAmount is not null) { <div><dt>Monto solicitado</dt><dd>@Money(Model.RequestedAmount)</dd></div> }
-            @if (Model.EffectiveAmount is not null && Model.EffectiveAmount != Model.RequestedAmount) { <div><dt>Monto aplicado</dt><dd>@Money(Model.EffectiveAmount)</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(Model.SourceOwnerName)) { <div><dt>@ownerSourceLabel</dt><dd>@Model.SourceOwnerName</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(Model.DestinationOwnerName)) { <div><dt>@ownerDestinationLabel</dt><dd>@Model.DestinationOwnerName</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(Model.AccountNumber)) { <div><dt>@accountLabel</dt><dd>@Model.AccountNumber</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(Model.SourceAccountNumber)) { <div><dt>Número de cuenta origen</dt><dd>@Model.SourceAccountNumber</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(Model.DestinationAccountNumber)) { <div><dt>Número de cuenta destino</dt><dd>@Model.DestinationAccountNumber</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(Model.CardLastFour)) { <div><dt>Tarjeta destino</dt><dd>•••• @Model.CardLastFour</dd></div> }
+            @if (!string.IsNullOrWhiteSpace(Model.LoanNumber)) { <div><dt>Número del préstamo</dt><dd>@Model.LoanNumber</dd></div> }
+            @if (Model.RequestedAmount is not null) { <div><dt>@requestedAmountLabel</dt><dd>@Money(Model.RequestedAmount)</dd></div> }
+            @if (Model.EffectiveAmount is not null && Model.EffectiveAmount != Model.RequestedAmount) { <div><dt>@effectiveAmountLabel</dt><dd>@Money(Model.EffectiveAmount)</dd></div> }
         </dl>
         <partial name="_ValidationSummary" />
         <form asp-controller="Cashier" asp-action="@Model.ConfirmAction" method="post" data-submit-lock data-autofocus-error class="page-actions">
@@ -38,7 +67,7 @@
             @if (Model.LoanId is not null) { <input asp-for="LoanId" type="hidden" /> }
             @if (Model.RequestedAmount is not null) { <input asp-for="RequestedAmount" type="hidden" /> }
             <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Cashier">Cancelar</a>
-            <button class="ui-button ui-button--primary" type="submit"><span data-submit-label>Confirmar operación</span></button>
+            <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Confirmando…"><span data-submit-label>Confirmar</span></button>
         </form>
     </div>
 </section>

@@ -26,12 +26,14 @@ export function showFeedback(message, variant = "info", options = {}) {
   const safeVariant = VARIANTS.has(variant) ? variant : "info";
   const item = document.createElement("div");
   item.className = `feedback feedback-${safeVariant}`;
+  item.dataset.uiState = safeVariant;
   item.setAttribute("role", safeVariant === "error" ? "alert" : "status");
 
   const text = document.createElement("p");
   text.className = "feedback-message";
   text.textContent = message;
   item.append(text);
+  item.setAttribute("aria-atomic", "true");
 
   const close = document.createElement("button");
   close.type = "button";

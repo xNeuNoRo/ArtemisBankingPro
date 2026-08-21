@@ -20,6 +20,10 @@ public sealed class GetMyAccountTransactionsQueryValidator
             .NotEmpty()
             .When(x => x.TransactionType is not null)
             .WithMessage("El tipo de transacción no puede estar vacío.");
+        RuleFor(x => x.TransactionType)
+            .Must(type => type is "CRÉDITO" or "DÉBITO")
+            .When(x => !string.IsNullOrWhiteSpace(x.TransactionType))
+            .WithMessage("El tipo de transacción debe ser crédito o débito.");
         When(x => x.DateFrom is not null && x.DateTo is not null, () => {
             RuleFor(x => x)
                 .Must(query => query.DateFrom <= query.DateTo)

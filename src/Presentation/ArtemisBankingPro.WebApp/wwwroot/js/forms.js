@@ -38,6 +38,7 @@ function lockForm(form) {
       const submit = /** @type {HTMLButtonElement | HTMLInputElement} */ (element);
       submit.disabled = true;
       submit.setAttribute("aria-disabled", "true");
+      submit.setAttribute("aria-busy", "true");
       if (submit instanceof HTMLButtonElement) {
         const label = submit.querySelector("[data-submit-label]");
         if (label) {

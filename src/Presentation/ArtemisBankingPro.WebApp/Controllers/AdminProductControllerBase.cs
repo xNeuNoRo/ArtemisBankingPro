@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Domain.Common.Enums;
+using ArtemisBankingPro.Domain.Common.Pagination;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,8 +23,58 @@ public abstract class AdminProductControllerBase : Controller {
     protected string? CurrentUserName => User.Identity?.Name;
 
     protected void AddResultError(DomainError? error, string fallback) {
-        ModelState.AddModelError(string.Empty, error?.Message ?? fallback);
+        ModelState.AddModelError(string.Empty, WebAppErrorMessages.For(error, fallback));
     }
+
+    protected bool ValidateListRequest(object model, int page, int pageSize) {
+        TryValidateModel(model);
+        ValidatePagination(page, pageSize);
+        return ModelState.IsValid;
+    }
+
+    protected bool ValidatePagination(int page, int pageSize) {
+        if (page < PageRequest.DefaultPage) {
+            ModelState.AddModelError(
+                string.Empty,
+                "La página debe ser mayor o igual a 1."
+            );
+        }
+
+        if (pageSize is < 1 or > PageRequest.MaxPageSize) {
+            ModelState.AddModelError(
+                string.Empty,
+                $"El tamaño de página debe estar entre 1 y {PageRequest.MaxPageSize}."
+            );
+        }
+
+        return ModelState.IsValid;
+    }
+
+    protected bool ValidateAllowedValue(
+        string key,
+        string? value,
+        IReadOnlyCollection<string> allowedValues,
+        string message
+    ) {
+        if (string.IsNullOrWhiteSpace(value)
+            || allowedValues.Contains(value, StringComparer.OrdinalIgnoreCase)) {
+            return true;
+        }
+
+        ModelState.AddModelError(key, message);
+        return false;
+    }
+
+    protected static int SafePage(int page) =>
+        page < PageRequest.DefaultPage ? PageRequest.DefaultPage : page;
+
+    protected static int SafePageSize(int pageSize) =>
+        pageSize is < 1 or > PageRequest.MaxPageSize
+            ? PageRequest.DefaultPageSize
+            : pageSize;
+
+    protected static bool IsCustomerId(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= 450;
 
     protected IActionResult HandleReadFailure(DomainError? error) {
         if (error?.Category == ErrorCategory.NotFound) {
@@ -31,7 +82,12 @@ public abstract class AdminProductControllerBase : Controller {
         }
 
         if (error?.Category == ErrorCategory.Forbidden) {
-            return RedirectToAccessDenied(error.Message);
+            return RedirectToAccessDenied(
+                WebAppErrorMessages.For(
+                    error,
+                    "No posee permisos para acceder a este recurso."
+                )
+            );
         }
 
         _logger.LogError(

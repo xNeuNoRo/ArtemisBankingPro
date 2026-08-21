@@ -10,6 +10,7 @@
         <p class="page-header__description">Administre relaciones con cuentas activas de otros clientes sin exponer información que no necesita para operar.</p>
     </div>
     <div class="page-header__actions">
+        <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Volver al Home</a>
         @if (!Model.ShowAddForm) {
             <a class="ui-button ui-button--primary" asp-controller="Client" asp-action="Beneficiaries" asp-route-add="true">
                 <partial name="_Icon" model='@("plus")' />
@@ -23,43 +24,46 @@
     </div>
 </section>
 
+<partial name="_ValidationSummary" />
+
 @if (Model.ShowAddForm) {
-<section class="ui-card client-form-panel" aria-labelledby="add-beneficiary-title">
-    <div class="ui-card__header">
+<details class="ui-card client-form-panel" @(ViewData.ModelState.ErrorCount > 0 ? "open" : null)>
+    <summary class="ui-card__header">
         <div>
             <p class="ui-section-label">Nueva relación</p>
             <h2 id="add-beneficiary-title" class="ui-card__title">Agregar beneficiario</h2>
             <p class="ui-card__description">La cuenta debe existir, estar activa y pertenecer a otro cliente.</p>
         </div>
-    </div>
-    <div class="ui-card__body">
-        <partial name="_ValidationSummary" />
-        <form asp-controller="Client" asp-action="AddBeneficiary" method="post" data-submit-lock data-autofocus-error class="client-form">
+    </summary>
+    <div class="ui-card__body" id="add-beneficiary-fields">
+        <form asp-controller="Client" asp-action="AddBeneficiary" method="post" data-submit-lock data-autofocus-error class="client-form" aria-labelledby="add-beneficiary-title">
             <input type="hidden" name="AddForm.SubmissionToken" value="@Model.AddForm.SubmissionToken" />
             <div class="ui-field">
-                <label class="ui-label" for="DestinationAccountNumber">Número de cuenta</label>
+                <label class="ui-label" for="AddForm_DestinationAccountNumber">Número de cuenta</label>
                 <input
                     class="ui-control"
-                    id="DestinationAccountNumber"
+                    id="AddForm_DestinationAccountNumber"
                     name="AddForm.DestinationAccountNumber"
                     value="@Model.AddForm.DestinationAccountNumber"
                     inputmode="numeric"
                     autocomplete="off"
                     maxlength="9"
                     pattern="[0-9]{9}"
+                    aria-describedby="AddForm_DestinationAccountNumber-help AddForm_DestinationAccountNumber-error"
+                    aria-invalid="@(ViewData.ModelState["AddForm.DestinationAccountNumber"]?.Errors.Count > 0 ? "true" : "false")"
                     required />
-                <p class="ui-field-description">Ingrese los nueve dígitos de la cuenta de ahorro destino.</p>
-                <span class="ui-error" asp-validation-for="AddForm.DestinationAccountNumber"></span>
+                <p id="AddForm_DestinationAccountNumber-help" class="ui-field-description">Ingrese los nueve dígitos de una cuenta de ahorro activa de otro cliente.</p>
+                <span id="AddForm_DestinationAccountNumber-error" class="ui-error" asp-validation-for="AddForm.DestinationAccountNumber"></span>
             </div>
             <div class="page-actions">
                 <a class="ui-button ui-button--secondary" asp-controller="Client" asp-action="Beneficiaries">Cancelar</a>
-                <button class="ui-button ui-button--primary" type="submit">
-                    <span data-submit-label>Guardar</span>
+                <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Guardando beneficiario…">
+                    <span data-submit-label>Guardar beneficiario</span>
                 </button>
             </div>
         </form>
     </div>
-</section>
+</details>
 }
 
 <section class="client-list" aria-labelledby="beneficiaries-list-title">
@@ -86,7 +90,8 @@
                                     class="ui-button ui-button--danger ui-button--small"
                                     asp-controller="Client"
                                     asp-action="RemoveBeneficiary"
-                                    asp-route-id="@beneficiary.BeneficiaryId">
+                                    asp-route-id="@beneficiary.BeneficiaryId"
+                                    aria-label="Eliminar beneficiario @beneficiary.FirstName @beneficiary.LastName">
                                     Eliminar
                                 </a>
                             </td>

@@ -10,16 +10,17 @@
     <div class="page-header__content">
         <p class="page-header__eyebrow">Cliente / Confirmación</p>
         <h1 id="client-confirmation-title" class="page-header__title">@Model.Title</h1>
-        <p class="page-header__description">Revise los datos antes de confirmar. El servidor volverá a validar el estado financiero al ejecutar la operación.</p>
+        <p class="page-header__description">Revise los datos antes de confirmar. El servidor volverá a validar el estado financiero y consumirá la clave de confirmación una sola vez.</p>
     </div>
 </section>
 
-<section class="ui-card ui-confirmation-panel client-confirmation" aria-labelledby="client-confirmation-message">
+<section class="ui-card ui-confirmation-panel client-confirmation" aria-labelledby="client-confirmation-message" aria-describedby="client-confirmation-safety">
     <div class="ui-card__body">
         <p id="client-confirmation-message" class="ui-confirmation-panel__title">@Model.Message</p>
+        <p id="client-confirmation-safety" class="ui-card__description">No cierre ni reenvíe esta confirmación. Los montos se revalidan en el servidor al procesar el POST.</p>
         <dl class="client-confirmation__summary">
-            @if (!string.IsNullOrWhiteSpace(Model.TargetName)) {
-                <div><dt>Destino</dt><dd>@Model.TargetName</dd></div>
+            @if (!string.IsNullOrWhiteSpace(Model.TargetName) && Model.CardId is null && Model.LoanId is null) {
+                <div><dt>Destinatario</dt><dd>@Model.TargetName</dd></div>
             }
             @if (!string.IsNullOrWhiteSpace(Model.SourceAccountNumber)) {
                 <div><dt>Cuenta de origen</dt><dd>@Model.SourceAccountNumber</dd></div>
@@ -27,14 +28,14 @@
             @if (!string.IsNullOrWhiteSpace(Model.DestinationAccountNumber)) {
                 <div><dt>Cuenta de destino</dt><dd>@Model.DestinationAccountNumber</dd></div>
             }
-            @if (!string.IsNullOrWhiteSpace(Model.AccountNumber)) {
+            @if (!string.IsNullOrWhiteSpace(Model.AccountNumber) && string.IsNullOrWhiteSpace(Model.SourceAccountNumber)) {
                 <div><dt>Cuenta de origen</dt><dd>@Model.AccountNumber</dd></div>
             }
             @if (Model.CardId is not null) {
-                <div><dt>Tarjeta</dt><dd>Producto propio seleccionado</dd></div>
+                <div><dt>Tarjeta</dt><dd>@(string.IsNullOrWhiteSpace(Model.TargetName) ? "Producto propio seleccionado; solo se mostrará la terminación." : Model.TargetName)</dd></div>
             }
             @if (Model.LoanId is not null) {
-                <div><dt>Préstamo</dt><dd>Producto propio seleccionado</dd></div>
+                <div><dt>Préstamo</dt><dd>@(string.IsNullOrWhiteSpace(Model.TargetName) ? "Producto propio seleccionado." : Model.TargetName)</dd></div>
             }
             @if (Model.Amount is not null) {
                 <div><dt>Monto solicitado</dt><dd>@Money(Model.Amount)</dd></div>
@@ -46,9 +47,13 @@
                 <div><dt>Total cargado a la tarjeta</dt><dd>@Money(Model.TotalToCharge)</dd></div>
             }
         </dl>
+        @if (Model.InterestAmount is not null || Model.TotalToCharge is not null) {
+            <p class="ui-card__description">El avance deposita el monto solicitado y suma el interés calculado al cargo de la tarjeta.</p>
+        }
         <partial name="_ValidationSummary" />
         <form asp-controller="Client" asp-action="@Model.ConfirmAction" method="post" data-submit-lock data-autofocus-error class="page-actions">
             <input asp-for="ConfirmationToken" type="hidden" />
+            @if (Model.TargetName is not null) { <input asp-for="TargetName" type="hidden" /> }
             @if (Model.SourceAccountNumber is not null) { <input asp-for="SourceAccountNumber" type="hidden" /> }
             @if (Model.DestinationAccountNumber is not null) { <input asp-for="DestinationAccountNumber" type="hidden" /> }
             @if (Model.AccountNumber is not null) { <input asp-for="AccountNumber" type="hidden" /> }
@@ -56,8 +61,10 @@
             @if (Model.CardId is not null) { <input asp-for="CardId" type="hidden" /> }
             @if (Model.LoanId is not null) { <input asp-for="LoanId" type="hidden" /> }
             @if (Model.Amount is not null) { <input asp-for="Amount" type="hidden" /> }
-            <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Cancelar</a>
-            <button class="ui-button ui-button--primary" type="submit">
+            @if (Model.InterestAmount is not null) { <input asp-for="InterestAmount" type="hidden" /> }
+            @if (Model.TotalToCharge is not null) { <input asp-for="TotalToCharge" type="hidden" /> }
+            <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client" aria-label="Cancelar y volver al Home">Cancelar</a>
+            <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Procesando operación…">
                 <span data-submit-label>Confirmar operación</span>
             </button>
         </form>

@@ -20,7 +20,8 @@
     asp-route-id="@Model.User.UserId"
     class="admin-form"
     data-submit-lock
-    data-autofocus-error>
+    data-autofocus-error
+    aria-describedby="edit-credentials-help">
     <input type="hidden" name="submissionToken" value="@Model.SubmissionToken" />
     <partial name="_ValidationSummary" />
 
@@ -52,6 +53,7 @@
             <div>
                 <p class="ui-section-label">Datos editables</p>
                 <h2 id="edit-data-title" class="ui-card__title">Información del usuario</h2>
+                <p id="edit-credentials-help" class="ui-card__description">La nueva contraseña es opcional. Si la escribe, debe tener entre 8 y 128 caracteres y confirmarse exactamente; si la deja vacía, se conserva la actual.</p>
             </div>
         </div>
         <div class="ui-card__body admin-form-grid">

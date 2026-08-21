@@ -19,7 +19,7 @@ public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCom
         RuleFor(x => x.Identification)
             .NotEmpty().WithMessage("La cédula es requerida.")
             .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
-            .WithMessage("La cédula no debe exceder 11 caracteres.");
+            .WithMessage(IdentityValidationLimits.IdentificationMaxLengthMessage);
 
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("El correo electrónico es requerido.")

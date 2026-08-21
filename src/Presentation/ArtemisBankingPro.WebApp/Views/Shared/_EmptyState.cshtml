@@ -3,7 +3,7 @@
     string description = ViewData["EmptyDescription"] as string
         ?? "Cuando existan registros disponibles, aparecerán en esta sección.";
 }
-<section class="ui-empty-state" aria-live="polite">
+<section class="ui-empty-state" data-ui-state="empty" aria-live="polite">
     <span class="ui-empty-state__icon" aria-hidden="true">
         <partial name="_Icon" model='@("empty")' />
     </span>
