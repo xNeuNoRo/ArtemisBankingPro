@@ -6,6 +6,8 @@
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
     bool identificationInvalid = ViewData.ModelState[nameof(Model.Identification)]?.Errors.Count > 0;
     bool statusInvalid = ViewData.ModelState[nameof(Model.Status)]?.Errors.Count > 0;
+    string CardClass(int index) => $"visual-card--{((index % 5) switch { 0 => "visa", 1 => "mastercard", 2 => "artemis", 3 => "premium", _ => "gold" })}";
+    string Brand(int index) => (index % 5) switch { 0 => "Visa", 1 => "Mastercard", 2 => "Artemis", 3 => "Premium", _ => "Gold" };
 }
 
 <section class="page-header" aria-labelledby="cards-title">
@@ -74,37 +76,37 @@
                 </div>
                 <span class="ui-badge ui-badge--neutral">@Model.Pagination.TotalItems registros</span>
             </div>
-            <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de tarjetas de crédito">
-                <table class="ui-table admin-product__table admin-product__table--wide">
-                    <caption class="ui-visually-hidden">Tarjetas de crédito registradas</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Tarjeta</th><th scope="col">Cliente</th><th scope="col">Límite</th>
-                            <th scope="col">Deuda</th><th scope="col">Disponible</th><th scope="col">Vencimiento</th>
-                            <th scope="col">Estado</th><th scope="col"><span class="ui-visually-hidden">Acciones</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (CreditCardSummaryViewModel card in Model.Cards) {
-                            <tr>
-                                <td><span class="admin-product__person"><strong>@card.MaskedNumber</strong></span></td>
-                                <td><span class="admin-product__person"><strong>@card.ClientFullName</strong><span>@card.ClientId</span></span></td>
-                                <td class="ui-table__numeric">@Money(card.CreditLimit)</td>
-                                <td class="ui-table__numeric">@Money(card.CurrentDebt)</td>
-                                <td class="ui-table__numeric">@Money(card.AvailableCredit)</td>
-                                <td class="ui-table__numeric">@card.Expiration</td>
-                                <td><partial name="_StatusBadge" model="card.Status" /></td>
-                                <td><div class="admin-product__actions" aria-label="Acciones para la tarjeta @card.MaskedNumber">
-                                    <a class="ui-button ui-button--secondary ui-button--small" asp-action="Details" asp-route-id="@card.Id">Ver detalles</a>
-                                    @if (card.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) || card.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase)) {
-                                        <a class="ui-button ui-button--secondary ui-button--small" asp-action="EditLimit" asp-route-id="@card.Id">Editar límite</a>
-                                        <a class="ui-button ui-button--danger ui-button--small" asp-action="ConfirmCancel" asp-route-id="@card.Id">Cancelar</a>
-                                    }
-                                </div></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+            <div class="visual-card-grid" role="list" aria-label="Tarjetas de crédito registradas">
+                @for (int i = 0; i < Model.Cards.Count; i++) {
+                    CreditCardSummaryViewModel card = Model.Cards[i];
+                    string fakeBin = ((i % 2 == 0 ? 400000 : 520000) + card.Id % 10000).ToString(CultureInfo.InvariantCulture);
+                    <article class="credit-card-item" role="listitem">
+                        <div class="visual-card @CardClass(i)">
+                            <div class="visual-card__top"><span class="visual-card__chip" aria-hidden="true"></span><span class="visual-card__network-name">@Brand(i)</span></div>
+                            <div class="visual-card__number">@card.MaskedNumber</div>
+                            <div class="visual-card__footer">
+                                <div><span class="visual-card__label">Titular</span><strong class="visual-card__value">@card.ClientFullName</strong></div>
+                                <div><span class="visual-card__label">Expira</span><strong class="visual-card__value">@card.Expiration</strong></div>
+                            </div>
+                            <div class="visual-card__bottom"><span class="visual-card__type-badge">Crédito</span><span class="visual-card__bin">BIN @fakeBin</span><span class="visual-card__contactless" aria-hidden="true"></span></div>
+                        </div>
+                        <div class="credit-card-item__body">
+                            <div class="credit-card-metrics">
+                                <div><span>Límite</span><strong>@Money(card.CreditLimit)</strong></div>
+                                <div><span>Deuda</span><strong>@Money(card.CurrentDebt)</strong></div>
+                                <div><span>Disponible</span><strong>@Money(card.AvailableCredit)</strong></div>
+                            </div>
+                            <div class="credit-card-item__status"><span>Estado de la tarjeta</span><partial name="_StatusBadge" model="card.Status" /></div>
+                            <div class="credit-card-item__actions" aria-label="Acciones para la tarjeta @card.MaskedNumber">
+                                <a class="ui-button ui-button--secondary ui-button--small" asp-action="Details" asp-route-id="@card.Id">Ver detalles</a>
+                                @if (card.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) || card.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase)) {
+                                    <a class="ui-button ui-button--secondary ui-button--small" asp-action="EditLimit" asp-route-id="@card.Id">Editar límite</a>
+                                    <a class="ui-button ui-button--danger ui-button--small" asp-action="ConfirmCancel" asp-route-id="@card.Id">Cancelar</a>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
             </div>
             <partial name="_Pagination" model="Model.Pagination" />
         </section>

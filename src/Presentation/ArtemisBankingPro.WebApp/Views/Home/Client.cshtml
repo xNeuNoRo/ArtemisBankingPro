@@ -2,6 +2,8 @@
 @{
     ViewData["Title"] = Model.PageTitle;
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    string CardClass(int index) => $"visual-card--{((index % 5) switch { 0 => "visa", 1 => "mastercard", 2 => "artemis", 3 => "premium", _ => "gold" })}";
+    string Brand(int index) => (index % 5) switch { 0 => "Visa", 1 => "Mastercard", 2 => "Artemis", 3 => "Premium", _ => "Gold" };
 }
 
 <section class="page-header client-dashboard__header" aria-labelledby="client-dashboard-title">
@@ -125,34 +127,24 @@
                     <h2 id="client-cards-title" class="ui-card__title">Tarjetas activas</h2>
                 </div>
             </div>
-            <div class="app-grid client-dashboard__product-grid">
-                @foreach (MyCardViewModel card in Model.Products.Cards) {
-                    <article class="ui-product-card client-card-visual">
-                        <div class="ui-product-card__header">
-                            <div>
-                                <p class="ui-section-label">Artemis Credit</p>
-                                <h3 class="ui-product-card__title">•••• @card.LastFour</h3>
-                            </div>
-                            <span class="ui-badge ui-badge--active" aria-label="Estado: activa">Activa</span>
+            <div class="visual-card-grid" role="list" aria-label="Tarjetas de crédito activas">
+                @for (int i = 0; i < Model.Products.Cards.Count; i++) {
+                    MyCardViewModel card = Model.Products.Cards[i];
+                    string fakeBin = ((i % 2 == 0 ? 400000 : 520000) + card.CardId % 10000).ToString(CultureInfo.InvariantCulture);
+                    <article class="credit-card-item" role="listitem">
+                        <div class="visual-card @CardClass(i)">
+                            <div class="visual-card__top"><span class="visual-card__chip" aria-hidden="true"></span><span class="visual-card__network-name">@Brand(i)</span></div>
+                            <div class="visual-card__number">•••• •••• •••• @card.LastFour</div>
+                            <div class="visual-card__footer"><div><span class="visual-card__label">Producto</span><strong class="visual-card__value">Artemis Credit</strong></div><div><span class="visual-card__label">Expira</span><strong class="visual-card__value">@card.Expiration</strong></div></div>
+                            <div class="visual-card__bottom"><span class="visual-card__type-badge">Crédito</span><span class="visual-card__bin">BIN @fakeBin</span><span class="visual-card__contactless" aria-hidden="true"></span></div>
                         </div>
-                        <strong class="ui-product-card__value">@Money(card.AvailableCredit)</strong>
-                        <p class="ui-product-card__meta">
-                            Límite @Money(card.CreditLimit) · deuda @Money(card.CurrentDebt) · vence @card.Expiration
-                        </p>
-                        <div class="ui-product-card__footer">
-                            <a
-                                class="ui-button ui-button--secondary ui-button--small"
-                                asp-controller="Client"
-                                asp-action="CardDetails"
-                                asp-route-id="@card.CardId">
-                                Ver detalles
-                            </a>
-                            <a
-                                class="ui-button ui-button--primary ui-button--small"
-                                asp-controller="Client"
-                                asp-action="CardPayment">
-                                Realizar pago a tarjeta
-                            </a>
+                        <div class="credit-card-item__body">
+                            <div class="credit-card-metrics"><div><span>Límite</span><strong>@Money(card.CreditLimit)</strong></div><div><span>Deuda</span><strong>@Money(card.CurrentDebt)</strong></div><div><span>Disponible</span><strong>@Money(card.AvailableCredit)</strong></div></div>
+                            <div class="credit-card-item__status"><span>Estado de la tarjeta</span><span class="ui-badge ui-badge--active" aria-label="Estado: activa">Activa</span></div>
+                            <div class="credit-card-item__actions">
+                                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Client" asp-action="CardDetails" asp-route-id="@card.CardId">Ver detalles</a>
+                                <a class="ui-button ui-button--primary ui-button--small" asp-controller="Client" asp-action="CardPayment">Realizar pago</a>
+                            </div>
                         </div>
                     </article>
                 }

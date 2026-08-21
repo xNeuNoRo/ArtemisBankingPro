@@ -7,6 +7,9 @@
     string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
     bool cardIsActive = Model.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
         || Model.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase);
+    string cardClass = $"visual-card--{((Model.Id % 5) switch { 0 => "visa", 1 => "mastercard", 2 => "artemis", 3 => "premium", _ => "gold" })}";
+    string brand = (Model.Id % 5) switch { 0 => "Visa", 1 => "Mastercard", 2 => "Artemis", 3 => "Premium", _ => "Gold" };
+    string fakeBin = ((Model.Id % 2 == 0 ? 400000 : 520000) + Model.Id % 10000).ToString(CultureInfo.InvariantCulture);
 }
 
 <section class="page-header" aria-labelledby="card-details-title">
@@ -20,6 +23,16 @@
     </div>
 </section>
 
+<div class="credit-card-detail-layout">
+    <article class="visual-card visual-card--standalone @cardClass" aria-label="Tarjeta @Model.MaskedNumber">
+        <div class="visual-card__top"><span class="visual-card__chip" aria-hidden="true"></span><span class="visual-card__network-name">@brand</span></div>
+        <div class="visual-card__number">@Model.MaskedNumber</div>
+        <div class="visual-card__footer">
+            <div><span class="visual-card__label">Titular</span><strong class="visual-card__value">@Model.ClientFullName</strong></div>
+            <div><span class="visual-card__label">Expira</span><strong class="visual-card__value">@Model.Expiration</strong></div>
+        </div>
+        <div class="visual-card__bottom"><span class="visual-card__type-badge">Crédito</span><span class="visual-card__bin">BIN @fakeBin</span><span class="visual-card__contactless" aria-hidden="true"></span></div>
+    </article>
 <section class="ui-card" aria-labelledby="card-summary-title">
     <div class="ui-card__header">
         <div>
@@ -35,6 +48,7 @@
         <div class="admin-product__metric"><span class="admin-product__metric-label">Disponible</span><strong class="admin-product__metric-value">@Money(Model.AvailableCredit)</strong></div>
     </div>
 </section>
+</div>
 
 <section class="admin-product__list" aria-labelledby="card-consumptions-title">
     <div class="admin-users__list-heading">

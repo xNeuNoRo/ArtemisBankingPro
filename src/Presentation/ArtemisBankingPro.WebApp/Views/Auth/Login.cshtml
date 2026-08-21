@@ -16,7 +16,7 @@
     <form asp-controller="Auth" asp-action="Login" method="post" class="auth-form" data-submit-lock data-autofocus-error>
         <partial name="_ValidationSummary" />
 
-        <div class="ui-field">
+        <div class="ui-field auth-input-wrapper">
             <label asp-for="UserName" class="ui-label">Nombre de usuario</label>
             <input asp-for="UserName"
                    class="ui-control"
@@ -27,7 +27,7 @@
             <span asp-validation-for="UserName" id="UserName-error" class="ui-error"></span>
         </div>
 
-        <div class="ui-field">
+        <div class="ui-field auth-input-wrapper">
             <label asp-for="Password" class="ui-label">Contraseña</label>
             <div class="ui-control-group">
                 <input asp-for="Password"

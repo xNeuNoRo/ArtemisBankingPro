@@ -1618,3 +1618,300 @@
     animation: none;
   }
 }
+
+@keyframes ui-slide-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ui-shimmer {
+  to { background-position: 200% 0; }
+}
+
+@keyframes ui-particle-float {
+  0% { opacity: 0; transform: translate3d(0, 1rem, 0); }
+  12%, 85% { opacity: 0.7; }
+  100% { opacity: 0; transform: translate3d(var(--tx), -100vh, 0); }
+}
+
+.visual-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.credit-card-item {
+  width: 100%;
+  max-width: 31rem;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 1.35rem;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-panel);
+  transition: transform var(--ui-motion-standard) var(--ui-motion-ease),
+    border-color var(--ui-motion-standard) var(--ui-motion-ease),
+    box-shadow var(--ui-motion-standard) var(--ui-motion-ease);
+}
+
+.credit-card-item:hover {
+  transform: translateY(-0.25rem);
+  border-color: color-mix(in srgb, var(--ui-brand) 55%, var(--ui-border));
+  box-shadow: var(--ui-shadow-floating);
+}
+
+.visual-card {
+  --card-from: #104e52;
+  --card-to: #061b22;
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 28rem;
+  aspect-ratio: 1.586 / 1;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: clamp(1.15rem, 4vw, 1.5rem);
+  color: #fff;
+  background:
+    radial-gradient(circle at 88% 15%, rgb(255 255 255 / 0.16), transparent 22%),
+    linear-gradient(135deg, var(--card-from), var(--card-to));
+  box-shadow: 0 24px 55px rgb(0 0 0 / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  transition: transform var(--ui-motion-standard) var(--ui-motion-ease),
+    box-shadow var(--ui-motion-standard) var(--ui-motion-ease);
+}
+
+.credit-card-item .visual-card {
+  max-width: none;
+  border-radius: 1.25rem 1.25rem 0 0;
+  box-shadow: none;
+}
+
+.visual-card:hover {
+  transform: translateY(-0.2rem);
+  box-shadow: 0 30px 65px rgb(0 0 0 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.14);
+}
+
+.credit-card-item .visual-card:hover { transform: none; box-shadow: none; }
+.visual-card--visa { --card-from: #172554; --card-to: #060b1f; }
+.visual-card--mastercard { --card-from: #4c1019; --card-to: #16070b; }
+.visual-card--artemis { --card-from: #104e52; --card-to: #061b22; }
+.visual-card--premium { --card-from: #27272a; --card-to: #09090b; }
+.visual-card--gold { --card-from: #3f3420; --card-to: #12100c; }
+
+.visual-card__top,
+.visual-card__bottom,
+.visual-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.visual-card__chip {
+  position: relative;
+  width: 3.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 0.4rem;
+  background: linear-gradient(110deg, #b88b2f, #f5d878, #b88b2f);
+  background-size: 200% 100%;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.3), inset 0 1px rgb(255 255 255 / 0.35);
+  animation: ui-shimmer 2.8s linear infinite;
+}
+
+.visual-card__chip::after {
+  position: absolute;
+  inset: 0.3rem;
+  border: 1px solid rgb(78 55 15 / 0.35);
+  border-radius: 0.25rem;
+  content: "";
+}
+
+.visual-card__network-name {
+  font-size: clamp(1rem, 3vw, 1.3rem);
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
+}
+
+.visual-card__number {
+  margin: auto 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: clamp(1.05rem, 3vw, 1.55rem);
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+  white-space: nowrap;
+}
+
+.visual-card__footer { align-items: flex-end; }
+.visual-card__footer > div { display: grid; gap: 0.2rem; }
+.visual-card__footer > div:last-child { text-align: end; }
+
+.visual-card__label {
+  font-size: 0.625rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+.visual-card__value { font-size: 0.875rem; font-weight: 700; }
+
+.visual-card__bottom {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgb(255 255 255 / 0.16);
+}
+
+.visual-card__type-badge {
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.65rem;
+  background: rgb(255 255 255 / 0.13);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.visual-card__bin {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.72;
+}
+
+.visual-card__contactless {
+  width: 1.5rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  border-right: 2px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.75;
+  box-shadow: 0.3rem 0 0 -0.05rem var(--card-to), 0.4rem 0 0 currentColor;
+}
+
+.credit-card-item__body {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+
+.credit-card-metrics { display: grid; gap: 0.65rem; }
+
+.credit-card-metrics > div,
+.credit-card-item__status {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.credit-card-metrics span,
+.credit-card-item__status > span:first-child {
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.credit-card-metrics strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ui-text-primary);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.credit-card-item__status {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--ui-border-subtle);
+}
+
+.credit-card-item__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.credit-card-item__actions .ui-button { flex: 1 1 7.5rem; }
+
+.credit-card-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(20rem, 28rem) minmax(0, 1fr);
+  align-items: start;
+  gap: 2rem;
+}
+
+.auth-particles {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.auth-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--ui-brand);
+  animation: ui-particle-float var(--duration) linear infinite;
+}
+
+.auth-panel,
+.auth-header { position: relative; z-index: 1; }
+
+.auth-form {
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: var(--radius-dialog);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: color-mix(in srgb, var(--ui-surface) 90%, transparent);
+  box-shadow: var(--ui-shadow-floating);
+  backdrop-filter: blur(20px);
+  animation: ui-slide-up var(--ui-motion-slow) var(--ui-motion-ease);
+}
+
+.auth-input-wrapper { position: relative; }
+.auth-form .ui-control:focus { box-shadow: var(--ui-shadow-focus), 0 0 28px rgb(20 159 157 / 0.14); }
+
+.auth-form .ui-button--primary { position: relative; overflow: hidden; }
+.auth-form .ui-button--primary::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.2), transparent);
+  content: "";
+  transform: translateX(-110%);
+  transition: transform 500ms ease;
+}
+.auth-form .ui-button--primary:hover::after { transform: translateX(110%); }
+
+.ui-product-card { transition: transform var(--ui-motion-standard) var(--ui-motion-ease), box-shadow var(--ui-motion-standard) var(--ui-motion-ease); }
+.ui-product-card:hover { transform: translateY(-0.2rem); box-shadow: var(--ui-shadow-floating); }
+.ui-brand__mark { transition: transform var(--ui-motion-standard) var(--ui-motion-ease), box-shadow var(--ui-motion-standard) var(--ui-motion-ease); }
+.ui-brand:hover .ui-brand__mark { transform: rotate(-4deg) scale(1.05); box-shadow: 0 10px 28px rgb(20 159 157 / 0.35); }
+
+@media (max-width: 63.999rem) {
+  .credit-card-detail-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 47.999rem) {
+  .credit-card-item,
+  .visual-card { max-width: none; }
+  .visual-card__bin { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-particle,
+  .auth-form,
+  .visual-card { animation: none; }
+  .credit-card-item:hover,
+  .visual-card:hover,
+  .ui-product-card:hover { transform: none; }
+}
