@@ -1,17 +1,16 @@
 namespace ArtemisBankingPro.Application.Interfaces.Persistence;
 
-public enum IdempotencyStatus
-{
+public enum IdempotencyStatus {
     InProgress = 1,
     Completed = 2,
+    Rejected = 3,
 }
 
 /// <summary>
 /// Registro de idempotencia para operaciones externamente repetibles
 /// (Hermes Pay, transferencias con confirmación, avances de efectivo).
 /// </summary>
-public sealed class IdempotencyRecord
-{
+public sealed class IdempotencyRecord {
     private IdempotencyRecord() { }
 
     public IdempotencyRecord(
@@ -20,8 +19,7 @@ public sealed class IdempotencyRecord
         string operationType,
         string requestFingerprint,
         DateTimeOffset createdAt
-    )
-    {
+    ) {
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationType);
@@ -54,10 +52,21 @@ public sealed class IdempotencyRecord
 
     public DateTimeOffset? CompletedAt { get; private set; }
 
-    public void Complete(string resultReference, DateTimeOffset completedAt)
-    {
+    public void Complete(string resultReference, DateTimeOffset completedAt) {
         ArgumentException.ThrowIfNullOrWhiteSpace(resultReference);
         Status = IdempotencyStatus.Completed;
+        ResultReference = resultReference;
+        CompletedAt = completedAt;
+    }
+
+    /// <summary>
+    /// Marca el registro como rechazado (estado terminal). Un rechazo persistido
+    /// no se elimina: repetir la misma clave devuelve un resultado determinista
+    /// sin re-ejecutar la operación.
+    /// </summary>
+    public void Reject(string resultReference, DateTimeOffset completedAt) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resultReference);
+        Status = IdempotencyStatus.Rejected;
         ResultReference = resultReference;
         CompletedAt = completedAt;
     }

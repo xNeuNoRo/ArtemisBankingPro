@@ -3,8 +3,7 @@ namespace ArtemisBankingPro.Application.Interfaces.Identity;
 /// <summary>
 /// Usuario autenticado en el contexto de la aplicación. Se obtiene de la información del token JWT.
 /// </summary>
-public interface ICurrentUserService
-{
+public interface ICurrentUserService {
     bool IsAuthenticated { get; }
 
     string? UserId { get; }

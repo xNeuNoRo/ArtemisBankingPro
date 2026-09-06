@@ -11,8 +11,7 @@ public sealed record LoanApprovedModel(
     int TermMonths,
     decimal AnnualRate,
     Money MonthlyPayment
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => "Préstamo aprobado";
 
     public string TemplateName => "LoanApproved";
@@ -33,8 +32,7 @@ public sealed record LoanRateChangedModel(
     decimal NewAnnualRate,
     Money NextInstallmentAmount,
     DateOnly NextInstallmentDueDate
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => "Actualización de tasa de interés de préstamo";
 
     public string TemplateName => "LoanRateChanged";
@@ -54,8 +52,7 @@ public sealed record LoanPaymentCompletedModel(
     string SourceAccountLastFour,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Pago realizado al préstamo {LoanNumber}";
 
     public string TemplateName => "LoanPaymentCompleted";
@@ -63,6 +60,22 @@ public sealed record LoanPaymentCompletedModel(
     public string AmountText => EmailFormatting.FormatMoney(Amount);
 
     public string OccurredAtText => EmailFormatting.FormatDateTime(OccurredAt, BusinessTimeZone);
+}
+
+/// <summary>Correo enviado cuando un préstamo pasa a estado de mora.</summary>
+public sealed record LoanDelinquentModel(
+    string CustomerName,
+    string LoanNumber,
+    Money OutstandingAmount,
+    DateOnly BusinessDate
+) : IEmailModel {
+    public string Subject => "Préstamo en mora";
+
+    public string TemplateName => "LoanDelinquent";
+
+    public string OutstandingAmountText => EmailFormatting.FormatMoney(OutstandingAmount);
+
+    public string BusinessDateText => EmailFormatting.FormatDate(BusinessDate);
 }
 
 /// <summary>
@@ -76,8 +89,7 @@ public sealed record AccountDebitedForLoanPaymentModel(
     string LoanNumber,
     DateTimeOffset OccurredAt,
     TimeZoneInfo BusinessTimeZone
-) : IEmailModel
-{
+) : IEmailModel {
     public string Subject => $"Pago a préstamo realizado desde su cuenta {SourceAccountLastFour}";
 
     public string TemplateName => "AccountDebitedForLoanPayment";

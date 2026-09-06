@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Domain.Accounts.Details;
 using ArtemisBankingPro.Domain.Accounts.Enums;
 using ArtemisBankingPro.Domain.Accounts.Errors;
+using ArtemisBankingPro.Domain.Accounts.Events;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
@@ -60,8 +61,29 @@ public sealed class SavingsAccount : AggregateRoot<int> {
         Money initialBalance,
         string createdByUserId,
         DateTimeOffset openedAt
-    ) =>
-        Open(ownerUserId, number, AccountType.Secondary, initialBalance, createdByUserId, openedAt);
+    ) {
+        Result<SavingsAccount> result = Open(
+            ownerUserId,
+            number,
+            AccountType.Secondary,
+            initialBalance,
+            createdByUserId,
+            openedAt
+        );
+
+        if (result.IsSuccess) {
+            result.Value.RaiseDomainEvent(
+                new SecondaryAccountOpenedEvent(
+                    ownerUserId,
+                    number.Value,
+                    initialBalance.Amount,
+                    openedAt
+                )
+            );
+        }
+
+        return result;
+    }
 
     public Result CanCredit(Money amount) {
         if (Status != AccountStatus.Active) {

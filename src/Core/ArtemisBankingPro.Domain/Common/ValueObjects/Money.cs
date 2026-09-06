@@ -55,6 +55,16 @@ public sealed record Money : IComparable<Money> {
     public static bool operator >=(Money left, Money right) => left.Amount >= right.Amount;
 
     internal static Money FromDecimal(decimal amount) {
+        // La aritmética decimal puede producir "cero negativo" (-0.00) cuando
+        // se restan valores de igual magnitud con distinta escala (p. ej.
+        // 1000.00m - 1000m). El cero negativo es menor que cero para
+        // ArgumentOutOfRangeException.ThrowIfNegative y rompería montos
+        // legítimos que llegan exactamente a cero. Se normaliza antes de
+        // validar.
+        if (amount == 0m) {
+            amount = 0m;
+        }
+
         ArgumentOutOfRangeException.ThrowIfNegative(amount);
 
         return new Money(Round(amount));

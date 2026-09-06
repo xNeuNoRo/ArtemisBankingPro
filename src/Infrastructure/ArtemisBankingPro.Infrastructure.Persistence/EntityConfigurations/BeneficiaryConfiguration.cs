@@ -5,10 +5,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class BeneficiaryConfiguration : IEntityTypeConfiguration<Beneficiary>
-{
-    public void Configure(EntityTypeBuilder<Beneficiary> builder)
-    {
+public sealed class BeneficiaryConfiguration : IEntityTypeConfiguration<Beneficiary> {
+    public void Configure(EntityTypeBuilder<Beneficiary> builder) {
         builder.ToTable("Beneficiaries");
         builder.HasKey(beneficiary => beneficiary.Id);
         builder.Property(beneficiary => beneficiary.Id).ValueGeneratedOnAdd();
@@ -25,8 +23,7 @@ public sealed class BeneficiaryConfiguration : IEntityTypeConfiguration<Benefici
 
         builder.HasIndex(beneficiary => beneficiary.OwnerUserId);
         builder
-            .HasIndex(beneficiary => new
-            {
+            .HasIndex(beneficiary => new {
                 beneficiary.OwnerUserId,
                 beneficiary.DestinationAccountId,
             })

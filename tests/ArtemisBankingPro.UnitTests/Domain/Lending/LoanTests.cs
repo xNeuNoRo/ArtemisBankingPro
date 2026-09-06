@@ -50,6 +50,72 @@ public sealed class LoanTests {
     }
 
     [Fact]
+    public void ApplyPayment_RaisesPaymentProcessedEvent_WithAppliedAndRemaining() {
+        Loan loan = CreateLoan();
+
+        loan.ApplyPayment(Money.Create(100m).Value, IssuedAt.AddDays(1));
+
+        LoanPaymentProcessedEvent? domainEvent = Assert.IsType<LoanPaymentProcessedEvent>(
+            loan.DomainEvents.OfType<LoanPaymentProcessedEvent>().Single()
+        );
+        domainEvent.CustomerUserId.Should().Be("customer");
+        Assert.Equal(loan.Number, domainEvent.LoanNumber);
+        domainEvent.AppliedAmount.Amount.Should().Be(100m);
+        domainEvent.RemainingOutstandingAmount.Amount.Should().Be(
+            loan.OutstandingAmount.Amount
+        );
+        domainEvent.PaidAt.Should().Be(IssuedAt.AddDays(1));
+    }
+
+    [Fact]
+    public void ApplyPayment_CompletingLoan_RaisesLoanCompletedEvent() {
+        Loan loan = CreateLoan();
+
+        loan.ApplyPayment(
+            Money.Create(loan.OutstandingAmount.Amount).Value,
+            IssuedAt.AddMonths(1)
+        );
+
+        LoanCompletedEvent? completedEvent = Assert.IsType<LoanCompletedEvent>(
+            loan.DomainEvents.OfType<LoanCompletedEvent>().Single()
+        );
+        Assert.Equal(loan.Number, completedEvent.LoanNumber);
+        completedEvent.CustomerUserId.Should().Be("customer");
+        completedEvent.CompletedAt.Should().Be(IssuedAt.AddMonths(1));
+
+        loan.DomainEvents
+            .OfType<LoanPaymentProcessedEvent>()
+            .Should()
+            .ContainSingle()
+            .Which.RemainingOutstandingAmount.Should()
+            .Be(Money.Zero);
+    }
+
+    [Fact]
+    public void ApplyPayment_CompletedLoan_RejectsAndDoesNotRaiseEvents() {
+        Loan loan = CreateLoan();
+        loan.ApplyPayment(
+            Money.Create(loan.OutstandingAmount.Amount).Value,
+            IssuedAt.AddMonths(1)
+        );
+
+        Result<Money> result = loan.ApplyPayment(
+            Money.Create(100m).Value,
+            IssuedAt.AddMonths(2)
+        );
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Code.Should().Be("Loan.NotActive");
+        loan.DomainEvents
+            .OfType<LoanPaymentProcessedEvent>()
+            .Should()
+            .ContainSingle()
+            .Which.PaidAt.Should()
+            .Be(IssuedAt.AddMonths(1));
+        loan.DomainEvents.OfType<LoanCompletedEvent>().Should().ContainSingle();
+    }
+
+    [Fact]
     public void RefreshDelinquency_DueDatePassed_MarksIncompleteInstallment() {
         Loan loan = CreateLoan();
         DateOnly firstDueDate = loan.Installments.Min(item => item.DueDate);
@@ -58,6 +124,24 @@ public sealed class LoanTests {
 
         loan.IsDelinquent.Should().BeTrue();
         loan.Installments.Single(item => item.Number == 1).IsOverdue.Should().BeTrue();
+    }
+
+    [Fact]
+    public void RefreshDelinquency_TransitionToDelinquent_RaisesOneEvent() {
+        Loan loan = CreateLoan();
+        DateOnly businessDate = loan.Installments.Min(item => item.DueDate).AddDays(1);
+
+        loan.RefreshDelinquency(businessDate);
+        loan.RefreshDelinquency(businessDate);
+
+        LoanDelinquentEvent domainEvent = loan.DomainEvents
+            .OfType<LoanDelinquentEvent>()
+            .Should()
+            .ContainSingle()
+            .Which;
+        domainEvent.CustomerUserId.Should().Be("customer");
+        Assert.Equal(loan.Number, domainEvent.LoanNumber);
+        domainEvent.BusinessDate.Should().Be(businessDate);
     }
 
     [Fact]
@@ -86,6 +170,19 @@ public sealed class LoanTests {
         loan.ChangeInterestRate(InterestRate.Create(24m).Value, first.DueDate);
 
         first.ScheduledAmount.Should().Be(originalAmount);
+    }
+
+    [Fact]
+    public void ChangeInterestRate_OverdueInstallment_DoesNotChangeIt() {
+        Loan loan = CreateLoan();
+        Installment first = loan.Installments.Single(item => item.Number == 1);
+        Money originalAmount = first.ScheduledAmount;
+
+        loan.RefreshDelinquency(first.DueDate.AddDays(1));
+        loan.ChangeInterestRate(InterestRate.Create(24m).Value, first.DueDate.AddDays(1));
+
+        first.ScheduledAmount.Should().Be(originalAmount);
+        first.IsOverdue.Should().BeTrue();
     }
 
     [Fact]

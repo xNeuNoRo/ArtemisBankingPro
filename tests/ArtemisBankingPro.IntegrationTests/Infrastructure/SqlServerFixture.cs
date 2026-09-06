@@ -2,6 +2,7 @@ using ArtemisBankingPro.Infrastructure.Identity;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Persistence;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
+using ArtemisBankingPro.Infrastructure.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -68,6 +69,7 @@ public sealed class SqlServerFixture : IAsyncLifetime {
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
         services.AddPersistence(configuration);
         services.AddIdentityForWebApi(configuration);
+        services.AddSharedInfrastructure(configuration);
         configure?.Invoke(services);
 
         return services.BuildServiceProvider();
@@ -79,6 +81,7 @@ public sealed class SqlServerFixture : IAsyncLifetime {
 
         string[] dboTables =
         [
+            "ConfirmationTokens",
             "IdempotencyRecords",
             "AccountTransactions",
             "CardConsumptions",

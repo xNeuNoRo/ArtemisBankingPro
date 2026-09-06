@@ -1,4 +1,4 @@
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
+using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
 using Microsoft.EntityFrameworkCore;

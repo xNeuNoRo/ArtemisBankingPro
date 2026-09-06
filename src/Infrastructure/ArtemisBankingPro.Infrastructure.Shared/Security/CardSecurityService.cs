@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using ArtemisBankingPro.Application.Interfaces.Security;
+using ArtemisBankingPro.Domain.Cards.Security;
 using Microsoft.Extensions.Options;
 
 namespace ArtemisBankingPro.Infrastructure.Shared.Security;
@@ -10,24 +12,20 @@ namespace ArtemisBankingPro.Infrastructure.Shared.Security;
 /// El CVC se almacena como digest HMAC con pepper, no como SHA-256 plano
 /// (el espacio de 3 dígitos es trivial de enumerar).
 /// </summary>
-public sealed class CardSecurityService : ICardSecurityService
-{
+public sealed class CardSecurityService : ICardSecurityService, ICvcVerifier {
     private readonly CardSecurityOptions _options;
 
-    public CardSecurityService(IOptions<CardSecurityOptions> options)
-    {
+    public CardSecurityService(IOptions<CardSecurityOptions> options) {
         _options = options.Value;
 
-        if (string.IsNullOrWhiteSpace(_options.FingerprintKey))
-        {
+        if (string.IsNullOrWhiteSpace(_options.FingerprintKey)) {
             throw new InvalidOperationException(
                 "Security:Card:FingerprintKey no está configurada. "
                     + "Provea una clave HMAC de 32 bytes en base64."
             );
         }
 
-        if (string.IsNullOrWhiteSpace(_options.CvcPepperKey))
-        {
+        if (string.IsNullOrWhiteSpace(_options.CvcPepperKey)) {
             throw new InvalidOperationException(
                 "Security:Card:CvcPepperKey no está configurada. "
                     + "Provea una clave HMAC de 32 bytes en base64."
@@ -35,8 +33,7 @@ public sealed class CardSecurityService : ICardSecurityService
         }
     }
 
-    public string ComputePanFingerprint(string pan)
-    {
+    public string ComputePanFingerprint(string pan) {
         ArgumentException.ThrowIfNullOrWhiteSpace(pan);
 
         byte[] key = GetKey(_options.FingerprintKey);
@@ -44,8 +41,7 @@ public sealed class CardSecurityService : ICardSecurityService
         return Convert.ToHexString(digest).ToLowerInvariant();
     }
 
-    public string ComputeCvcDigest(string cvc)
-    {
+    public string ComputeCvcDigest(string cvc) {
         ArgumentException.ThrowIfNullOrWhiteSpace(cvc);
 
         byte[] key = GetKey(_options.CvcPepperKey);
@@ -53,10 +49,8 @@ public sealed class CardSecurityService : ICardSecurityService
         return Convert.ToHexString(digest).ToLowerInvariant();
     }
 
-    public bool VerifyCvc(string cvc, string storedDigest)
-    {
-        if (string.IsNullOrWhiteSpace(cvc) || string.IsNullOrWhiteSpace(storedDigest))
-        {
+    public bool VerifyCvc(string cvc, string storedDigest) {
+        if (string.IsNullOrWhiteSpace(cvc) || string.IsNullOrWhiteSpace(storedDigest)) {
             return false;
         }
 
@@ -67,14 +61,13 @@ public sealed class CardSecurityService : ICardSecurityService
         );
     }
 
-    private static byte[] GetKey(string? key)
-    {
-        try
-        {
+    public bool Verify(string cvc, string storedDigest) => VerifyCvc(cvc, storedDigest);
+
+    private static byte[] GetKey(string? key) {
+        try {
             return Convert.FromBase64String(key!);
         }
-        catch (FormatException ex)
-        {
+        catch (FormatException ex) {
             throw new InvalidOperationException(
                 "Las claves de seguridad de tarjeta deben estar en base64.",
                 ex

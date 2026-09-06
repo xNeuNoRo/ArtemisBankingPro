@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Domain.Merchants.Entities;
 using ArtemisBankingPro.Domain.Merchants.Enums;
 using ArtemisBankingPro.Domain.Merchants.Errors;
+using ArtemisBankingPro.Domain.Merchants.Events;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 
 namespace ArtemisBankingPro.UnitTests.Domain.Merchants;
@@ -9,11 +10,24 @@ public sealed class MerchantTests {
     private static readonly DateTimeOffset Now = new(2026, 7, 29, 12, 0, 0, TimeSpan.FromHours(-4));
 
     [Fact]
-    public void Create_ValidData_StartsActiveAndNormalizesEmail() {
+    public void Create_StartsActiveAndNormalizesEmail() {
         Merchant merchant = CreateMerchant();
 
         merchant.Status.Should().Be(MerchantStatus.Active);
         merchant.Email.Should().Be("store@example.com");
+    }
+
+    [Fact]
+    public void Create_RaisesMerchantCreatedEvent() {
+        Merchant merchant = CreateMerchant();
+
+        MerchantCreatedEvent? domainEvent = merchant.DomainEvents
+            .OfType<MerchantCreatedEvent>()
+            .SingleOrDefault();
+        Assert.NotNull(domainEvent);
+        domainEvent.Name.Should().Be("Store");
+        domainEvent.Rnc.Should().Be("123456789");
+        domainEvent.CreatedAt.Should().Be(Now);
     }
 
     [Fact]
@@ -155,6 +169,65 @@ public sealed class MerchantTests {
         merchant.Deactivate(Now.AddMinutes(1));
 
         Assert.Equal(MerchantErrors.InvalidUpdateDate, merchant.Activate(Now.AddMinutes(-1)).Error);
+    }
+
+    [Fact]
+    public void DeactivateAndActivate_RaiseMerchantStatusChangedEvents() {
+        Merchant merchant = CreateMerchant();
+
+        merchant.Deactivate(Now.AddMinutes(1));
+        merchant.Activate(Now.AddMinutes(2));
+
+        List<MerchantStatusChangedEvent> events =
+            merchant.DomainEvents.OfType<MerchantStatusChangedEvent>().ToList();
+        events.Should().HaveCount(2);
+        events[0].IsActive.Should().BeFalse();
+        events[0].ChangedAt.Should().Be(Now.AddMinutes(1));
+        events[1].IsActive.Should().BeTrue();
+        events[1].ChangedAt.Should().Be(Now.AddMinutes(2));
+        events.Should().OnlyContain(e => e.MerchantId == merchant.Id);
+    }
+
+    [Fact]
+    public void RejectedStatusChange_DoesNotRaiseNewEvent() {
+        Merchant merchant = CreateMerchant();
+
+        merchant.Deactivate(Now.AddMinutes(1));
+        merchant.Deactivate(Now.AddMinutes(2));
+        merchant.Activate(Now.AddMinutes(3));
+        merchant.Activate(Now.AddMinutes(4));
+
+        merchant.DomainEvents.OfType<MerchantStatusChangedEvent>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void UpdateInformation_RaisesMerchantUpdatedEventOnSuccessOnly() {
+        Merchant merchant = CreateMerchant();
+
+        Result success = merchant.UpdateInformation(
+            "Renamed",
+            null,
+            "new@example.com",
+            "8095554444",
+            "999111222",
+            Now.AddMinutes(1));
+
+        success.IsSuccess.Should().BeTrue();
+        List<MerchantUpdatedEvent> events =
+            merchant.DomainEvents.OfType<MerchantUpdatedEvent>().ToList();
+        events.Should().ContainSingle();
+        events[0].MerchantId.Should().Be(merchant.Id);
+        events[0].UpdatedAt.Should().Be(Now.AddMinutes(1));
+
+        merchant.UpdateInformation(
+            "",
+            null,
+            "another@example.com",
+            "8095554444",
+            "999111222",
+            Now.AddMinutes(2));
+
+        merchant.DomainEvents.OfType<MerchantUpdatedEvent>().Should().HaveCount(1);
     }
 
     [Fact]

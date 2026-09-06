@@ -15,7 +15,7 @@ public sealed class UnitOfWorkTests(SqlServerFixture fixture) : SqlServerTestBas
         new(2026, 8, 6, 12, 0, 0, TimeSpan.FromHours(-4));
 
     [Fact]
-    public async Task ExecuteInTransactionAsync_FailedResult_CommitsHistoryCreatedByOperation() {
+    public async Task ExecuteInTransactionAsync_FailedResult_RollsBackAllChanges() {
         await WithContextAsync(async context => {
             await context.SavingsAccounts.AddAsync(
                 SavingsAccount.OpenPrimary("owner-1", AccountNumber.Create("200000001").Value, Money.Zero, "admin", OccurredAt).Value
@@ -48,6 +48,9 @@ public sealed class UnitOfWorkTests(SqlServerFixture fixture) : SqlServerTestBas
                 ]).Value;
 
             await context.FinancialOperations.AddAsync(rejected, ct);
+            // Fallo de negocio: cualquier escritura añadida en este bloque se
+            // revierte. El historial de rechazo se persiste en una transacción
+            // separada (ver test siguiente).
             return Result.Failure(
                 DomainError.Declined(
                     "Test.Rejected",
@@ -57,6 +60,54 @@ public sealed class UnitOfWorkTests(SqlServerFixture fixture) : SqlServerTestBas
         });
 
         result.IsFailure.Should().BeTrue();
+
+        await using var verificationScope = Fixture.Services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider
+            .GetRequiredService<BankingDbContext>();
+        int count = await verificationContext.FinancialOperations.CountAsync();
+        count.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ExecuteInTransactionAsync_RejectionHistoryPersistsInSeparateTransaction() {
+        await WithContextAsync(async context => {
+            await context.SavingsAccounts.AddAsync(
+                SavingsAccount.OpenPrimary("owner-1", AccountNumber.Create("200000005").Value, Money.Zero, "admin", OccurredAt).Value
+            );
+            await context.SaveChangesAsync();
+        });
+
+        await using var scope = Fixture.Services.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var context = scope.ServiceProvider.GetRequiredService<BankingDbContext>();
+
+        // Patrón ADR-002: el rechazo se persiste en su propia transacción
+        // (resultado exitoso); el fallo de negocio se devuelve fuera de ella.
+        Result rejectionPersistence = await unitOfWork.ExecuteInTransactionAsync(async ct => {
+            AccountNumber accountNumber = AccountNumber.Create("200000005").Value;
+            var rejected = FinancialOperation.Reject(
+                Guid.NewGuid(),
+                FinancialOperationKind.Withdrawal,
+                Money.Create(50m).Value,
+                Money.Zero,
+                "cashier-1",
+                OccurredAt,
+                "InsufficientFunds",
+                [
+                    new ArtemisBankingPro.Domain.Accounts.Details.AccountTransactionDetails(
+                        accountNumber,
+                        ArtemisBankingPro.Domain.Accounts.Enums.TransactionDirection.Debit,
+                        Money.Create(50m).Value,
+                        accountNumber.Value,
+                        accountNumber.Value
+                    ),
+                ]).Value;
+
+            await context.FinancialOperations.AddAsync(rejected, ct);
+            return Result.Success();
+        });
+
+        rejectionPersistence.IsSuccess.Should().BeTrue();
 
         await using var verificationScope = Fixture.Services.CreateAsyncScope();
         var verificationContext = verificationScope.ServiceProvider
@@ -157,5 +208,30 @@ public sealed class UnitOfWorkTests(SqlServerFixture fixture) : SqlServerTestBas
         var verificationContext = verificationScope.ServiceProvider
             .GetRequiredService<BankingDbContext>();
         (await verificationContext.SavingsAccounts.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ExecuteInTransactionAsync_UniqueConstraintViolation_ReturnsConflict() {
+        await WithContextAsync(async context => {
+            context.Set<IdempotencyRecord>().Add(
+                new IdempotencyRecord("dup-key", "actor-1", "Test", "fp", OccurredAt)
+            );
+            await context.SaveChangesAsync();
+        });
+
+        await using var scope = Fixture.Services.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var context = scope.ServiceProvider.GetRequiredService<BankingDbContext>();
+
+        Result result = await unitOfWork.ExecuteInTransactionAsync(async ct => {
+            await context.Set<IdempotencyRecord>().AddAsync(
+                new IdempotencyRecord("dup-key", "actor-1", "Test", "fp", OccurredAt),
+                ct
+            );
+            return Result.Success();
+        });
+
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Code.Should().Be("Concurrency.Conflict");
     }
 }

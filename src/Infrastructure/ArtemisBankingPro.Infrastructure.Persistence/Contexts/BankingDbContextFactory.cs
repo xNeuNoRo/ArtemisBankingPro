@@ -10,14 +10,11 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 /// Factory de design-time para <c>dotnet ef</c>. Requiere la variable de
 /// entorno ARTEMIS_CONNECTION_STRING (nunca credenciales en el repositorio).
 /// </summary>
-public sealed class BankingDbContextFactory : IDesignTimeDbContextFactory<BankingDbContext>
-{
-    public BankingDbContext CreateDbContext(string[] args)
-    {
+public sealed class BankingDbContextFactory : IDesignTimeDbContextFactory<BankingDbContext> {
+    public BankingDbContext CreateDbContext(string[] args) {
         string? connectionString = Environment.GetEnvironmentVariable("ARTEMIS_CONNECTION_STRING");
 
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
+        if (string.IsNullOrWhiteSpace(connectionString)) {
             throw new InvalidOperationException(
                 "Defina la variable de entorno ARTEMIS_CONNECTION_STRING "
                     + "antes de ejecutar migraciones con dotnet ef."
@@ -39,8 +36,7 @@ public sealed class BankingDbContextFactory : IDesignTimeDbContextFactory<Bankin
         );
     }
 
-    private sealed class NoOpDomainEventDispatcher : IDomainEventDispatcher
-    {
+    private sealed class NoOpDomainEventDispatcher : IDomainEventDispatcher {
         public Task DispatchAsync(IDomainEvent domainEvent, CancellationToken ct = default) =>
             Task.CompletedTask;
     }

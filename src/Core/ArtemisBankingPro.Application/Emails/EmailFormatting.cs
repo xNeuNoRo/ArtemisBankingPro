@@ -7,8 +7,7 @@ namespace ArtemisBankingPro.Application.Emails;
 /// Formateo invariante para correos, dinero en RD$, tasas y fechas en la zona
 /// de negocio.
 /// </summary>
-public static class EmailFormatting
-{
+public static class EmailFormatting {
     public static string FormatMoney(Money money) =>
         $"RD$ {money.Amount.ToString("0.00", CultureInfo.InvariantCulture)}";
 

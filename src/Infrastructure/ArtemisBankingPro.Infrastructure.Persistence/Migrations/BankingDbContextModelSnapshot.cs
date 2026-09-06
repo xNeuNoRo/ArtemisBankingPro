@@ -27,6 +27,58 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                 .HasMin(1L)
                 .HasMax(999999999L);
 
+            modelBuilder.Entity("ArtemisBankingPro.Application.Interfaces.Persistence.ConfirmationToken", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset?>("ConsumedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("OperationType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("ActorId", "OperationType");
+
+                    b.ToTable("ConfirmationTokens", "dbo");
+                });
+
             modelBuilder.Entity("ArtemisBankingPro.Application.Interfaces.Persistence.IdempotencyRecord", b =>
                 {
                     b.Property<long>("Id")
@@ -649,7 +701,7 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_FinancialOperations_Interest_NonNegative", "[InterestAmount] >= 0");
 
-                            t.HasCheckConstraint("CK_FinancialOperations_Requested_Positive", "[RequestedAmount] > 0");
+                            t.HasCheckConstraint("CK_FinancialOperations_Requested_Positive", "([RequestedAmount] > 0 AND [Kind] NOT IN (15, 16, 17, 18)) OR ([Kind] IN (15, 16, 17, 18) AND [RequestedAmount] = 0)");
                         });
                 });
 

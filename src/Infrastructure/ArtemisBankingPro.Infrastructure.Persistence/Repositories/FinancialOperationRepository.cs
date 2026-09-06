@@ -8,12 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
-public sealed class FinancialOperationRepository : IFinancialOperationRepository
-{
+public sealed class FinancialOperationRepository : IFinancialOperationRepository {
     private readonly BankingDbContext _context;
 
-    public FinancialOperationRepository(BankingDbContext context)
-    {
+    public FinancialOperationRepository(BankingDbContext context) {
         _context = context;
     }
 
@@ -87,8 +85,7 @@ public sealed class FinancialOperationRepository : IFinancialOperationRepository
     public async Task<FinancialOperation> AddAsync(
         FinancialOperation operation,
         CancellationToken ct = default
-    )
-    {
+    ) {
         await _context.Set<FinancialOperation>().AddAsync(operation, ct);
         return operation;
     }
@@ -97,8 +94,7 @@ public sealed class FinancialOperationRepository : IFinancialOperationRepository
         IQueryable<FinancialOperation> query,
         PageRequest page,
         CancellationToken ct
-    )
-    {
+    ) {
         int totalCount = await query.CountAsync(ct);
         List<FinancialOperation> items = await query
             .OrderByDescending(operation => operation.OccurredAt)

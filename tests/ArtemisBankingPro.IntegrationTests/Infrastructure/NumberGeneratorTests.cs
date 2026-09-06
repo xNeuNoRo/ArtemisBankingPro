@@ -1,4 +1,4 @@
-using ArtemisBankingPro.Infrastructure.Persistence.Services;
+using ArtemisBankingPro.Application.Interfaces.Services;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -7,7 +7,7 @@ public sealed class NumberGeneratorTests(SqlServerFixture fixture) : SqlServerTe
     [Fact]
     public async Task NextAccountNumber_ReturnsNineDigitNumber() {
         await using var scope = Fixture.Services.CreateAsyncScope();
-        var generator = scope.ServiceProvider.GetRequiredService<NumberGenerator>();
+        var generator = scope.ServiceProvider.GetRequiredService<INumberGenerator>();
 
         string number = await generator.NextAccountNumberAsync();
 
@@ -17,7 +17,7 @@ public sealed class NumberGeneratorTests(SqlServerFixture fixture) : SqlServerTe
     [Fact]
     public async Task NextCardNumber_ReturnsSixteenDigitsWithValidLuhn() {
         await using var scope = Fixture.Services.CreateAsyncScope();
-        var generator = scope.ServiceProvider.GetRequiredService<NumberGenerator>();
+        var generator = scope.ServiceProvider.GetRequiredService<INumberGenerator>();
 
         string number = await generator.NextCardNumberAsync();
 
@@ -31,7 +31,7 @@ public sealed class NumberGeneratorTests(SqlServerFixture fixture) : SqlServerTe
             .Select(
                 _ => Task.Run(async () => {
                     await using var scope = Fixture.Services.CreateAsyncScope();
-                    var generator = scope.ServiceProvider.GetRequiredService<NumberGenerator>();
+                    var generator = scope.ServiceProvider.GetRequiredService<INumberGenerator>();
                     return await generator.NextAccountNumberAsync();
                 })
             );
@@ -48,12 +48,12 @@ public sealed class NumberGeneratorTests(SqlServerFixture fixture) : SqlServerTe
             {
                 Task.Run(async () => {
                     await using var scope = Fixture.Services.CreateAsyncScope();
-                    var generator = scope.ServiceProvider.GetRequiredService<NumberGenerator>();
+                    var generator = scope.ServiceProvider.GetRequiredService<INumberGenerator>();
                     return await generator.NextAccountNumberAsync();
                 }),
                 Task.Run(async () => {
                     await using var scope = Fixture.Services.CreateAsyncScope();
-                    var generator = scope.ServiceProvider.GetRequiredService<NumberGenerator>();
+                    var generator = scope.ServiceProvider.GetRequiredService<INumberGenerator>();
                     return await generator.NextLoanNumberAsync();
                 }),
             });

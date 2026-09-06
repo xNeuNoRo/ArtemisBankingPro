@@ -1,4 +1,4 @@
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
+using ArtemisBankingPro.Application.Interfaces.Identity;
 
 namespace ArtemisBankingPro.Infrastructure.Identity.Entities;
 
@@ -8,8 +8,7 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Entities;
 /// correo y nunca se almacena. Un solo uso, con vencimiento, vinculado a
 /// usuario y propósito.
 /// </summary>
-public sealed class AccountToken
-{
+public sealed class AccountToken {
     private AccountToken() { }
 
     internal AccountToken(
@@ -18,8 +17,7 @@ public sealed class AccountToken
         string tokenHash,
         DateTimeOffset expiresAtUtc,
         DateTimeOffset createdAtUtc
-    )
-    {
+    ) {
         UserId = userId;
         Type = type;
         TokenHash = tokenHash;

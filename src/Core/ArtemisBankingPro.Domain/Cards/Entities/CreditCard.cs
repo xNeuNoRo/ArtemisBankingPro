@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Domain.Cards.Enums;
 using ArtemisBankingPro.Domain.Cards.Errors;
 using ArtemisBankingPro.Domain.Cards.Events;
+using ArtemisBankingPro.Domain.Cards.Security;
 using ArtemisBankingPro.Domain.Cards.ValueObjects;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
@@ -156,7 +157,17 @@ public sealed class CreditCard : AggregateRoot<int> {
         return Result.Success();
     }
 
-    public Result<Money> ApplyPayment(Money requestedAmount) {
+    public Result VerifyCvc(string cvc, ICvcVerifier verifier) {
+        if (verifier is null || string.IsNullOrWhiteSpace(cvc)) {
+            return Result.Failure(CardErrors.InvalidCvc);
+        }
+
+        return verifier.Verify(cvc, CvcDigest.GetValue())
+            ? Result.Success()
+            : Result.Failure(CardErrors.InvalidCvc);
+    }
+
+    public Result<Money> ApplyPayment(Money requestedAmount, DateTimeOffset paidAt) {
         if (Status != CreditCardStatus.Active) {
             return Result.Failure<Money>(CardErrors.NotActive);
         }
@@ -171,6 +182,9 @@ public sealed class CreditCard : AggregateRoot<int> {
 
         Money appliedAmount = requestedAmount <= CurrentDebt ? requestedAmount : CurrentDebt;
         CurrentDebt = CurrentDebt.Subtract(appliedAmount).Value;
+        RaiseDomainEvent(
+            new CardPaymentProcessedEvent(CustomerUserId, LastFour, appliedAmount, CurrentDebt, paidAt)
+        );
         return Result.Success(appliedAmount);
     }
 
@@ -207,6 +221,7 @@ public sealed class CreditCard : AggregateRoot<int> {
 
         Status = CreditCardStatus.Cancelled;
         CancelledAt = cancelledAt;
+        RaiseDomainEvent(new CardCancelledEvent(CustomerUserId, LastFour, cancelledAt));
         return Result.Success();
     }
 }

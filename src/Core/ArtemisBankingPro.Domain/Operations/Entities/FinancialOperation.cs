@@ -81,6 +81,102 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
 
     public CardConsumption? CardConsumption { get; private set; }
 
+    /// <summary>
+    /// Marca la operación como una transferencia a cuentas de terceros
+    /// procesada, desencadenando <see cref="ThirdPartyTransferProcessedEvent"/>
+    /// para las notificaciones post-commit. Solo transporta datos seguros.
+    /// </summary>
+    public void RecordThirdPartyTransferProcessed(
+        string sourceAccountNumber,
+        string destinationAccountNumber,
+        Money amount,
+        string sourceOwnerUserId,
+        string destinationOwnerUserId,
+        string cashierUserId
+    ) =>
+        RaiseDomainEvent(
+            new ThirdPartyTransferProcessedEvent(
+                Id,
+                sourceAccountNumber,
+                destinationAccountNumber,
+                amount,
+                sourceOwnerUserId,
+                destinationOwnerUserId,
+                cashierUserId,
+                OccurredAt
+            )
+        );
+
+    /// <summary>
+    /// Marca la operación como un depósito de cajero procesado, desencadenando
+    /// <see cref="DepositProcessedEvent"/> para las notificaciones post-commit.
+    /// Solo transporta datos seguros.
+    /// </summary>
+    public void RecordDepositProcessed(
+        string accountNumber,
+        Money amount,
+        string ownerUserId,
+        string cashierUserId
+    ) =>
+        RaiseDomainEvent(
+            new DepositProcessedEvent(
+                Id,
+                accountNumber,
+                amount,
+                ownerUserId,
+                cashierUserId,
+                OccurredAt
+            )
+        );
+
+    /// <summary>
+    /// Marca la operación como un retiro de cajero procesado, desencadenando
+    /// <see cref="WithdrawalProcessedEvent"/> para las notificaciones
+    /// post-commit. Solo transporta datos seguros.
+    /// </summary>
+    public void RecordWithdrawalProcessed(
+        string accountNumber,
+        Money amount,
+        string ownerUserId,
+        string cashierUserId
+    ) =>
+        RaiseDomainEvent(
+            new WithdrawalProcessedEvent(
+                Id,
+                accountNumber,
+                amount,
+                ownerUserId,
+                cashierUserId,
+                OccurredAt
+            )
+        );
+
+    /// <summary>
+    /// Marca la operación como un pago Hermes Pay procesado, desencadenando
+    /// <see cref="HermesPayProcessedEvent"/> para las notificaciones
+    /// post-commit. Solo transporta datos seguros.
+    /// </summary>
+    public void RecordHermesPayProcessed(
+        string cardLastFour,
+        int merchantId,
+        string merchantName,
+        Money amount,
+        string cardOwnerUserId,
+        string merchantEmail
+    ) =>
+        RaiseDomainEvent(
+            new HermesPayProcessedEvent(
+                Id,
+                cardLastFour,
+                merchantId,
+                merchantName,
+                amount,
+                cardOwnerUserId,
+                merchantEmail,
+                OccurredAt
+            )
+        );
+
     public static Result<FinancialOperation> Approve(
         Guid id,
         FinancialOperationKind kind,
@@ -265,12 +361,29 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             return Result.Failure(OperationErrors.InvalidActor);
         }
 
-        if (requestedAmount.Amount <= 0m) {
+        bool expectsNoAmount =
+            kind
+            is FinancialOperationKind.CardCancelled
+                or FinancialOperationKind.CardLimitChanged
+                or FinancialOperationKind.CardAssigned
+                or FinancialOperationKind.AccountCancelled;
+
+        if (!expectsNoAmount && requestedAmount.Amount <= 0m) {
             return Result.Failure(OperationErrors.InvalidRequestedAmount);
         }
 
-        if (status == FinancialOperationStatus.Approved && appliedAmount.Amount <= 0m) {
+        if (expectsNoAmount && requestedAmount != Money.Zero) {
+            return Result.Failure(OperationErrors.InvalidAmountEquation);
+        }
+
+        if (status == FinancialOperationStatus.Approved
+            && appliedAmount.Amount <= 0m
+            && !expectsNoAmount) {
             return Result.Failure(OperationErrors.InvalidAppliedAmount);
+        }
+
+        if (expectsNoAmount && appliedAmount != Money.Zero) {
+            return Result.Failure(OperationErrors.InvalidAmountEquation);
         }
 
         if (status == FinancialOperationStatus.Rejected && appliedAmount != Money.Zero) {
@@ -292,7 +405,7 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
 
         if (
             kind == FinancialOperationKind.CashAdvance
-                ? interestAmount.Amount <= 0m
+                ? interestAmount.Amount < 0m
                 : interestAmount != Money.Zero
         ) {
             return Result.Failure(OperationErrors.InvalidAmountEquation);
@@ -391,7 +504,9 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
             kind
             is FinancialOperationKind.CreditCardPayment
                 or FinancialOperationKind.CashAdvance
-                or FinancialOperationKind.HermesPayment;
+                or FinancialOperationKind.HermesPayment
+                or FinancialOperationKind.CardCancelled
+                or FinancialOperationKind.CardLimitChanged;
         bool requiresLoan =
             kind is FinancialOperationKind.LoanDisbursement or FinancialOperationKind.LoanPayment;
         bool requiresMerchant = kind == FinancialOperationKind.HermesPayment;
@@ -434,15 +549,25 @@ public sealed class FinancialOperation : AggregateRoot<Guid> {
         FinancialOperationStatus status
     ) {
         if (status == FinancialOperationStatus.Approved) {
-            return
+            if (
                 kind
                     is FinancialOperationKind.ExpressTransfer
                         or FinancialOperationKind.BeneficiaryTransfer
                         or FinancialOperationKind.OwnAccountTransfer
                         or FinancialOperationKind.CashierTransfer
                         or FinancialOperationKind.SecondaryAccountClosureTransfer
-                ? 2
-                : 1;
+            ) {
+                return 2;
+            }
+
+            return
+                kind
+                    is FinancialOperationKind.CardCancelled
+                        or FinancialOperationKind.CardLimitChanged
+                        or FinancialOperationKind.CardAssigned
+                        or FinancialOperationKind.AccountCancelled
+                    ? 0
+                    : 1;
         }
 
         return kind switch {

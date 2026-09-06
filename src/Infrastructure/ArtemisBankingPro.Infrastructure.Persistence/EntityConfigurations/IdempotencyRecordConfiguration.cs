@@ -4,10 +4,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<IdempotencyRecord>
-{
-    public void Configure(EntityTypeBuilder<IdempotencyRecord> builder)
-    {
+public sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<IdempotencyRecord> {
+    public void Configure(EntityTypeBuilder<IdempotencyRecord> builder) {
         builder.ToTable("IdempotencyRecords");
         builder.HasKey(record => record.Id);
         builder.Property(record => record.Id).ValueGeneratedOnAdd();

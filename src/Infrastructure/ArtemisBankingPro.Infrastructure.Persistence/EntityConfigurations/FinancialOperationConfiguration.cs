@@ -6,17 +6,14 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class FinancialOperationConfiguration : IEntityTypeConfiguration<FinancialOperation>
-{
-    public void Configure(EntityTypeBuilder<FinancialOperation> builder)
-    {
+public sealed class FinancialOperationConfiguration : IEntityTypeConfiguration<FinancialOperation> {
+    public void Configure(EntityTypeBuilder<FinancialOperation> builder) {
         builder.ToTable(
             "FinancialOperations",
-            table =>
-            {
+            table => {
                 table.HasCheckConstraint(
                     "CK_FinancialOperations_Requested_Positive",
-                    "[RequestedAmount] > 0"
+                    "([RequestedAmount] > 0 AND [Kind] NOT IN (15, 16, 17, 18)) OR ([Kind] IN (15, 16, 17, 18) AND [RequestedAmount] = 0)"
                 );
                 table.HasCheckConstraint(
                     "CK_FinancialOperations_Applied_NonNegative",

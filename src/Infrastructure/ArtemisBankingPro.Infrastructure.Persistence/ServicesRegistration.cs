@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Interfaces.Events;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Services;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using ArtemisBankingPro.Infrastructure.Persistence.Events;
 using ArtemisBankingPro.Infrastructure.Persistence.Persistence;
@@ -26,11 +27,10 @@ public static class ServicesRegistration {
                 configuration.GetConnectionString("ArtemisDb"),
                 sql => {
                     sql.MigrationsAssembly(typeof(BankingDbContext).Assembly.FullName);
-                    sql.EnableRetryOnFailure(
-                        maxRetryCount: 3,
-                        maxRetryDelay: TimeSpan.FromSeconds(5),
-                        errorNumbersToAdd: null
-                    );
+                    // Sin EnableRetryOnFailure: las escrituras financieras no se
+                    // reintentan a ciegas. El reintento lo resuelve la
+                    // idempotencia con clave estable; los conflictos de
+                    // concurrencia se traducen a un resultado estable.
                     sql.CommandTimeout(30);
                 }
             )
@@ -46,10 +46,13 @@ public static class ServicesRegistration {
         services.AddScoped<IMerchantRepository, MerchantRepository>();
         services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
         services.AddScoped<IFinancialOperationRepository, FinancialOperationRepository>();
+        services.AddScoped<ICashierRepository, CashierRepository>();
+        services.AddScoped<IAdminRepository, AdminRepository>();
         services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
+        services.AddScoped<IConfirmationTokenRepository, ConfirmationTokenRepository>();
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
-        services.AddScoped<NumberGenerator>();
+        services.AddScoped<INumberGenerator, NumberGenerator>();
 
         return services;
     }

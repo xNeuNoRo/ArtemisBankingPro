@@ -7,8 +7,7 @@ namespace ArtemisBankingPro.Application.Interfaces.Persistence;
 /// Unit of Work para ejecutar operaciones atómicas con reintento ante
 /// fallos transitorios.
 /// </summary>
-public interface IUnitOfWork : IDisposable, IAsyncDisposable
-{
+public interface IUnitOfWork : IDisposable, IAsyncDisposable {
     /// <summary>
     /// Ejecuta una operación que devuelve un valor dentro de una transacción.
     /// Se confirma solo si la operación termina con éxito; cualquier excepción

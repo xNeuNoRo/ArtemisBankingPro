@@ -4,10 +4,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class MerchantConfiguration : IEntityTypeConfiguration<Merchant>
-{
-    public void Configure(EntityTypeBuilder<Merchant> builder)
-    {
+public sealed class MerchantConfiguration : IEntityTypeConfiguration<Merchant> {
+    public void Configure(EntityTypeBuilder<Merchant> builder) {
         builder.ToTable("Merchants");
         builder.HasKey(merchant => merchant.Id);
         builder.Property(merchant => merchant.Id).ValueGeneratedOnAdd();

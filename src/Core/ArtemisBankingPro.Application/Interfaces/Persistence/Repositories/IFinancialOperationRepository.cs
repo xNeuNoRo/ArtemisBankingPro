@@ -8,8 +8,7 @@ namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 /// <summary>
 /// Repositorio del historial financiero (solo lectura y alta, nunca borrado).
 /// </summary>
-public interface IFinancialOperationRepository
-{
+public interface IFinancialOperationRepository {
     Task<FinancialOperation?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
     Task<PageResult<FinancialOperation>> GetByAccountNumberAsync(

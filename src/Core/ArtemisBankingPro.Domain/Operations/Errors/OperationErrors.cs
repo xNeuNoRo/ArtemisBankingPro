@@ -35,4 +35,16 @@ public static class OperationErrors {
 
     public static DomainError UnbalancedTransfer { get; } =
         DomainError.Conflict("Operation.UnbalancedTransfer", "Una transferencia requiere movimientos de débito y crédito iguales para cuentas diferentes.");
+
+    public static DomainError SameAccount { get; } =
+        DomainError.Validation(
+            "Operation.SameAccount",
+            "La cuenta destino debe ser diferente a la cuenta origen."
+        );
+
+    public static DomainError DestinationMustBeThirdParty { get; } =
+        DomainError.Validation(
+            "Operation.DestinationMustBeThirdParty",
+            "La cuenta destino debe pertenecer a un tercero."
+        );
 }

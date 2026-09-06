@@ -1,10 +1,12 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text.Json;
 using ArtemisBankingPro.Application.Interfaces.Identity;
+using ArtemisBankingPro.Application.Interfaces.Security;
 using ArtemisBankingPro.Application.Settings;
-using ArtemisBankingPro.Domain.Interfaces.Persistence.Repositories;
+using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Identity.Entities;
-using ArtemisBankingPro.Infrastructure.Identity.Interfaces;
 using ArtemisBankingPro.Infrastructure.Identity.Repositories;
 using ArtemisBankingPro.Infrastructure.Identity.Security;
 using ArtemisBankingPro.Infrastructure.Identity.Seeds;
@@ -20,8 +22,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace ArtemisBankingPro.Infrastructure.Identity;
 
-public static class ServicesRegistration
-{
+public static class ServicesRegistration {
     public const string LoginPath = "/Auth/Login";
     public const string AccessDeniedPath = "/Auth/AccessDenied";
 
@@ -33,13 +34,11 @@ public static class ServicesRegistration
     public static IServiceCollection AddIdentityInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration
-    )
-    {
+    ) {
         services.AddDbContext<IdentityContext>(options =>
             options.UseSqlServer(
                 configuration.GetConnectionString("ArtemisDb"),
-                sql =>
-                {
+                sql => {
                     sql.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName);
                     sql.EnableRetryOnFailure(
                         maxRetryCount: 3,
@@ -60,8 +59,7 @@ public static class ServicesRegistration
         );
 
         services
-            .AddIdentityCore<AppUser>(options =>
-            {
+            .AddIdentityCore<AppUser>(options => {
                 options.Password.RequiredLength = 8;
                 options.Password.RequireDigit = true;
                 options.Password.RequireNonAlphanumeric = true;
@@ -92,8 +90,7 @@ public static class ServicesRegistration
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services,
         IConfiguration configuration
-    )
-    {
+    ) {
         var jwtSettings =
             configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
             ?? throw new InvalidOperationException(
@@ -101,18 +98,15 @@ public static class ServicesRegistration
             );
 
         services
-            .AddAuthentication(options =>
-            {
+            .AddAuthentication(options => {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
             })
-            .AddJwtBearer(options =>
-            {
-                options.RequireHttpsMetadata = false;
+            .AddJwtBearer(options => {
+                options.RequireHttpsMetadata = true;
                 options.SaveToken = false;
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
+                options.TokenValidationParameters = new TokenValidationParameters {
                     ValidateIssuerSigningKey = true,
                     ValidateIssuer = true,
                     ValidateAudience = true,
@@ -124,11 +118,29 @@ public static class ServicesRegistration
                     IssuerSigningKey = new SymmetricSecurityKey(
                         Convert.FromBase64String(jwtSettings.SecretKey!)
                     ),
+                    RequireExpirationTime = true,
+                    ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
                 };
-                options.Events = new JwtBearerEvents
-                {
-                    OnChallenge = context =>
-                    {
+                options.Events = new JwtBearerEvents {
+                    OnTokenValidated = async context => {
+                        string? userId = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier)
+                            ?? context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+                        if (string.IsNullOrWhiteSpace(userId)) {
+                            context.Fail("El token no contiene un identificador de usuario válido.");
+                            return;
+                        }
+
+                        IUserRepository userRepository = context.HttpContext.RequestServices
+                            .GetRequiredService<IUserRepository>();
+                        UserListDto? user = await userRepository.GetByIdAsync(
+                            userId,
+                            context.HttpContext.RequestAborted
+                        );
+                        if (user is null || !user.IsActive) {
+                            context.Fail("El usuario no está activo.");
+                        }
+                    },
+                    OnChallenge = context => {
                         context.HandleResponse();
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         context.Response.ContentType = "application/json";
@@ -138,14 +150,12 @@ public static class ServicesRegistration
                             )
                         );
                     },
-                    OnForbidden = context =>
-                    {
+                    OnForbidden = context => {
                         context.Response.StatusCode = StatusCodes.Status403Forbidden;
                         context.Response.ContentType = "application/json";
                         return context.Response.WriteAsync(
                             JsonSerializer.Serialize(
-                                new
-                                {
+                                new {
                                     error = "Acceso denegado. No tiene permisos para utilizar este recurso.",
                                 }
                             )
@@ -163,8 +173,7 @@ public static class ServicesRegistration
     public static IServiceCollection AddIdentityForWebApi(
         this IServiceCollection services,
         IConfiguration configuration
-    )
-    {
+    ) {
         services.AddIdentityInfrastructure(configuration);
         services.AddJwtAuthentication(configuration);
         services.AddAuthorization();
@@ -178,21 +187,18 @@ public static class ServicesRegistration
     public static IServiceCollection AddIdentityForWebApp(
         this IServiceCollection services,
         IConfiguration configuration
-    )
-    {
+    ) {
         services.AddIdentityInfrastructure(configuration);
 
         services
-            .AddAuthentication(options =>
-            {
+            .AddAuthentication(options => {
                 options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme;
                 options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
                 options.DefaultSignInScheme = IdentityConstants.ApplicationScheme;
             })
             .AddIdentityCookies();
 
-        services.ConfigureApplicationCookie(options =>
-        {
+        services.ConfigureApplicationCookie(options => {
             options.LoginPath = LoginPath;
             options.AccessDeniedPath = AccessDeniedPath;
             options.SlidingExpiration = true;
@@ -211,8 +217,7 @@ public static class ServicesRegistration
     /// <summary>
     /// Ejecuta los seeds de roles y usuarios por defecto (idempotente).
     /// </summary>
-    public static async Task RunIdentitySeedAsync(this IServiceProvider services)
-    {
+    public static async Task RunIdentitySeedAsync(this IServiceProvider services) {
         using var scope = services.CreateScope();
         var provider = scope.ServiceProvider;
 

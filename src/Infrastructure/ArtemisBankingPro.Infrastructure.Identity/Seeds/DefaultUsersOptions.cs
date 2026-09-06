@@ -3,8 +3,7 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Seeds;
 /// <summary>
 /// Credenciales de los usuarios por defecto (seeding).
 /// </summary>
-public sealed class DefaultUsersOptions
-{
+public sealed class DefaultUsersOptions {
     public const string SectionName = "Security:DefaultUsers";
 
     public UserSeedOptions? Admin { get; set; }
@@ -15,8 +14,7 @@ public sealed class DefaultUsersOptions
 
     public UserSeedOptions? Commerce { get; set; }
 
-    public sealed class UserSeedOptions
-    {
+    public sealed class UserSeedOptions {
         public string? UserName { get; set; }
 
         public string? Password { get; set; }

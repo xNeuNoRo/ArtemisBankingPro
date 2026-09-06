@@ -5,14 +5,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.EntityConfigurations;
 
-public sealed class LoanConfiguration : IEntityTypeConfiguration<Loan>
-{
-    public void Configure(EntityTypeBuilder<Loan> builder)
-    {
+public sealed class LoanConfiguration : IEntityTypeConfiguration<Loan> {
+    public void Configure(EntityTypeBuilder<Loan> builder) {
         builder.ToTable(
             "Loans",
-            table =>
-            {
+            table => {
                 table.HasCheckConstraint("CK_Loans_Principal_Positive", "[ApprovedPrincipal] > 0");
                 table.HasCheckConstraint(
                     "CK_Loans_Term_Allowed",

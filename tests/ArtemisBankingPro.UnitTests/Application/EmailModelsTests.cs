@@ -95,7 +95,9 @@ public sealed class EmailModelsTests {
             "Juan Pérez",
             "1234",
             Money.Create(25_000m).Value,
-            "08/29"
+            "08/29",
+            OccurredAt,
+            SantoDomingo
         );
 
         model.Subject.Should().Be("Nueva tarjeta de crédito asignada");
@@ -103,6 +105,7 @@ public sealed class EmailModelsTests {
         model.LastFour.Should().Be("1234");
         model.CreditLimitText.Should().Be("RD$ 25000.00");
         model.Expiration.Should().Be("08/29");
+        model.AssignedAtText.Should().Be("06/08/2026 12:30");
         model.ToString().Should().NotContain("4111 1111");
         model.ToString().Should().NotContain("CVC");
     }
@@ -112,12 +115,15 @@ public sealed class EmailModelsTests {
         var model = new CardLimitChangedModel(
             "Juan Pérez",
             "1234",
-            Money.Create(30_000m).Value
+            Money.Create(30_000m).Value,
+            OccurredAt,
+            SantoDomingo
         );
 
         model.Subject.Should().Be("Modificación de límite de tarjeta");
         model.TemplateName.Should().Be("CardLimitChanged");
         model.NewLimitText.Should().Be("RD$ 30000.00");
+        model.ModifiedAtText.Should().Be("06/08/2026 12:30");
     }
 
     [Fact]
@@ -156,36 +162,6 @@ public sealed class EmailModelsTests {
         model.TemplateName.Should().Be("TransferCompleted");
         model.AmountText.Should().Be("RD$ 250.50");
         model.OccurredAtText.Should().Be("06/08/2026 12:30");
-    }
-
-    [Fact]
-    public void DepositCompleted_HasSpecSubject() {
-        var model = new DepositCompletedModel(
-            "Juan Pérez",
-            "3333",
-            Money.Create(500m).Value,
-            OccurredAt,
-            SantoDomingo
-        );
-
-        model.Subject.Should().Be("Depósito realizado a su cuenta 3333");
-        model.TemplateName.Should().Be("DepositCompleted");
-        model.AmountText.Should().Be("RD$ 500.00");
-    }
-
-    [Fact]
-    public void WithdrawalCompleted_HasSpecSubject() {
-        var model = new WithdrawalCompletedModel(
-            "Juan Pérez",
-            "3333",
-            Money.Create(200m).Value,
-            OccurredAt,
-            SantoDomingo
-        );
-
-        model.Subject.Should().Be("Retiro realizado desde su cuenta 3333");
-        model.TemplateName.Should().Be("WithdrawalCompleted");
-        model.AmountText.Should().Be("RD$ 200.00");
     }
 
     [Fact]
@@ -253,40 +229,6 @@ public sealed class EmailModelsTests {
     }
 
     [Fact]
-    public void CashierTransferSent_HasSpecSubjectAndFormattedValues() {
-        var model = new CashierTransferSentModel(
-            "Juan Pérez",
-            Money.Create(1_500m).Value,
-            "1111",
-            "2222",
-            OccurredAt,
-            SantoDomingo
-        );
-
-        model.Subject.Should().Be("Transacción realizada a la cuenta 2222");
-        model.TemplateName.Should().Be("CashierTransferSent");
-        model.AmountText.Should().Be("RD$ 1500.00");
-        model.OccurredAtText.Should().Be("06/08/2026 12:30");
-    }
-
-    [Fact]
-    public void CashierTransferReceived_HasSpecSubjectAndFormattedValues() {
-        var model = new CashierTransferReceivedModel(
-            "María Gómez",
-            Money.Create(1_500m).Value,
-            "1111",
-            "2222",
-            OccurredAt,
-            SantoDomingo
-        );
-
-        model.Subject.Should().Be("Transacción enviada desde la cuenta 1111");
-        model.TemplateName.Should().Be("CashierTransferReceived");
-        model.AmountText.Should().Be("RD$ 1500.00");
-        model.OccurredAtText.Should().Be("06/08/2026 12:30");
-    }
-
-    [Fact]
     public void AccountDebitedForCardPayment_HasSpecSubject() {
         var model = new AccountDebitedForCardPaymentModel(
             "María Gómez",
@@ -317,6 +259,71 @@ public sealed class EmailModelsTests {
         model.Subject.Should().Be("Pago a préstamo realizado desde su cuenta 3333");
         model.TemplateName.Should().Be("AccountDebitedForLoanPayment");
         model.AmountText.Should().Be("RD$ 900.00");
+        model.OccurredAtText.Should().Be("06/08/2026 12:30");
+    }
+
+    [Fact]
+    public void Deposit_HasSpecSubject() {
+        var model = new DepositModel(
+            "Juan Pérez",
+            "3333",
+            Money.Create(500m).Value,
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Depósito realizado a su cuenta 3333");
+        model.TemplateName.Should().Be("Deposit");
+        model.AmountText.Should().Be("RD$ 500.00");
+        model.OccurredAtText.Should().Be("06/08/2026 12:30");
+    }
+
+    [Fact]
+    public void Withdrawal_HasSpecSubject() {
+        var model = new WithdrawalModel(
+            "Juan Pérez",
+            "3333",
+            Money.Create(200m).Value,
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Retiro realizado desde su cuenta 3333");
+        model.TemplateName.Should().Be("Withdrawal");
+        model.AmountText.Should().Be("RD$ 200.00");
+    }
+
+    [Fact]
+    public void ThirdPartyTransferSender_HasSpecSubject() {
+        var model = new ThirdPartyTransferSenderModel(
+            "Juan Pérez",
+            Money.Create(1_500m).Value,
+            "1111",
+            "2222",
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Transacción realizada a la cuenta 2222");
+        model.TemplateName.Should().Be("ThirdPartyTransferSender");
+        model.AmountText.Should().Be("RD$ 1500.00");
+        model.OccurredAtText.Should().Be("06/08/2026 12:30");
+    }
+
+    [Fact]
+    public void ThirdPartyTransferReceiver_HasSpecSubject() {
+        var model = new ThirdPartyTransferReceiverModel(
+            "María Gómez",
+            Money.Create(1_500m).Value,
+            "1111",
+            "2222",
+            OccurredAt,
+            SantoDomingo
+        );
+
+        model.Subject.Should().Be("Transacción enviada desde la cuenta 1111");
+        model.TemplateName.Should().Be("ThirdPartyTransferReceiver");
+        model.AmountText.Should().Be("RD$ 1500.00");
         model.OccurredAtText.Should().Be("06/08/2026 12:30");
     }
 }

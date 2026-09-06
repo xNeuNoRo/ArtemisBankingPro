@@ -128,6 +128,12 @@ dotnet_diagnostic.S1144.severity = none
 [**/Interfaces/Persistence/IdempotencyRecord.cs]
 dotnet_diagnostic.S1144.severity = none
 
+# CA1716: "Error" es el nombre establecido del tipo Result en todo el proyecto
+# (result.Error); renombrar el miembro de IResult rompería la convención.
+# "Error" no es palabra reservada en C#, solo en VB.
+[**/Common/ValueObjects/Result.cs]
+dotnet_diagnostic.CA1716.severity = none
+
 # S1144: el Id lo asigna EF Core al persistir la entidad (ValueGeneratedOnAdd).
 [**/Entities/AccountToken.cs]
 dotnet_diagnostic.S1144.severity = none

@@ -7,8 +7,7 @@ namespace ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 /// Repositorio genérico con operaciones CRUD de mantenimiento.
 /// </summary>
 public interface IGenericRepository<T>
-    where T : Entity<int>
-{
+    where T : Entity<int> {
     Task<T?> GetByIdAsync(int id, CancellationToken ct = default);
 
     Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);

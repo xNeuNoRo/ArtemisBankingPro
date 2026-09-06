@@ -1,0 +1,29 @@
+namespace ArtemisBankingPro.Application.Common.Interfaces;
+
+/// <summary>
+/// Marca un Command cuya ejecución debe ser idempotente: repetir la misma
+/// solicitud con la misma clave no aplica el efecto dos veces.
+/// El <c>IdempotencyBehavior</c> reserva la clave antes de ejecutar y la
+/// finaliza (Completed/Rejected) al terminar.
+/// </summary>
+public interface IIdempotentCommand {
+    /// <summary>
+    /// Clave única por actor que identifica la operación. Debe ser estable y
+    /// suministrada por el caller (header <c>Idempotency-Key</c> en API, nonce
+    /// de servidor en MVC). Nunca debe derivarse del reloj ni del payload
+    /// financiero.
+    /// </summary>
+    string IdempotencyKey { get; }
+
+    /// <summary>
+    /// Huella del payload canónico: permite detectar la reutilización de la
+    /// misma clave con un payload distinto.
+    /// </summary>
+    string RequestFingerprint { get; }
+
+    /// <summary>
+    /// Actor estable para procesos internos sin usuario autenticado. Los
+    /// comandos interactivos usan el actor autenticado por defecto.
+    /// </summary>
+    string? IdempotencyActorId => null;
+}
