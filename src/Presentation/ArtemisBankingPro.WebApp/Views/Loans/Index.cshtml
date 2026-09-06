@@ -1,0 +1,132 @@
+@model LoanListViewModel
+@{
+    ViewData["Title"] = "Gestión de préstamos";
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    ViewData["PaginationStatus"] = Model.Status;
+    ViewData["PaginationIdentification"] = Model.Identification;
+    bool identificationInvalid = ViewData.ModelState[nameof(Model.Identification)]?.Errors.Count > 0;
+    bool statusInvalid = ViewData.ModelState[nameof(Model.Status)]?.Errors.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="loans-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Productos</p>
+        <h1 id="loans-title" class="page-header__title">Gestión de préstamos</h1>
+        <p class="page-header__description">
+            Consulte amortizaciones, asigne préstamos y gestione las tasas de interés futuras.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--primary" asp-action="Assign">
+            <partial name="_Icon" model='@("loan")' />
+            Asignar préstamo
+        </a>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--error" role="alert" aria-live="assertive" aria-labelledby="loans-load-error-title">
+        <h2 id="loans-load-error-title" class="ui-visually-hidden">No fue posible cargar los préstamos</h2>
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Index" asp-route-status="@Model.Status" asp-route-identification="@Model.Identification" asp-route-page="1" asp-route-pageSize="20" aria-label="Reintentar la carga de préstamos">
+            Reintentar préstamos
+        </a>
+    </section>
+} else {
+    <partial name="_ValidationSummary" />
+    <section class="ui-card admin-product__filter" aria-labelledby="loans-filter-title">
+        <div class="ui-card__body">
+            <h2 id="loans-filter-title" class="ui-card__title">Buscar y filtrar préstamos</h2>
+            <form method="get" asp-action="Index" class="admin-filter" data-submit-lock>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Identification">Buscar por cédula</label>
+                    <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-invalid="@(identificationInvalid ? "true" : "false")" aria-describedby="Identification-help Identification-error" />
+                    <p id="Identification-help" class="ui-field-description">Ingrese la cédula como texto y conserve los ceros iniciales.</p>
+                    <span class="ui-error" asp-validation-for="Identification"></span>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Status">Estado</label>
+                    <select class="ui-control" asp-for="Status" autocomplete="off" aria-invalid="@(statusInvalid ? "true" : "false")" aria-describedby="Status-help Status-error">
+                        @foreach (SelectOptionViewModel option in Model.StatusOptions) {
+                            <option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option>
+                        }
+                    </select>
+                    <p id="Status-help" class="ui-field-description">Por defecto muestra préstamos activos. Al buscar por cédula puede revisar completados o todos.</p>
+                    <span class="ui-error" asp-validation-for="Status"></span>
+                </div>
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="pageSize" value="20" />
+                <button class="ui-button ui-button--secondary" type="submit" data-submitting-label="Filtrando…"><span data-submit-label>Aplicar filtros</span></button>
+            </form>
+        </div>
+    </section>
+
+    @if (ViewData.ModelState.IsValid && Model.Loans.Count == 0) {
+        ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Identification)
+            ? "No hay préstamos para mostrar"
+            : "Este cliente no tiene préstamos registrados.";
+        ViewData["EmptyDescription"] = "Pruebe con otra cédula o cambie el filtro de estado.";
+        <partial name="_EmptyState" />
+    } else if (ViewData.ModelState.IsValid && Model.Loans.Count > 0) {
+        <section class="admin-product__list" aria-labelledby="loans-list-title">
+            <div class="admin-users__list-heading">
+                <div>
+                    <p class="ui-section-label">Cartera administrada</p>
+                    <h2 id="loans-list-title" class="ui-card__title">Préstamos registrados</h2>
+                </div>
+                <span class="ui-badge ui-badge--neutral">@Model.Pagination.TotalItems registros</span>
+            </div>
+
+            <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de préstamos">
+                <table class="ui-table admin-product__table admin-product__table--wide">
+                    <caption class="ui-visually-hidden">Préstamos registrados</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Préstamo</th>
+                            <th scope="col">Cliente</th>
+                            <th scope="col">Capital</th>
+                            <th scope="col">Cuotas</th>
+                            <th scope="col">Pendiente</th>
+                            <th scope="col">Tasa</th>
+                            <th scope="col">Plazo</th>
+                            <th scope="col">Estado</th>
+                            <th scope="col">Pago</th>
+                            <th scope="col"><span class="ui-visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (LoanListItemViewModel loan in Model.Loans) {
+                            bool loanIsActive = loan.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
+                                || loan.Status.Equals("Activo", StringComparison.OrdinalIgnoreCase);
+                            <tr>
+                                <td class="ui-table__primary">@loan.LoanNumber</td>
+                                <td>
+                                    <span class="admin-product__person">
+                                        <strong>@loan.CustomerFullName</strong>
+                                    </span>
+                                </td>
+                                <td class="ui-table__numeric">@Money(loan.CapitalAmount)</td>
+                                <td class="ui-table__numeric">@loan.PaidInstallments / @loan.TotalInstallments</td>
+                                <td class="ui-table__numeric">@Money(loan.PendingAmount)</td>
+                                <td class="ui-table__numeric">@loan.AnnualInterestRate.ToString("N2", CultureInfo.InvariantCulture)% anual</td>
+                                <td class="ui-table__numeric">@loan.TermMonths meses</td>
+                                <td><partial name="_StatusBadge" model="loan.Status" /></td>
+                                <td><partial name="_StatusBadge" model="loan.CustomerPaymentStatus" /></td>
+                                <td>
+                                    <div class="admin-product__actions" aria-label="Acciones para el préstamo @loan.LoanNumber">
+                                        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Details" asp-route-id="@loan.LoanId">Ver detalles</a>
+                                        @if (loanIsActive) {
+                                            <a class="ui-button ui-button--secondary ui-button--small" asp-action="EditRate" asp-route-id="@loan.LoanId">Editar tasa</a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <partial name="_Pagination" model="Model.Pagination" />
+        </section>
+    }
+}

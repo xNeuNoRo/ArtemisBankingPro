@@ -1,0 +1,15 @@
+@model SavingsAccountAssignmentPageViewModel
+@{
+    ViewData["Title"] = "Asignar cuenta secundaria";
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool amountInvalid = ViewData.ModelState["Form.InitialAmount"]?.Errors.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="account-configure-title"><div class="page-header__content"><p class="page-header__eyebrow">Administración / Cuentas</p><h1 id="account-configure-title" class="page-header__title">Asignar cuenta secundaria</h1><p class="page-header__description">El número de cuenta se genera automáticamente y el balance inicial queda registrado en el historial.</p></div></section>
+<form method="post" asp-action="Configure" asp-route-customerId="@Model.Customer.ClientId" class="admin-product__form" data-submit-lock data-autofocus-error>
+    <input type="hidden" name="submissionToken" value="@Model.SubmissionToken" />
+    <partial name="_ValidationSummary" />
+    <section class="ui-card" aria-labelledby="account-customer-title"><div class="ui-card__header"><div><p class="ui-section-label">Cliente seleccionado</p><h2 id="account-customer-title" class="ui-card__title">@Model.Customer.FullName</h2><p class="ui-card__description">Cédula: @Model.Customer.Identification · @Model.Customer.Email</p></div><span class="ui-badge ui-badge--active">Activo</span></div><div class="ui-card__body admin-product__metric-grid"><div class="admin-product__metric"><span class="admin-product__metric-label">Deuda actual</span><strong class="admin-product__metric-value">@Money(Model.Customer.TotalDebt)</strong></div><div class="admin-product__metric"><span class="admin-product__metric-label">Identificador</span><strong class="admin-product__metric-value">@Model.Customer.ClientId</strong></div></div></section>
+    <section class="ui-card" aria-labelledby="account-initial-title"><div class="ui-card__header"><div><p class="ui-section-label">Condiciones</p><h2 id="account-initial-title" class="ui-card__title">Balance inicial</h2></div></div><div class="ui-card__body admin-product__form-grid"><div class="ui-field"><label class="ui-label" asp-for="Form.InitialAmount">Balance inicial</label><input class="ui-control" asp-for="Form.InitialAmount" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" required aria-invalid="@(amountInvalid ? "true" : "false")" aria-describedby="Form_InitialAmount-help Form_InitialAmount-error" /><p id="Form_InitialAmount-help" class="ui-field-description">Monto en RD$, desde RD$ 0.00 y con hasta dos decimales. Si es mayor que cero, se registra un crédito inicial.</p><span class="ui-error" asp-validation-for="Form.InitialAmount"></span></div></div></section>
+    <div class="page-actions"><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Asignando…"><span data-submit-label>Asignar cuenta secundaria</span></button><a class="ui-button ui-button--secondary" asp-action="Assign">Volver atrás</a></div>
+</form>

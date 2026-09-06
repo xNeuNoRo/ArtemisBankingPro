@@ -1,0 +1,57 @@
+@model LoginViewModel
+@{
+    Layout = "_LayoutAuth";
+    ViewData["Title"] = "Iniciar sesión";
+    bool userNameInvalid = ViewData.ModelState[nameof(LoginViewModel.UserName)]?.Errors.Count > 0;
+    bool passwordInvalid = ViewData.ModelState[nameof(LoginViewModel.Password)]?.Errors.Count > 0;
+}
+
+<div class="auth-content">
+    <p class="page-header__eyebrow">Acceso seguro</p>
+    <h1 class="auth-content__title">Iniciar sesión</h1>
+    <p class="auth-content__description">
+        Acceda a Artemis Banking Pro con las credenciales de su cuenta.
+    </p>
+
+    <form asp-controller="Auth" asp-action="Login" method="post" class="auth-form" data-submit-lock data-autofocus-error>
+        <partial name="_ValidationSummary" />
+
+        <div class="ui-field auth-input-wrapper">
+            <label asp-for="UserName" class="ui-label">Nombre de usuario</label>
+            <input asp-for="UserName"
+                   class="ui-control"
+                   autocomplete="username"
+                   aria-invalid="@(userNameInvalid ? "true" : "false")"
+                   aria-describedby="UserName-help UserName-error" />
+            <p id="UserName-help" class="ui-help">Use el nombre de usuario registrado.</p>
+            <span asp-validation-for="UserName" id="UserName-error" class="ui-error"></span>
+        </div>
+
+        <div class="ui-field auth-input-wrapper">
+            <label asp-for="Password" class="ui-label">Contraseña</label>
+            <div class="ui-control-group">
+                <input asp-for="Password"
+                       class="ui-control"
+                       autocomplete="current-password"
+                       aria-invalid="@(passwordInvalid ? "true" : "false")"
+                       aria-describedby="Password-error" />
+                <button type="button"
+                        class="ui-control-group__action"
+                        data-password-toggle="Password"
+                        aria-label="Ver"
+                        aria-pressed="false">
+                    <span aria-hidden="true" data-password-label>Ver</span>
+                </button>
+            </div>
+            <span asp-validation-for="Password" id="Password-error" class="ui-error"></span>
+        </div>
+
+        <button type="submit" class="ui-button ui-button--primary auth-form__submit">
+            <span data-submit-label>Iniciar sesión</span>
+        </button>
+    </form>
+
+    <div class="auth-content__links">
+        <a asp-controller="Auth" asp-action="RequestPasswordReset">Restablecer contraseña</a>
+    </div>
+</div>

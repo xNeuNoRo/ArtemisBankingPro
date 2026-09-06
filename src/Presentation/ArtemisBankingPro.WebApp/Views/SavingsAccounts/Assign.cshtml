@@ -1,0 +1,11 @@
+@model EligibleClientsViewModel
+@{
+    ViewData["Title"] = "Seleccionar cliente para cuenta secundaria";
+    ViewData["EligibleController"] = "SavingsAccounts";
+    ViewData["EligibleAction"] = "Assign";
+    ViewData["EligibleTitle"] = "Seleccionar cliente para la cuenta secundaria";
+    ViewData["EligibleDescription"] = "Solo aparecen clientes activos con una cuenta principal activa.";
+    ViewData["EligibleProduct"] = "cuenta secundaria";
+}
+
+<partial name="_EligibleClientSelection" model="Model" />

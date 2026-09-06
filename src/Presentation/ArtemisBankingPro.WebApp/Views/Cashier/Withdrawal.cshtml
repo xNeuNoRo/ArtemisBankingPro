@@ -1,0 +1,44 @@
+@model CashierOperationPageViewModel<WithdrawalViewModel>
+@{
+    ViewData["Title"] = Model.PageTitle;
+}
+
+<section class="page-header" aria-labelledby="cashier-withdrawal-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cajero / Fondos</p>
+        <h1 id="cashier-withdrawal-title" class="page-header__title">Retiro</h1>
+        <p class="page-header__description">Retire fondos de una cuenta activa sin exceder su saldo disponible.</p>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive">
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Cashier" asp-action="Withdrawal">Reintentar</a>
+    </section>
+} else {
+    <section class="ui-card client-form-panel" aria-labelledby="cashier-withdrawal-form-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="cashier-withdrawal-form-title" class="ui-card__title">Datos del retiro</h2></div></div>
+        <div class="ui-card__body">
+            <partial name="_ValidationSummary" />
+            <form asp-controller="Cashier" asp-action="Withdrawal" method="post" data-submit-lock data-autofocus-error class="client-form">
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Form.AccountNumber">Número de cuenta origen</label>
+                    <input class="ui-control" asp-for="Form.AccountNumber" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" autocomplete="off" aria-describedby="Form_AccountNumber-error" required />
+                    <p class="ui-field-description">Ingrese los nueve dígitos de la cuenta de ahorro origen.</p>
+                    <span class="ui-error" asp-validation-for="Form.AccountNumber"></span>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Form.Amount">Monto a retirar</label>
+                    <input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" aria-describedby="Form_Amount-help Form_Amount-error" required />
+                    <p id="Form_Amount-help" class="ui-field-description">Debe ser mayor que cero y no superar el saldo disponible; el sistema lo valida al confirmar.</p>
+                    <span class="ui-error" asp-validation-for="Form.Amount"></span>
+                </div>
+                <div class="page-actions">
+                    <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Cashier">Cancelar</a>
+                    <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Validando…"><span data-submit-label>Realizar retiro</span></button>
+                </div>
+            </form>
+        </div>
+    </section>
+}

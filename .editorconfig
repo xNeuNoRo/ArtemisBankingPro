@@ -10,13 +10,143 @@ end_of_line = lf
 
 [*.{cs,vb}]
 indent_size = 4
+dotnet_style_parentheses_in_arithmetic_binary_operators = never_for_clarity:suggestion
+dotnet_style_parentheses_in_other_binary_operators = never_for_clarity:suggestion
+dotnet_style_parentheses_in_other_operators = never_for_clarity:suggestion
+dotnet_style_require_braces = always:suggestion
+dotnet_style_require_braces_in_foreaches = true:suggestion
+dotnet_style_require_braces_in_fixed_statements = true:suggestion
+dotnet_style_require_braces_in_using_statements = true:suggestion
+dotnet_style_require_braces_in_whiles = true:suggestion
+csharp_new_line_before_open_brace = all:suggestion
+csharp_new_line_before_else = true:suggestion
+csharp_new_line_before_catch = true:suggestion
+csharp_new_line_before_finally = true:suggestion
+csharp_new_line_before_members_in_object_initializers = true:suggestion
+csharp_new_line_before_members_in_anonymous_types = true:suggestion
+csharp_new_line_between_query_expression_clauses = true:suggestion
+
+# ---------------------------------------------------------------------------
+# Diagnósticos de código muerto y limpieza (se ejecutan en `dotnet build`)
+# ---------------------------------------------------------------------------
+# IDE0005: usings sin usar (requiere GenerateDocumentationFile o EnforceCodeStyleInBuild)
+dotnet_diagnostic.IDE0005.severity = warning
+# IDE0051: miembros privados no usados
+dotnet_diagnostic.IDE0051.severity = warning
+# IDE0052: campos privados asignados pero nunca leídos
+dotnet_diagnostic.IDE0052.severity = warning
+# IDE0059: asignaciones sin sentido
+dotnet_diagnostic.IDE0059.severity = warning
+# IDE0060: parámetros no usados
+dotnet_diagnostic.IDE0060.severity = warning
+
+# SonarSource: código muerto e imports sin usar
+# S1128: usings innecesarios
+dotnet_diagnostic.S1128.severity = warning
+# S1481: variable local declarada y nunca usada
+dotnet_diagnostic.S1481.severity = warning
+# S1172: parámetros no usados en métodos privados
+dotnet_diagnostic.S1172.severity = warning
+# S1144: miembros privados no usados
+dotnet_diagnostic.S1144.severity = warning
+# S2325: métodos privados que pueden ser static
+dotnet_diagnostic.S2325.severity = warning
+# S2326: tipos genéricos con parámetros no usados
+dotnet_diagnostic.S2326.severity = warning
+# S3257: expresiones lambda redundantes
+dotnet_diagnostic.S3257.severity = warning
+# S3937: valores de enumeración no usados
+dotnet_diagnostic.S3937.severity = warning
+# S2068: credenciales hardcodeadas
+dotnet_diagnostic.S2068.severity = error
+# S4790: criptografía débil
+dotnet_diagnostic.S4790.severity = warning
+# S4426: claves criptográficas débiles
+dotnet_diagnostic.S4426.severity = warning
+# S5547: algoritmos criptográficos débiles
+dotnet_diagnostic.S5547.severity = warning
+# S3900: argumentos no validados
+dotnet_diagnostic.S3900.severity = warning
+# S1125: condiciones booleanas redundantes
+dotnet_diagnostic.S1125.severity = warning
+# S2589: condiciones booleanas siempre verdaderas o falsas
+dotnet_diagnostic.S2589.severity = warning
+
+# CA1848: los logs del proyecto son de arranque/seed/errores de bajo volumen;
+# no son hot paths. AGENTS.md §9 ya exige loguear una vez en el boundary.
+# LoggerMessage añadiría complejidad sin beneficio medible (AGENTS.md §17).
+dotnet_diagnostic.CA1848.severity = none
+
+# ---------------------------------------------------------------------------
+# Supresiones justificadas (cada una documenta su razón)
+# ---------------------------------------------------------------------------
+# CA1707: convención del proyecto: nombres de tests xUnit con guion bajo
+# (RoundTrip_PreservesX) — es el estilo establecido en todos los test projects.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+
+# CA1861: migraciones generadas por `dotnet ef migrations add` — el código
+# generado no se edita a mano; tocarlo rompe la trazabilidad con el snapshot.
+[**/Migrations/*.cs]
+dotnet_diagnostic.CA1861.severity = none
+
+# CA1305: Serilog renderiza los templates con su propio formateador; no existe
+# un parámetro IFormatProvider en estos overloads — el aviso no es aplicable.
+[**/Observability/SerilogConfiguration.cs]
+dotnet_diagnostic.CA1305.severity = none
+
+# CA1305: llamadas de Serilog en Functions donde no aplica IFormatProvider.
+[**/ArtemisBankingPro.Functions/**]
+dotnet_diagnostic.CA1305.severity = none
+
+# CA1716: "Shared" es el nombre del proyecto aprobado en AGENTS.md §3
+# (ArtemisBankingPro.Infrastructure.Shared); no se renombra por mandato del proyecto.
+[**/ArtemisBankingPro.Infrastructure.Shared/**]
+dotnet_diagnostic.CA1716.severity = none
+
+# CA1051: campos protected (Context/DbSet) en GenericRepository son el patrón
+# estándar de repositorios EF Core para que hereden los repositorios especializados.
+[**/Repositories/GenericRepository.cs]
+dotnet_diagnostic.CA1051.severity = none
+
+# CA1711: IEventHandler es el nombre convencional del patrón de handlers de
+# eventos de dominio en esta arquitectura (AGENTS.md §6 Application owns events).
+[**/IDomainEventDispatcher.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+# CA1711: SqlServerCollection es el nombre requerido por xUnit para el
+# atributo [CollectionDefinition]; es la convención del framework de testing.
+[**/SqlServerFixture.cs]
+dotnet_diagnostic.CA1711.severity = none
+
+# S1144: el setter privado lo usa EF Core para materializar la FK al cargar
+# una entidad desde la base de datos (ver InstallmentConfiguration).
+[**/Lending/Entities/Installment.cs]
+dotnet_diagnostic.S1144.severity = none
+
+# S1144: el Id lo asigna EF Core al persistir la entidad (ValueGeneratedOnAdd).
+[**/Interfaces/Persistence/IdempotencyRecord.cs]
+dotnet_diagnostic.S1144.severity = none
+
+# CA1716: "Error" es el nombre establecido del tipo Result en todo el proyecto
+# (result.Error); renombrar el miembro de IResult rompería la convención.
+# "Error" no es palabra reservada en C#, solo en VB.
+[**/Common/ValueObjects/Result.cs]
+dotnet_diagnostic.CA1716.severity = none
+
+# S1144: el Id lo asigna EF Core al persistir la entidad (ValueGeneratedOnAdd).
+[**/Entities/AccountToken.cs]
+dotnet_diagnostic.S1144.severity = none
 
 [*.{cshtml,razor}]
 indent_size = 2
 indent_style = space
 
-[*.{json,xml,yml,yaml}]
+[*.{csproj,sln,props,targets,xml}]
 indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+[*.{json,yml,yaml}]
+indent_size = 2

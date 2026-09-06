@@ -1,0 +1,104 @@
+@model ClientBeneficiariesPageViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+}
+
+<section class="page-header" aria-labelledby="beneficiaries-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cliente / Transferencias</p>
+        <h1 id="beneficiaries-title" class="page-header__title">Beneficiarios</h1>
+        <p class="page-header__description">Administre relaciones con cuentas activas de otros clientes sin exponer información que no necesita para operar.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Volver al Home</a>
+        @if (!Model.ShowAddForm) {
+            <a class="ui-button ui-button--primary" asp-controller="Client" asp-action="Beneficiaries" asp-route-add="true">
+                <partial name="_Icon" model='@("plus")' />
+                Agregar beneficiario
+            </a>
+        }
+        <a class="ui-button ui-button--secondary" asp-controller="Client" asp-action="BeneficiaryTransfer">
+            <partial name="_Icon" model='@("transfer")' />
+            Transferir a beneficiario
+        </a>
+    </div>
+</section>
+
+<partial name="_ValidationSummary" />
+
+@if (Model.ShowAddForm) {
+<details class="ui-card client-form-panel" @(ViewData.ModelState.ErrorCount > 0 ? "open" : null)>
+    <summary class="ui-card__header">
+        <div>
+            <p class="ui-section-label">Nueva relación</p>
+            <h2 id="add-beneficiary-title" class="ui-card__title">Agregar beneficiario</h2>
+            <p class="ui-card__description">La cuenta debe existir, estar activa y pertenecer a otro cliente.</p>
+        </div>
+    </summary>
+    <div class="ui-card__body" id="add-beneficiary-fields">
+        <form asp-controller="Client" asp-action="AddBeneficiary" method="post" data-submit-lock data-autofocus-error class="client-form" aria-labelledby="add-beneficiary-title">
+            <input type="hidden" name="AddForm.SubmissionToken" value="@Model.AddForm.SubmissionToken" />
+            <div class="ui-field">
+                <label class="ui-label" for="AddForm_DestinationAccountNumber">Número de cuenta</label>
+                <input
+                    class="ui-control"
+                    id="AddForm_DestinationAccountNumber"
+                    name="AddForm.DestinationAccountNumber"
+                    value="@Model.AddForm.DestinationAccountNumber"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    maxlength="9"
+                    pattern="[0-9]{9}"
+                    aria-describedby="AddForm_DestinationAccountNumber-help AddForm_DestinationAccountNumber-error"
+                    aria-invalid="@(ViewData.ModelState["AddForm.DestinationAccountNumber"]?.Errors.Count > 0 ? "true" : "false")"
+                    required />
+                <p id="AddForm_DestinationAccountNumber-help" class="ui-field-description">Ingrese los nueve dígitos de una cuenta de ahorro activa de otro cliente.</p>
+                <span id="AddForm_DestinationAccountNumber-error" class="ui-error" asp-validation-for="AddForm.DestinationAccountNumber"></span>
+            </div>
+            <div class="page-actions">
+                <a class="ui-button ui-button--secondary" asp-controller="Client" asp-action="Beneficiaries">Cancelar</a>
+                <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Guardando beneficiario…">
+                    <span data-submit-label>Guardar beneficiario</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</details>
+}
+
+<section class="client-list" aria-labelledby="beneficiaries-list-title">
+    <div class="client-list__heading">
+        <div><p class="ui-section-label">Relaciones guardadas</p><h2 id="beneficiaries-list-title" class="ui-card__title">Sus beneficiarios</h2></div>
+        <span class="ui-badge ui-badge--info">@Model.Beneficiaries.Count registrados</span>
+    </div>
+    @if (Model.Beneficiaries.Count == 0) {
+        ViewData["EmptyTitle"] = "No tiene beneficiarios registrados.";
+        ViewData["EmptyDescription"] = "Agregue una cuenta de otro cliente para usar transferencias frecuentes.";
+        <partial name="_EmptyState" />
+    } else {
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de beneficiarios">
+            <table class="ui-table client-table">
+                <caption class="ui-visually-hidden">Beneficiarios del cliente autenticado</caption>
+                <thead><tr><th scope="col">Nombre</th><th scope="col">Cuenta</th><th scope="col"><span class="ui-visually-hidden">Acciones</span></th></tr></thead>
+                <tbody>
+                    @foreach (BeneficiaryItemViewModel beneficiary in Model.Beneficiaries) {
+                        <tr>
+                            <td class="ui-table__primary">@beneficiary.FirstName @beneficiary.LastName</td>
+                            <td>@beneficiary.AccountNumber</td>
+                            <td class="client-table__actions">
+                                <a
+                                    class="ui-button ui-button--danger ui-button--small"
+                                    asp-controller="Client"
+                                    asp-action="RemoveBeneficiary"
+                                    asp-route-id="@beneficiary.BeneficiaryId"
+                                    aria-label="Eliminar beneficiario @beneficiary.FirstName @beneficiary.LastName">
+                                    Eliminar
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

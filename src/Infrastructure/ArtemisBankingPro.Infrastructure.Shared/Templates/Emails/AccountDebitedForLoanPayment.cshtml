@@ -1,0 +1,8 @@
+@model ArtemisBankingPro.Application.Models.Emails.AccountDebitedForLoanPaymentModel
+Hola @Model.CustomerName,
+
+Se ha realizado un pago a un préstamo utilizando fondos de su cuenta terminada en @Model.SourceAccountLastFour.
+Préstamo pagado: @Model.LoanNumber
+Monto debitado: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.

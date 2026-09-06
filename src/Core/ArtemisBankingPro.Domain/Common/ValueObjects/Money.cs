@@ -1,0 +1,75 @@
+using System.Globalization;
+
+namespace ArtemisBankingPro.Domain.Common.ValueObjects;
+
+/// <summary>
+/// Representa una cantidad de dinero con un valor decimal no negativo.
+/// </summary>
+public sealed record Money : IComparable<Money> {
+    private Money(decimal amount) {
+        Amount = amount;
+    }
+
+    public decimal Amount { get; }
+
+    public static Money Zero { get; } = new(0m);
+
+    public static Result<Money> Create(decimal amount) {
+        if (amount < 0m) {
+            return Result.Failure<Money>(
+                DomainError.Validation("Money.Negative", "El monto no puede ser negativo.")
+            );
+        }
+
+        return Result.Success(FromDecimal(amount));
+    }
+
+    public Money Add(Money other) => FromDecimal(Amount + other.Amount);
+
+    public Result<Money> Subtract(Money other) {
+        if (other.Amount > Amount) {
+            return Result.Failure<Money>(
+                DomainError.Declined("Money.Insufficient", "El monto no puede volverse negativo.")
+            );
+        }
+
+        return Result.Success(FromDecimal(Amount - other.Amount));
+    }
+
+    public Money Multiply(decimal multiplier) {
+        ArgumentOutOfRangeException.ThrowIfNegative(multiplier);
+
+        return FromDecimal(Amount * multiplier);
+    }
+
+    public int CompareTo(Money? other) => other is null ? 1 : Amount.CompareTo(other.Amount);
+
+    public override string ToString() => Amount.ToString("0.00", CultureInfo.InvariantCulture);
+
+    public static bool operator <(Money left, Money right) => left.Amount < right.Amount;
+
+    public static bool operator >(Money left, Money right) => left.Amount > right.Amount;
+
+    public static bool operator <=(Money left, Money right) => left.Amount <= right.Amount;
+
+    public static bool operator >=(Money left, Money right) => left.Amount >= right.Amount;
+
+    internal static Money FromDecimal(decimal amount) {
+        // La aritmética decimal puede producir "cero negativo" (-0.00) cuando
+        // se restan valores de igual magnitud con distinta escala (p. ej.
+        // 1000.00m - 1000m). El cero negativo es menor que cero para
+        // ArgumentOutOfRangeException.ThrowIfNegative y rompería montos
+        // legítimos que llegan exactamente a cero. Se normaliza antes de
+        // validar.
+        if (amount == 0m) {
+            amount = 0m;
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
+
+        return new Money(Round(amount));
+    }
+
+    internal static decimal Round(decimal amount) =>
+        decimal.Round(amount, 2, MidpointRounding.AwayFromZero);
+}

@@ -1,0 +1,30 @@
+@model CreditCardLimitPageViewModel
+@{
+    ViewData["Title"] = "Modificar límite de tarjeta";
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool limitInvalid = ViewData.ModelState["Form.NewLimit"]?.Errors.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="card-limit-edit-title">
+    <div class="page-header__content"><p class="page-header__eyebrow">Administración / Tarjetas</p><h1 id="card-limit-edit-title" class="page-header__title">Modificar límite</h1><p class="page-header__description">El nuevo límite no puede ser menor que la deuda actual.</p></div>
+</section>
+<form method="post" asp-action="EditLimit" asp-route-id="@Model.Card.Id" class="admin-product__form" data-submit-lock data-autofocus-error>
+    <input type="hidden" name="submissionToken" value="@Model.SubmissionToken" />
+    <partial name="_ValidationSummary" />
+    <section class="ui-card" aria-labelledby="card-limit-context-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Tarjeta seleccionada</p><h2 id="card-limit-context-title" class="ui-card__title">@Model.Card.MaskedNumber</h2><p class="ui-card__description">@Model.Card.ClientFullName · vencimiento @Model.Card.Expiration</p></div><partial name="_StatusBadge" model="Model.Card.Status" /></div>
+        <div class="ui-card__body admin-product__metric-grid"><div class="admin-product__metric"><span class="admin-product__metric-label">Deuda actual</span><strong class="admin-product__metric-value">@Money(Model.Card.CurrentDebt)</strong></div><div class="admin-product__metric"><span class="admin-product__metric-label">Límite actual</span><strong class="admin-product__metric-value">@Money(Model.Card.CreditLimit)</strong></div><div class="admin-product__metric"><span class="admin-product__metric-label">Disponible</span><strong class="admin-product__metric-value">@Money(Model.Card.AvailableCredit)</strong></div></div>
+    </section>
+    <section class="ui-card" aria-labelledby="card-new-limit-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Cambio protegido</p><h2 id="card-new-limit-title" class="ui-card__title">Nuevo límite</h2></div></div>
+        <div class="ui-card__body admin-product__form-grid">
+            <div class="ui-field">
+                <label class="ui-label" asp-for="Form.NewLimit">Nuevo límite de crédito</label>
+                <input class="ui-control" asp-for="Form.NewLimit" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" required aria-invalid="@(limitInvalid ? "true" : "false")" aria-describedby="Form_NewLimit-help Form_NewLimit-error" />
+                <p id="Form_NewLimit-help" class="ui-field-description">Rango permitido: desde @Money(Model.Card.CurrentDebt) o más. Use un monto en RD$ con hasta dos decimales.</p>
+                <span class="ui-error" asp-validation-for="Form.NewLimit"></span>
+            </div>
+        </div>
+    </section>
+    <div class="page-actions"><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Guardando…"><span data-submit-label>Guardar cambios</span></button><a class="ui-button ui-button--secondary" asp-action="Details" asp-route-id="@Model.Card.Id">Volver atrás</a></div>
+</form>

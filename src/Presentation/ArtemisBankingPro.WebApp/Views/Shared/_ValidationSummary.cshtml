@@ -1,0 +1,9 @@
+@if (!ViewData.ModelState.IsValid) {
+    <div
+        asp-validation-summary="ModelOnly"
+        class="ui-alert ui-alert--danger"
+        data-ui-state="error"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"></div>
+}

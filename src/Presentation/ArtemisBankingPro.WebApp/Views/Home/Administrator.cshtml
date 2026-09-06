@@ -1,0 +1,174 @@
+@model AdminDashboardViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header admin-dashboard__header" aria-labelledby="admin-dashboard-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administrador</p>
+        <h1 id="admin-dashboard-title" class="page-header__title">Centro de control</h1>
+        <p class="page-header__description">
+            Una vista consolidada de la actividad, los clientes y los productos financieros de Artemis Banking.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a
+            class="ui-button ui-button--primary"
+            asp-controller="Admin"
+            asp-action="Users">
+            <partial name="_Icon" model='@("users")' />
+            Gestionar usuarios
+        </a>
+    </div>
+</section>
+
+<section class="admin-dashboard__section" aria-labelledby="admin-modules-title">
+    <div class="admin-dashboard__section-heading">
+        <div>
+            <p class="ui-section-label">Accesos administrativos</p>
+            <h2 id="admin-modules-title" class="ui-card__title">Gestionar productos financieros</h2>
+        </div>
+        <span class="ui-badge ui-badge--info">Solo Administrador</span>
+    </div>
+    <div class="app-grid">
+        <article class="ui-card">
+            <div class="ui-card__body">
+                <p class="ui-section-label">Préstamos</p>
+                <h3 class="ui-card__title">Asignaciones y tasas</h3>
+                <p class="ui-card__description">Consulte amortizaciones, asigne préstamos y modifique tasas futuras.</p>
+                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Loans" asp-action="Index">
+                    Gestionar préstamos
+                </a>
+            </div>
+        </article>
+        <article class="ui-card">
+            <div class="ui-card__body">
+                <p class="ui-section-label">Tarjetas de crédito</p>
+                <h3 class="ui-card__title">Límites y cancelaciones</h3>
+                <p class="ui-card__description">Consulte consumos, actualice límites y gestione tarjetas activas.</p>
+                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="CreditCards" asp-action="Index">
+                    Gestionar tarjetas de crédito
+                </a>
+            </div>
+        </article>
+        <article class="ui-card">
+            <div class="ui-card__body">
+                <p class="ui-section-label">Cuentas de ahorro</p>
+                <h3 class="ui-card__title">Cuentas secundarias</h3>
+                <p class="ui-card__description">Consulte movimientos y cancele cuentas secundarias elegibles.</p>
+                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="SavingsAccounts" asp-action="Index">
+                    Gestionar cuentas de ahorro
+                </a>
+            </div>
+        </article>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive" aria-labelledby="admin-load-error-title">
+        <h2 id="admin-load-error-title" class="ui-visually-hidden">No fue posible cargar los indicadores</h2>
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Administrator" aria-label="Reintentar la carga de los indicadores">
+            Reintentar indicadores
+        </a>
+    </section>
+} else {
+    <section class="admin-dashboard__section" aria-labelledby="operations-title">
+        <div class="admin-dashboard__section-heading">
+            <div>
+                <p class="ui-section-label">Actividad de la plataforma</p>
+                <h2 id="operations-title" class="ui-card__title">Operaciones y pagos</h2>
+            </div>
+            <span class="ui-badge ui-badge--info">Historial completo</span>
+        </div>
+        <div class="app-grid app-grid--stats">
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Transacciones históricas</span>
+                <strong class="ui-data-card__value">@Model.TotalTransactionsHistorical</strong>
+                <span class="ui-data-card__meta">Operaciones registradas desde el inicio</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Transacciones del día</span>
+                <strong class="ui-data-card__value">@Model.TransactionsToday</strong>
+                <span class="ui-data-card__meta">Registradas durante la fecha actual</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Pagos históricos</span>
+                <strong class="ui-data-card__value">@Model.TotalPaymentsHistorical</strong>
+                <span class="ui-data-card__meta">Pagos aprobados de obligaciones</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Pagos del día</span>
+                <strong class="ui-data-card__value">@Model.PaymentsToday</strong>
+                <span class="ui-data-card__meta">Procesados correctamente hoy</span>
+            </article>
+        </div>
+    </section>
+
+    <section class="admin-dashboard__section" aria-labelledby="customers-title">
+        <div class="admin-dashboard__section-heading">
+            <div>
+                <p class="ui-section-label">Base de clientes</p>
+                <h2 id="customers-title" class="ui-card__title">Estado de usuarios Cliente</h2>
+            </div>
+        </div>
+        <div class="app-grid app-grid--stats">
+            <article class="ui-data-card ui-card ui-data-card--positive">
+                <span class="ui-data-card__label">Clientes activos</span>
+                <strong class="ui-data-card__value">@Model.ActiveClients</strong>
+                <span class="ui-data-card__meta">Con acceso habilitado</span>
+            </article>
+            <article class="ui-data-card ui-card ui-data-card--neutral">
+                <span class="ui-data-card__label">Clientes inactivos</span>
+                <strong class="ui-data-card__value">@Model.InactiveClients</strong>
+                <span class="ui-data-card__meta">Con acceso suspendido</span>
+            </article>
+        </div>
+    </section>
+
+    <section class="admin-dashboard__section" aria-labelledby="products-title">
+        <div class="admin-dashboard__section-heading">
+            <div>
+                <p class="ui-section-label">Productos financieros</p>
+                <h2 id="products-title" class="ui-card__title">Productos activos asignados</h2>
+            </div>
+            <span class="ui-badge ui-badge--active">Solo activos</span>
+        </div>
+        <div class="app-grid app-grid--stats">
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Total de productos</span>
+                <strong class="ui-data-card__value">@Model.TotalFinancialProducts</strong>
+                <span class="ui-data-card__meta">Cuentas, préstamos y tarjetas</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Préstamos vigentes</span>
+                <strong class="ui-data-card__value">@Model.ActiveLoans</strong>
+                <span class="ui-data-card__meta">Sin incluir préstamos completados</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Tarjetas activas</span>
+                <strong class="ui-data-card__value">@Model.ActiveCreditCards</strong>
+                <span class="ui-data-card__meta">Sin incluir tarjetas canceladas</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Cuentas activas</span>
+                <strong class="ui-data-card__value">@Model.ActiveSavingsAccounts</strong>
+                <span class="ui-data-card__meta">Principales y secundarias</span>
+            </article>
+        </div>
+    </section>
+
+    <section class="ui-card admin-dashboard__debt" aria-labelledby="debt-title">
+        <div class="ui-card__body admin-dashboard__debt-content">
+            <div>
+                <p class="ui-section-label">Riesgo agregado</p>
+                <h2 id="debt-title" class="ui-card__title">Promedio de deuda por cliente activo</h2>
+                <p class="ui-card__description">
+                    Suma de préstamos y tarjetas activos de clientes activos, dividida entre la cantidad de clientes activos.
+                </p>
+            </div>
+            <strong class="admin-dashboard__debt-value">@Money(Model.AverageDebtPerClient)</strong>
+        </div>
+    </section>
+}

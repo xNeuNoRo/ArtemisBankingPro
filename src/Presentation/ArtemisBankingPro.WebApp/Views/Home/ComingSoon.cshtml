@@ -1,0 +1,24 @@
+@model HomeViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+    ViewData["EmptyTitle"] = "Módulo en preparación";
+    ViewData["EmptyDescription"] = "Esta sección estará disponible en una próxima actualización.";
+}
+<section class="page-header">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">@Model.RoleLabel</p>
+        <h1 class="page-header__title">@Model.Heading</h1>
+        <p class="page-header__description">@Model.Description</p>
+    </div>
+</section>
+
+<div class="ui-card">
+    <div class="ui-card__body">
+        <partial name="_EmptyState" />
+        <div class="page-actions">
+            <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Index">
+                Volver al inicio
+            </a>
+        </div>
+    </div>
+</div>

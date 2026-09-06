@@ -1,0 +1,61 @@
+@model CashierOperationPageViewModel<CardPaymentViewModel>
+@{
+    ViewData["Title"] = Model.PageTitle;
+    bool canSubmit = Model.Form.CardOptions.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="cashier-card-payment-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cajero / Crédito</p>
+        <h1 id="cashier-card-payment-title" class="page-header__title">Pago a tarjeta de crédito</h1>
+        <p class="page-header__description">Aplique fondos de una cuenta de ahorro a una tarjeta activa. El pago se limita a la deuda real.</p>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive">
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Cashier" asp-action="CardPayment">Reintentar</a>
+    </section>
+} else if (!canSubmit) {
+    ViewData["EmptyTitle"] = "No hay tarjetas activas disponibles.";
+    ViewData["EmptyDescription"] = "El pago estará disponible cuando exista una tarjeta activa.";
+    <partial name="_EmptyState" />
+    <div class="page-actions">
+        <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Cashier">Volver al centro de operaciones</a>
+    </div>
+} else {
+    <section class="ui-card client-form-panel" aria-labelledby="cashier-card-payment-form-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="cashier-card-payment-form-title" class="ui-card__title">Datos del pago</h2></div></div>
+        <div class="ui-card__body">
+            <partial name="_ValidationSummary" />
+            <form asp-controller="Cashier" asp-action="CardPayment" method="post" data-submit-lock data-autofocus-error class="client-form">
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Form.CardId">Tarjeta de crédito</label>
+                    <select class="ui-control" asp-for="Form.CardId" aria-describedby="Form_CardId-help Form_CardId-error" required>
+                        <option value="0" disabled>Seleccione una tarjeta</option>
+                        @foreach (SelectOptionViewModel option in Model.Form.CardOptions) { <option value="@option.Value">@option.Text</option> }
+                    </select>
+                    <p id="Form_CardId-help" class="ui-field-description">Las tarjetas se muestran únicamente con sus últimos cuatro dígitos.</p>
+                    <span class="ui-error" asp-validation-for="Form.CardId"></span>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Form.AccountNumber">Número de cuenta origen</label>
+                    <input class="ui-control" asp-for="Form.AccountNumber" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" autocomplete="off" aria-describedby="Form_AccountNumber-error" required />
+                    <p class="ui-field-description">Ingrese los nueve dígitos de la cuenta de ahorro origen.</p>
+                    <span class="ui-error" asp-validation-for="Form.AccountNumber"></span>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Form.Amount">Monto a pagar</label>
+                    <input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" aria-describedby="Form_Amount-help Form_Amount-error" required />
+                    <p id="Form_Amount-help" class="ui-field-description">Si supera la deuda pendiente, solo se aplicará el monto efectivo de la deuda real.</p>
+                    <span class="ui-error" asp-validation-for="Form.Amount"></span>
+                </div>
+                <div class="page-actions">
+                    <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Cashier">Cancelar</a>
+                    <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Validando…"><span data-submit-label>Realizar pago</span></button>
+                </div>
+            </form>
+        </div>
+    </section>
+}

@@ -1,0 +1,6 @@
+@model ArtemisBankingPro.Application.Models.Emails.LoanDelinquentModel
+Hola @Model.CustomerName,
+
+Su préstamo @Model.LoanNumber presenta cuotas vencidas al @Model.BusinessDateText.
+Monto pendiente: @Model.OutstandingAmountText
+Por favor, regularice su situación o comuníquese con la entidad bancaria.

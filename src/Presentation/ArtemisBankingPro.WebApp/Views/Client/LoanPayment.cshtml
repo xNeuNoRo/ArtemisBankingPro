@@ -1,0 +1,36 @@
+@model ClientOperationPageViewModel<ClientLoanPaymentViewModel>
+@{
+    ViewData["Title"] = Model.PageTitle;
+    bool canSubmit = Model.Form.LoanOptions.Count > 0 && Model.Form.AccountOptions.Count > 0;
+    bool loanInvalid = ViewData.ModelState["Form.LoanId"]?.Errors.Count > 0;
+    bool accountInvalid = ViewData.ModelState["Form.AccountNumber"]?.Errors.Count > 0;
+    bool amountInvalid = ViewData.ModelState["Form.Amount"]?.Errors.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="loan-payment-title">
+    <div class="page-header__content"><p class="page-header__eyebrow">Cliente / Crédito</p><h1 id="loan-payment-title" class="page-header__title">Pago de préstamo</h1><p class="page-header__description">Abone su préstamo activo usando fondos de una cuenta de ahorro propia. El saldo pendiente y el monto efectivo se revisan nuevamente al confirmar.</p></div>
+    <div class="page-header__actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Volver al Home</a></div>
+</section>
+
+<partial name="_ValidationSummary" />
+
+@if (!canSubmit) {
+    ViewData["EmptyTitle"] = Model.Form.LoanOptions.Count == 0 ? "No tiene préstamos activos." : "No tiene cuentas activas para pagar.";
+    ViewData["EmptyDescription"] = "El pago estará disponible cuando tenga productos activos compatibles.";
+    <partial name="_EmptyState" />
+} else {
+    <section class="ui-card client-form-panel" aria-labelledby="loan-payment-form-title">
+        <div class="ui-card__header"><div><p class="ui-section-label">Nueva operación</p><h2 id="loan-payment-form-title" class="ui-card__title">Datos del pago</h2></div></div>
+        <div class="ui-card__body">
+            <form asp-controller="Client" asp-action="LoanPayment" method="post" data-submit-lock data-autofocus-error class="client-form" aria-labelledby="loan-payment-form-title">
+                <input asp-for="Form.SubmissionToken" type="hidden" />
+                <div class="client-form__grid">
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.LoanId">Préstamo</label><select class="ui-control" asp-for="Form.LoanId" aria-invalid="@(loanInvalid ? "true" : "false")" aria-describedby="Form_LoanId-help Form_LoanId-error" required><option value="0" disabled selected="@(Model.Form.LoanId <= 0 ? "selected" : null)">Seleccione un préstamo</option>@foreach (SelectOptionViewModel option in Model.Form.LoanOptions) { <option value="@option.Value">@option.Text</option> }</select><p id="Form_LoanId-help" class="ui-field-description">Solo se muestran sus préstamos activos con saldo pendiente.</p><span id="Form_LoanId-error" class="ui-error" asp-validation-for="Form.LoanId"></span></div>
+                    <div class="ui-field"><label class="ui-label" asp-for="Form.AccountNumber">Cuenta de origen</label><select class="ui-control" asp-for="Form.AccountNumber" aria-invalid="@(accountInvalid ? "true" : "false")" aria-describedby="Form_AccountNumber-help Form_AccountNumber-error" required><option value="" disabled selected="@(string.IsNullOrWhiteSpace(Model.Form.AccountNumber) ? "selected" : null)">Seleccione una cuenta</option>@foreach (SelectOptionViewModel option in Model.Form.AccountOptions) { <option value="@option.Value">@option.Text</option> }</select><p id="Form_AccountNumber-help" class="ui-field-description">El débito saldrá de una cuenta de ahorro activa propia.</p><span id="Form_AccountNumber-error" class="ui-error" asp-validation-for="Form.AccountNumber"></span></div>
+                </div>
+                <div class="ui-field"><label class="ui-label" asp-for="Form.Amount">Monto a pagar</label><input class="ui-control" asp-for="Form.Amount" type="number" min="0.01" step="0.01" inputmode="decimal" autocomplete="off" aria-invalid="@(amountInvalid ? "true" : "false")" aria-describedby="Form_Amount-help Form_Amount-error" required /><p id="Form_Amount-help" class="ui-field-description">El sistema aplicará como máximo el saldo pendiente real y no debitará excedentes.</p><span id="Form_Amount-error" class="ui-error" asp-validation-for="Form.Amount"></span></div>
+                <div class="page-actions"><a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client" aria-label="Cancelar y volver al Home">Cancelar</a><button class="ui-button ui-button--primary" type="submit" data-submitting-label="Validando pago…"><span data-submit-label>Realizar pago</span></button></div>
+            </form>
+        </div>
+    </section>
+}

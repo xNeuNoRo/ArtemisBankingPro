@@ -1,0 +1,40 @@
+@model ActivateAccountViewModel
+@{
+    Layout = "_LayoutAuth";
+    ViewData["Title"] = "Activar cuenta";
+    bool hasActivationFlow = !string.IsNullOrWhiteSpace(Model.Token);
+}
+
+<div class="auth-content">
+    <p class="page-header__eyebrow">Cuenta nueva</p>
+    <h1 class="auth-content__title">Activar cuenta</h1>
+    <p class="auth-content__description">
+        Confirme la activación para habilitar el acceso a Artemis Banking Pro.
+    </p>
+
+    <partial name="_ValidationSummary" />
+
+    @if (hasActivationFlow) {
+        <form asp-controller="Auth" asp-action="Activate" method="post" class="auth-form" data-submit-lock data-autofocus-error>
+            <input asp-for="Token" type="hidden" />
+            <div class="ui-confirmation-panel" role="status">
+                <strong class="ui-confirmation-panel__title">Enlace de activación recibido</strong>
+                <p>La confirmación es de un solo uso y se valida en el servidor.</p>
+            </div>
+            <button type="submit" class="ui-button ui-button--primary auth-form__submit">
+                <span data-submit-label>Activar cuenta</span>
+            </button>
+        </form>
+    } else {
+        <div class="ui-empty-state ui-empty-state--compact">
+            <strong class="ui-empty-state__title">El enlace no está disponible</strong>
+            <p class="ui-empty-state__description">
+                Solicite un nuevo enlace de activación al administrador del sistema.
+            </p>
+        </div>
+    }
+
+    <div class="auth-content__links">
+        <a asp-controller="Auth" asp-action="Login">Volver a iniciar sesión</a>
+    </div>
+</div>

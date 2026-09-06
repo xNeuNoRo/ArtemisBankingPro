@@ -1,0 +1,34 @@
+@model ErrorViewModel
+@{
+    Layout = "_LayoutAuth";
+    ViewData["Title"] = Model.PageTitle;
+}
+<div class="auth-content">
+    <p class="page-header__eyebrow">Artemis Banking Pro</p>
+    <h1 class="auth-content__title">@Model.Title</h1>
+    <p class="auth-content__description">@Model.Message</p>
+
+    @if (Model.ShowRequestId) {
+        <p class="auth-content__request-id">
+            Referencia: <code>@Model.RequestId</code>
+        </p>
+    }
+
+    <div class="auth-content__actions">
+        @if (Model.IsAuthenticated) {
+            if (NavigationCatalog.TryGetHome(Model.CurrentUserRole, out NavigationItem? home) && home is not null) {
+                <a class="ui-button ui-button--primary" asp-controller="@home.Controller" asp-action="@home.Action">
+                    Regresar a mi Home
+                </a>
+            } else {
+                <a class="ui-button ui-button--primary" asp-controller="Auth" asp-action="Login">
+                    Ir al inicio de sesión
+                </a>
+            }
+        } else {
+            <a class="ui-button ui-button--primary" asp-controller="Auth" asp-action="Login">
+                Ir al inicio de sesión
+            </a>
+        }
+    </div>
+</div>

@@ -1,0 +1,56 @@
+@model MyCardDetailViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+    ViewData["PaginationId"] = Model.CardId;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    string maskedCard = $"•••• •••• •••• {Model.LastFour}";
+}
+
+<section class="page-header" aria-labelledby="client-card-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cliente / Tarjeta</p>
+        <h1 id="client-card-title" class="page-header__title">Tarjeta terminada en @Model.LastFour</h1>
+        <p class="page-header__description">@maskedCard · Consulte consumos aprobados y rechazados sin exponer el número completo.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Volver al Home</a>
+        <a class="ui-button ui-button--primary" asp-controller="Client" asp-action="CardPayment">Realizar pago a tarjeta</a>
+    </div>
+</section>
+
+<section class="client-detail__metrics" aria-label="Resumen de tarjeta">
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Crédito disponible</span><strong class="ui-data-card__value">@Money(Model.AvailableCredit)</strong><p class="ui-card__description">Saldo disponible para nuevos consumos y avances.</p></article>
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Deuda actual</span><strong class="ui-data-card__value">@Money(Model.CurrentDebt)</strong></article>
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Límite aprobado</span><strong class="ui-data-card__value">@Money(Model.CreditLimit)</strong></article>
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Expiración</span><strong class="ui-data-card__value">@Model.Expiration</strong></article>
+</section>
+
+<section class="client-list" aria-labelledby="consumptions-title">
+    <div class="client-list__heading">
+        <div><p class="ui-section-label">Historial protegido</p><h2 id="consumptions-title" class="ui-card__title">Consumos</h2><p class="ui-card__description">La tarjeta se identifica únicamente por sus últimos cuatro dígitos.</p></div>
+        <span class="ui-badge ui-badge--info">@Model.Pagination.TotalItems registros</span>
+    </div>
+    @if (Model.Consumptions.Count == 0) {
+        ViewData["EmptyTitle"] = "No hay consumos registrados.";
+        ViewData["EmptyDescription"] = "Los consumos de esta tarjeta aparecerán aquí cuando existan intentos registrados.";
+        <partial name="_EmptyState" />
+    } else {
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de consumos de la tarjeta">
+            <table class="ui-table client-table">
+                <caption class="ui-visually-hidden">Consumos de la tarjeta terminada en @Model.LastFour</caption>
+                <thead><tr><th scope="col">Fecha y hora</th><th scope="col">Comercio</th><th scope="col">Monto consumido</th><th scope="col">Estado</th></tr></thead>
+                <tbody>
+                    @foreach (MyCardConsumptionViewModel consumption in Model.Consumptions) {
+                        <tr>
+                            <td>@BusinessClock.ToBusinessTime(consumption.Date).ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="ui-table__primary">@consumption.CommerceName</td>
+                            <td class="ui-table__numeric">@Money(consumption.Amount)</td>
+                            <td><partial name="_StatusBadge" model="consumption.Status" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pagination" model="Model.Pagination" />
+    }
+</section>

@@ -1,0 +1,9 @@
+@model ArtemisBankingPro.Application.Models.Emails.TransferCompletedModel
+Hola @Model.CustomerName,
+
+Se ha realizado una transferencia entre sus cuentas de ahorro.
+Cuenta origen terminada en: @Model.SourceLastFour
+Cuenta destino terminada en: @Model.DestinationLastFour
+Monto transferido: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.

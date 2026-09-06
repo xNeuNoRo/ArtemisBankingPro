@@ -1,0 +1,8 @@
+@model ArtemisBankingPro.Application.Models.Emails.PaymentReceivedByCommerceModel
+Hola @Model.CommerceName,
+
+Ha recibido un nuevo pago mediante Hermes Pay.
+Tarjeta terminada en: @Model.CardLastFour
+Monto recibido: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Este mensaje sirve como constancia del pago recibido.

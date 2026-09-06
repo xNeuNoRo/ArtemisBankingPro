@@ -1,0 +1,7 @@
+@model ArtemisBankingPro.Application.Models.Emails.DepositModel
+Hola @Model.CustomerName,
+
+Se ha realizado un depósito a su cuenta terminada en @Model.AccountLastFour.
+Monto depositado: @Model.AmountText
+Fecha y hora: @Model.OccurredAtText
+Si usted no reconoce esta operación, comuníquese con la entidad bancaria.
