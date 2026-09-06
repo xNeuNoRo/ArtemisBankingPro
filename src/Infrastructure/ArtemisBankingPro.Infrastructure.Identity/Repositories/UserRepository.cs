@@ -244,7 +244,7 @@ public sealed class UserRepository : IUserRepository {
         PageRequest page,
         CancellationToken ct = default
     ) {
-        IQueryable<AppUser> query = _context.Users.Where(user =>
+        IQueryable<AppUser> query = _context.Users.AsNoTracking().Where(user =>
             !_context
                 .UserRoles.Where(userRole => userRole.UserId == user.Id)
                 .Join(
@@ -278,7 +278,7 @@ public sealed class UserRepository : IUserRepository {
         CancellationToken ct = default
     ) =>
         await ToPageAsync(
-            _context.Users.Where(user =>
+            _context.Users.AsNoTracking().Where(user =>
                 _context
                     .UserRoles.Where(userRole => userRole.UserId == user.Id)
                     .Join(
@@ -315,6 +315,7 @@ public sealed class UserRepository : IUserRepository {
         int totalCount = await query.CountAsync(ct);
         List<UserListDto> items = await query
             .OrderByDescending(user => user.CreatedAt)
+            .ThenBy(user => user.Id)
             .Skip(page.Skip)
             .Take(page.PageSize)
             .Select(user => new UserListDto(

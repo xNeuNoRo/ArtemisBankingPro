@@ -1,0 +1,93 @@
+@model CashierDashboardViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+}
+
+<section class="page-header admin-dashboard__header" aria-labelledby="cashier-dashboard-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cajero</p>
+        <h1 id="cashier-dashboard-title" class="page-header__title">Centro de operaciones de caja</h1>
+        <p class="page-header__description">Procese operaciones financieras con validación, confirmación y registro seguro.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--primary" asp-controller="Cashier" asp-action="Operations">
+            <partial name="_Icon" model='@("transfer")' />
+            Ver historial de operaciones
+        </a>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive">
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Cashier">Reintentar</a>
+    </section>
+} else {
+    <section class="admin-dashboard__section" aria-labelledby="cashier-indicators-title">
+        <div class="admin-dashboard__section-heading">
+            <div>
+                <p class="ui-section-label">Fecha de negocio actual</p>
+                <h2 id="cashier-indicators-title" class="ui-card__title">Actividad de caja</h2>
+            </div>
+            <span class="ui-badge ui-badge--active">Sesión Cajero</span>
+        </div>
+        <div class="app-grid app-grid--stats">
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Transacciones realizadas hoy</span>
+                <strong class="ui-data-card__value">@Model.TransactionsToday</strong>
+                <span class="ui-data-card__meta">Operaciones del día del cajero autenticado</span>
+            </article>
+            <article class="ui-data-card ui-card ui-data-card--positive">
+                <span class="ui-data-card__label">Pagos realizados hoy</span>
+                <strong class="ui-data-card__value">@Model.PaymentsToday</strong>
+                <span class="ui-data-card__meta">Pagos aprobados a tarjetas y préstamos</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Depósitos realizados hoy</span>
+                <strong class="ui-data-card__value">@Model.DepositsToday</strong>
+                <span class="ui-data-card__meta">Depósitos aprobados durante el día actual</span>
+            </article>
+            <article class="ui-data-card ui-card">
+                <span class="ui-data-card__label">Retiros realizados hoy</span>
+                <strong class="ui-data-card__value">@Model.WithdrawalsToday</strong>
+                <span class="ui-data-card__meta">Retiros aprobados durante el día actual</span>
+            </article>
+        </div>
+    </section>
+
+    <section class="admin-dashboard__section" aria-labelledby="cashier-actions-title">
+        <div class="admin-dashboard__section-heading">
+            <div>
+                <p class="ui-section-label">Operaciones disponibles</p>
+                <h2 id="cashier-actions-title" class="ui-card__title">Nueva operación</h2>
+            </div>
+        </div>
+        <div class="app-grid client-dashboard__product-grid">
+            <a class="ui-product-card" asp-controller="Cashier" asp-action="Deposit">
+                <span class="ui-section-label">Fondos</span>
+                <h3 class="ui-product-card__title">Depósito</h3>
+                <p class="ui-product-card__meta">Acreditar fondos a una cuenta activa.</p>
+            </a>
+            <a class="ui-product-card" asp-controller="Cashier" asp-action="Withdrawal">
+                <span class="ui-section-label">Fondos</span>
+                <h3 class="ui-product-card__title">Retiro</h3>
+                <p class="ui-product-card__meta">Retirar fondos validando el saldo real.</p>
+            </a>
+            <a class="ui-product-card" asp-controller="Cashier" asp-action="CardPayment">
+                <span class="ui-section-label">Crédito</span>
+                <h3 class="ui-product-card__title">Pago a tarjeta de crédito</h3>
+                <p class="ui-product-card__meta">Aplicar un pago a la deuda vigente.</p>
+            </a>
+            <a class="ui-product-card" asp-controller="Cashier" asp-action="LoanPayment">
+                <span class="ui-section-label">Obligaciones</span>
+                <h3 class="ui-product-card__title">Pago a préstamo</h3>
+                <p class="ui-product-card__meta">Aplicar un pago a cuotas pendientes.</p>
+            </a>
+            <a class="ui-product-card" asp-controller="Cashier" asp-action="ThirdPartyTransfer">
+                <span class="ui-section-label">Transferencias</span>
+                <h3 class="ui-product-card__title">Transacciones a cuentas de terceros</h3>
+                <p class="ui-product-card__meta">Transferir fondos entre titulares distintos.</p>
+            </a>
+        </div>
+    </section>
+}

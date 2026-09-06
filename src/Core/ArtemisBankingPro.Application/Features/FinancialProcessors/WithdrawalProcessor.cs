@@ -96,12 +96,15 @@ public sealed class WithdrawalProcessor : IWithdrawalProcessor {
                 }
 
                 FinancialOperation operation = operationResult.Value;
-                operation.RecordWithdrawalProcessed(
+                Result eventResult = operation.RecordWithdrawalProcessed(
                     account.Number.Value,
                     amount,
                     account.OwnerUserId,
                     initiatedByUserId
                 );
+                if (eventResult.IsFailure) {
+                    return eventResult;
+                }
 
                 await _financialOperationRepository.AddAsync(operation, token);
                 return Result.Success();

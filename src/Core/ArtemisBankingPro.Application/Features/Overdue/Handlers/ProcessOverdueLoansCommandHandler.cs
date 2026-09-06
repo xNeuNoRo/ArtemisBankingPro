@@ -14,8 +14,9 @@ namespace ArtemisBankingPro.Application.Features.Overdue.Handlers;
 
 /// <summary>
 /// Recalcula la mora de los préstamos activos por lotes acotados y
-/// secuenciales (cada préstamo en su propia transacción, para que un fallo no
-/// revierta el trabajo ya confirmado).
+/// secuenciales, con un máximo de 1,000 préstamos por ejecución (cada préstamo
+/// en su propia transacción, para que un fallo no revierta el trabajo ya
+/// confirmado).
 /// </summary>
 /// <remarks>
 /// Sin service locator: las dependencias se inyectan y cada
@@ -23,7 +24,10 @@ namespace ArtemisBankingPro.Application.Features.Overdue.Handlers;
 /// aislada (el UnitOfWork revierte y limpia el estado ante fallos, ADR-002).
 /// Los fallos individuales no se silencian: se registran con su contexto y se
 /// devuelven en <see cref="OverdueProcessingResult.FailedCount"/> para que el
-/// host decida reintentar. La cancelación se propaga a consultas y correos.
+/// host decida reintentar. Los fallos de notificación se separan en
+/// <see cref="OverdueProcessingResult.EmailFailedCount"/> porque no deben
+/// revertir ni volver a ejecutar el cambio de mora. La cancelación se propaga
+/// a consultas y correos.
 /// </remarks>
 /// <summary>
 /// Resultado de la transacción por préstamo: el préstamo recalculado y si
@@ -33,6 +37,7 @@ public sealed record ProcessedLoanOutcome(Loan Loan, bool BecameDelinquent);
 
 public sealed class ProcessOverdueLoansCommandHandler
     : IRequestHandler<ProcessOverdueLoansCommand, Result<OverdueProcessingResult>> {
+    private const int MaxLoansPerRun = 1_000;
 
     private readonly ILoanRepository _loanRepository;
     private readonly IUserRepository _userRepository;
@@ -61,16 +66,20 @@ public sealed class ProcessOverdueLoansCommandHandler
         int totalProcessed = 0;
         int newDelinquent = 0;
         int failedCount = 0;
+        int emailFailedCount = 0;
         Money totalDelinquentAmount = Money.Zero;
         int afterLoanId = 0;
+        int attemptedLoans = 0;
+        bool hasMore = false;
 
-        while (true) {
+        while (attemptedLoans < MaxLoansPerRun) {
             cancellationToken.ThrowIfCancellationRequested();
+            int queryBatchSize = Math.Min(message.BatchSize, MaxLoansPerRun - attemptedLoans);
             IReadOnlyList<int> loanIds =
                 await _loanRepository.GetActivePastDueLoanIdsAsync(
                     message.BusinessDate,
                     afterLoanId,
-                    message.BatchSize,
+                    queryBatchSize,
                     cancellationToken
                 );
             if (loanIds.Count == 0) {
@@ -79,6 +88,7 @@ public sealed class ProcessOverdueLoansCommandHandler
 
             foreach (int loanId in loanIds) {
                 cancellationToken.ThrowIfCancellationRequested();
+                attemptedLoans++;
                 Result<ProcessedLoanOutcome> processResult =
                     await _unitOfWork.ExecuteInTransactionAsync<ProcessedLoanOutcome>(
                         async ct => {
@@ -130,26 +140,44 @@ public sealed class ProcessOverdueLoansCommandHandler
 
                 if (info.BecameDelinquent) {
                     newDelinquent++;
-                    await TrySendNotificationAsync(
-                        info.Loan,
-                        message.BusinessDate,
-                        cancellationToken
-                    );
+                    if (_emailService.IsConfigured) {
+                        bool sent = await TrySendNotificationAsync(
+                            info.Loan,
+                            message.BusinessDate,
+                            cancellationToken
+                        );
+                        if (!sent) {
+                            emailFailedCount++;
+                        }
+                    }
                 }
             }
 
             afterLoanId = loanIds[^1];
-            if (loanIds.Count < message.BatchSize) {
+            if (loanIds.Count < queryBatchSize) {
+                break;
+            }
+
+            if (attemptedLoans == MaxLoansPerRun) {
+                IReadOnlyList<int> remainingLoanIds =
+                    await _loanRepository.GetActivePastDueLoanIdsAsync(
+                        message.BusinessDate,
+                        afterLoanId,
+                        1,
+                        cancellationToken
+                    );
+                hasMore = remainingLoanIds.Count > 0;
                 break;
             }
         }
 
         _logger.LogInformation(
-            "Procesamiento de mora completado para {BusinessDate}: {TotalProcessed} préstamos, {NewDelinquent} nuevos morosos, {FailedCount} fallos, monto moroso {TotalDelinquentAmount}.",
+            "Procesamiento de mora completado para {BusinessDate}: {TotalProcessed} préstamos, {NewDelinquent} nuevos morosos, {FailedCount} fallos de procesamiento, {EmailFailedCount} fallos de correo, monto moroso {TotalDelinquentAmount}.",
             message.BusinessDate,
             totalProcessed,
             newDelinquent,
             failedCount,
+            emailFailedCount,
             totalDelinquentAmount.Amount
         );
 
@@ -158,27 +186,29 @@ public sealed class ProcessOverdueLoansCommandHandler
                 totalProcessed,
                 newDelinquent,
                 totalDelinquentAmount.Amount,
-                failedCount
+                failedCount,
+                emailFailedCount,
+                hasMore
             )
         );
     }
 
-    private async Task TrySendNotificationAsync(
+    private async Task<bool> TrySendNotificationAsync(
         Loan loan,
         DateOnly businessDate,
         CancellationToken cancellationToken
     ) {
-        if (!_emailService.IsConfigured || cancellationToken.IsCancellationRequested) {
-            return;
-        }
-
         try {
             UserListDto? customer = await _userRepository.GetByIdAsync(
                 loan.CustomerUserId,
                 cancellationToken
             );
             if (customer is null) {
-                return;
+                _logger.LogWarning(
+                        "No se encontró el cliente para notificación de mora del préstamo terminado en {LoanLastFour}.",
+                        loan.Number.Value[^4..]
+                );
+                return false;
             }
 
             await _emailService.SendAsync(
@@ -191,13 +221,16 @@ public sealed class ProcessOverdueLoansCommandHandler
                 ),
                 cancellationToken
             );
+            return true;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
-                "No se pudo enviar la notificación de mora del préstamo {LoanNumber}.",
-                loan.Number.Value
+                "No se pudo enviar la notificación de mora del préstamo terminado en {LoanLastFour}; tipo de error {ExceptionType}.",
+                loan.Number.Value[^4..],
+                ex.InnerException?.GetType().Name ?? ex.GetType().Name
             );
+            return false;
         }
     }
 }

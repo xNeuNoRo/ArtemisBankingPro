@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Features.Users.Commands;
+using ArtemisBankingPro.Application.Common.Validation;
 using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Users.Validators;
@@ -18,7 +19,8 @@ public sealed class CreateCommerceUserCommandValidator : AbstractValidator<Creat
 
         RuleFor(x => x.Identification)
             .NotEmpty().WithMessage("La cédula es requerida.")
-            .MaximumLength(20);
+            .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
+            .WithMessage(IdentityValidationLimits.IdentificationMaxLengthMessage);
 
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("El correo electrónico es requerido.")
@@ -40,6 +42,7 @@ public sealed class CreateCommerceUserCommandValidator : AbstractValidator<Creat
             .WithMessage("La contraseña y la confirmación de contraseña deben coincidir.");
 
         RuleFor(x => x.InitialAmount)
+            .NotNull().WithMessage("El monto inicial es requerido.")
             .GreaterThanOrEqualTo(0)
             .WithMessage("El balance inicial no puede ser negativo.");
 

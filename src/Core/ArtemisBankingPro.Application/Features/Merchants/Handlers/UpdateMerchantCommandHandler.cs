@@ -32,32 +32,25 @@ public sealed class UpdateMerchantCommandHandler
         UpdateMerchantCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. El comercio debe existir.
+        // El comercio debe existir.
         var merchant = await _merchantRepository.GetByIdAsync(
             message.MerchantId,
             cancellationToken
         );
         if (merchant is null) {
             return Result.Failure<Unit>(
-                DomainError.NotFound(
-                    "Commerce.NotFound",
-                    "El comercio indicado no existe."
-                )
+                DomainError.NotFound("Commerce.NotFound", "El comercio indicado no existe.")
             );
         }
 
-        // 2. El RNC y el correo no pueden pertenecer a otro comercio.
+        // El RNC y el correo no pueden pertenecer a otro comercio.
         string trimmedRnc = message.Rnc.Trim();
         if (
-            await _merchantRepository.GetByRncAsync(trimmedRnc, cancellationToken)
-                is { } rncOwner
+            await _merchantRepository.GetByRncAsync(trimmedRnc, cancellationToken) is { } rncOwner
             && rncOwner.Id != merchant.Id
         ) {
             return Result.Failure<Unit>(
-                DomainError.Conflict(
-                    "Merchant.RncBelongsToAnotherMerchant",
-                    "El RNC pertenece a otro comercio."
-                )
+                DomainError.Conflict("Commerce.RncExists", "El RNC pertenece a otro comercio.")
             );
         }
 
@@ -70,13 +63,13 @@ public sealed class UpdateMerchantCommandHandler
         ) {
             return Result.Failure<Unit>(
                 DomainError.Conflict(
-                    "Merchant.EmailBelongsToAnotherMerchant",
+                    "Commerce.EmailExists",
                     "El correo electrónico pertenece a otro comercio."
                 )
             );
         }
 
-        // 3. Actualizar el agregado y persistir atómicamente.
+        // Actualizamos el agregado y persistimos atómicamente.
         var updateResult = merchant.UpdateInformation(
             message.Name,
             message.Description,

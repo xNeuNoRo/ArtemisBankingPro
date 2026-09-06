@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Features.Users.Commands;
+using ArtemisBankingPro.Application.Common.Validation;
 using FluentValidation;
 
 namespace ArtemisBankingPro.Application.Features.Users.Validators;
@@ -17,7 +18,8 @@ public sealed class CreateUserCommandValidator : AbstractValidator<CreateUserCom
 
         RuleFor(x => x.Identification)
             .NotEmpty().WithMessage("La cédula es requerida.")
-            .MaximumLength(20).WithMessage("La cédula no debe exceder 20 caracteres.");
+            .MaximumLength(IdentityValidationLimits.IdentificationMaxLength)
+            .WithMessage(IdentityValidationLimits.IdentificationMaxLengthMessage);
 
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("El correo electrónico es requerido.")

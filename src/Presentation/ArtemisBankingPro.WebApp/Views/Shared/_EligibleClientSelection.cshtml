@@ -1,0 +1,71 @@
+@model EligibleClientsViewModel
+@{
+    string controller = ViewData["EligibleController"] as string ?? string.Empty;
+    string action = ViewData["EligibleAction"] as string ?? "Assign";
+    string title = ViewData["EligibleTitle"] as string ?? "Seleccionar cliente";
+    string description = ViewData["EligibleDescription"] as string ?? "Seleccione un cliente activo.";
+    string product = ViewData["EligibleProduct"] as string ?? "producto";
+    ViewData["PaginationIdentification"] = Model.Identification;
+}
+
+<section class="page-header" aria-labelledby="eligible-clients-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Productos</p>
+        <h1 id="eligible-clients-title" class="page-header__title">@title</h1>
+        <p class="page-header__description">@description La selección se vuelve a validar antes de guardar.</p>
+    </div>
+</section>
+
+<section class="ui-card admin-product__filter" aria-labelledby="eligible-filter-title">
+    <div class="ui-card__body">
+        <form method="get" asp-controller="@controller" asp-action="@action" class="admin-filter" data-submit-lock>
+            <div class="ui-field">
+                <label id="eligible-filter-title" class="ui-label" asp-for="Identification">Buscar por cédula</label>
+                <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-describedby="Identification-error" />
+                <span class="ui-error" asp-validation-for="Identification"></span>
+            </div>
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="pageSize" value="20" />
+            <button class="ui-button ui-button--secondary" type="submit">Buscar</button>
+        </form>
+    </div>
+</section>
+
+<form method="post" asp-controller="@controller" asp-action="@action" class="admin-product__list" data-submit-lock data-autofocus-error>
+    <partial name="_ValidationSummary" />
+    <input type="hidden" name="Identification" value="@Model.Identification" />
+    @if (ViewData.ModelState.IsValid && Model.Clients.Count == 0) {
+        ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Identification)
+            ? "No hay clientes elegibles"
+            : "No se encontraron clientes elegibles";
+        ViewData["EmptyDescription"] = $"No hay clientes activos disponibles para asignar este {product}.";
+        <partial name="_EmptyState" />
+    } else {
+        <div class="admin-users__list-heading">
+            <div><p class="ui-section-label">Selección única</p><h2 class="ui-card__title">Clientes activos disponibles</h2></div>
+            <span class="ui-badge ui-badge--neutral">Deuda promedio: RD$ @Model.AverageDebt.ToString("N2", CultureInfo.InvariantCulture)</span>
+        </div>
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de clientes elegibles">
+            <table class="ui-table admin-product__table">
+                <caption class="ui-visually-hidden">Clientes elegibles para asignar @product</caption>
+                <thead><tr><th scope="col"><span class="ui-visually-hidden">Seleccionar</span></th><th scope="col">Cliente</th><th scope="col">Cédula</th><th scope="col">Correo</th><th scope="col">Deuda actual</th></tr></thead>
+                <tbody>
+                    @foreach (EligibleClientItemViewModel client in Model.Clients) {
+                        <tr>
+                            <td class="admin-product__selection"><input type="radio" name="SelectedClientId" value="@client.ClientId" checked="@(client.ClientId == Model.SelectedClientId ? "checked" : null)" aria-label="Seleccionar @client.FullName" /></td>
+                            <td><span class="admin-product__person"><strong>@client.FullName</strong><span>@client.ClientId</span></span></td>
+                            <td class="ui-table__numeric">@client.Identification</td>
+                            <td class="admin-product__muted">@client.Email</td>
+                            <td class="ui-table__numeric">RD$ @client.TotalDebt.ToString("N2", CultureInfo.InvariantCulture)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pagination" model="Model.Pagination" />
+    }
+    <div class="page-actions">
+        <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Validando…"><span data-submit-label>Siguiente paso</span></button>
+        <a class="ui-button ui-button--secondary" asp-controller="@controller" asp-action="Index">Volver atrás</a>
+    </div>
+</form>

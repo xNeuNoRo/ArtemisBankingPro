@@ -20,7 +20,7 @@ public sealed record CreateCommerceUserCommand(
     string UserName,
     string Password,
     string ConfirmPassword,
-    decimal InitialAmount = 0m,
+    decimal? InitialAmount = null,
     string? CallbackUrl = null
 ) : IRequest<Result<CreateCommerceUserResponse>>, IAuthorize, IIdempotentCommand {
     public string[] RequiredRoles => ["Administrador"];
@@ -28,5 +28,16 @@ public sealed record CreateCommerceUserCommand(
     public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
-        $"{CommerceId}|{FirstName}|{LastName}|{Identification}|{Email}|{UserName}|{InitialAmount}";
+        string.Join(
+            '\u001F',
+            CommerceId,
+            FirstName,
+            LastName,
+            Identification,
+            Email,
+            UserName,
+            "password-present",
+            InitialAmount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+            CallbackUrl ?? ""
+        );
 }

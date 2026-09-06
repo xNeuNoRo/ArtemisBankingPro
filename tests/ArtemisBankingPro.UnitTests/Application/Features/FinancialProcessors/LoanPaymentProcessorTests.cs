@@ -171,7 +171,7 @@ public sealed class LoanPaymentProcessorTests {
     }
 
     [Fact]
-    public async Task PayAsync_CompletedLoan_ReturnsNotActiveWithoutPersistence() {
+    public async Task PayAsync_CompletedLoan_RecordsRejectedOperationWithoutStateChanges() {
         Loan loan = PaidOffLoan();
         SavingsAccount account = Account(50_000m);
         var operationRepository = OperationRepository(out Func<FinancialOperation?> addedOperation);
@@ -186,10 +186,12 @@ public sealed class LoanPaymentProcessorTests {
 
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Loan.NotActive");
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Loan.NotActive");
     }
     [Fact]
-    public async Task PayAsync_CancelledAccount_ReturnsNotActiveWithoutPersistence() {
+    public async Task PayAsync_CancelledAccount_RecordsRejectedOperationWithoutStateChanges() {
         Loan loan = SeedLoan();
         var cancelled = SavingsAccount
             .OpenSecondary(
@@ -200,7 +202,7 @@ public sealed class LoanPaymentProcessorTests {
                 FixedNow)
             .Value;
         cancelled.Cancel(FixedNow).IsSuccess.Should().BeTrue();
-        var operationRepository = OperationRepository(out _);
+        var operationRepository = OperationRepository(out Func<FinancialOperation?> addedOperation);
         LoanPaymentProcessor processor = CreateProcessor(operationRepository);
 
         Result<FinancialOperationOutcome> result = await processor.PayAsync(
@@ -212,6 +214,9 @@ public sealed class LoanPaymentProcessorTests {
 
         result.IsFailure.Should().BeTrue();
         result.Error!.Code.Should().Be("Account.NotActive");
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Account.NotActive");
     }
 
     [Fact]

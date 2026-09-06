@@ -12,6 +12,10 @@ public sealed class AccountTransactionConfiguration : IEntityTypeConfiguration<A
             "AccountTransactions",
             table => {
                 table.HasCheckConstraint("CK_AccountTransactions_Amount_Positive", "[Amount] > 0");
+                table.HasCheckConstraint(
+                    "CK_AccountTransactions_Direction_Valid",
+                    "[Direction] IN (1, 2)"
+                );
             }
         );
         builder.HasKey(transaction => transaction.Id);

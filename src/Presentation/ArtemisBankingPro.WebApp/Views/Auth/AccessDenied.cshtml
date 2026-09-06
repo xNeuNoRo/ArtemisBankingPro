@@ -1,0 +1,36 @@
+@model AccessDeniedViewModel
+@{
+    Layout = "_LayoutAuth";
+    ViewData["Title"] = Model.PageTitle;
+    NavigationItem? home = null;
+    if (NavigationCatalog.TryGetForRole(Model.CurrentUserRole, Model.HomeNavigationKey, out NavigationItem? resolvedHome)) {
+        home = resolvedHome;
+    }
+}
+<div class="auth-content">
+    <p class="page-header__eyebrow">Control de acceso</p>
+    <h1 class="auth-content__title">Acceso denegado</h1>
+    <p class="auth-content__description">@Model.Message</p>
+
+    <div class="ui-alert ui-alert--@(Model.IsAuthenticated ? "warning" : "info")" role="alert">
+        <p class="ui-alert__content">
+            @if (Model.IsAuthenticated) {
+                <text>Su sesión permanece activa, pero esta sección no está disponible para su rol.</text>
+            } else {
+                <text>Inicie sesión para acceder a las secciones protegidas.</text>
+            }
+        </p>
+    </div>
+
+    <div class="auth-content__actions">
+        @if (home is not null) {
+            <a class="ui-button ui-button--primary" asp-controller="@home.Controller" asp-action="@home.Action">
+                Regresar a mi Home
+            </a>
+        } else {
+            <a class="ui-button ui-button--primary" asp-controller="Auth" asp-action="Login">
+                Ir al inicio de sesión
+            </a>
+        }
+    </div>
+</div>

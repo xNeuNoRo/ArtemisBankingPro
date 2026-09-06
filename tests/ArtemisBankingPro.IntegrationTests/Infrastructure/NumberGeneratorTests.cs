@@ -1,4 +1,6 @@
 using ArtemisBankingPro.Application.Interfaces.Services;
+using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
+using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -12,6 +14,12 @@ public sealed class NumberGeneratorTests(SqlServerFixture fixture) : SqlServerTe
         string number = await generator.NextAccountNumberAsync();
 
         number.Should().MatchRegex(@"^\d{9}$");
+
+        await using var verificationScope = Fixture.Services.CreateAsyncScope();
+        var context = verificationScope.ServiceProvider.GetRequiredService<BankingDbContext>();
+        (await context.BankingNumberReservations.CountAsync(reservation => reservation.Number == number))
+            .Should()
+            .Be(1);
     }
 
     [Fact]

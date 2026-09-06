@@ -94,6 +94,10 @@ public sealed class CreditCardMappingRegister : IRegister {
     ) => new() {
         Status = status,
         Identification = identification,
+        StatusOptions = CreditCardListViewModel.BuildStatusOptions(
+            status,
+            !string.IsNullOrWhiteSpace(identification)
+        ),
         Cards = cards.Select(mapper.Map<CreditCardSummaryViewModel>).ToArray(),
         Pagination = new PaginationViewModel {
             Page = page,

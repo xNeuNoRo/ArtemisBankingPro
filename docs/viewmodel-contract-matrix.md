@@ -9,7 +9,8 @@ ViewModels/mappings in Phase 5, explicit mapping composition/validation in Phase
 6, presentation validation in Phase 7, and mapping/contract tests in Phase 8.
 Phase 9 architecture ratification is recorded in ADR-018 and this matrix.
 Phase 10 Application closure is recorded in `docs/application-phase10-gate.md`.
-MVC controllers and Razor Views remain a later presentation phase.
+The MVC shell controllers and Razor layouts/views are now implemented in Phase
+2; feature controllers and financial screens remain later presentation phases.
 
 ## Scope
 
@@ -121,9 +122,11 @@ one.
 
 Phase 2 implemented the shared contracts in `SH-06` through `SH-10`. Phase 3
 implemented the Auth ViewModels and Auth mapping register in `SH-01` through
-`SH-05`. Phase 4 implemented the administrative contracts and feature mapping
-registers in `ADM-01` through `ADM-22` and `ADM-24`. Phase 5 implements Client
-and Cashier ViewModels, feature mappings and financial form/result tests.
+`SH-05`. Phase 4 implemented the administrative shell, user contracts and
+shared feature mapping registers. Phase 5 implements the administrative product
+verticals in `ADM-07` through `ADM-22`, including MVC controllers, forms,
+confirmation flows and financial result tests. Client and Cashier MVC contracts
+remain future work.
 
 ## Shared MVC Contracts
 
@@ -224,16 +227,16 @@ replaced by MVC ViewModels.
 | Auth | `POST /account/confirm` | `ActivateAccountCommand` | No content | Public; single-use token |
 | Auth | `POST /account/get-reset-token` | `RequestPasswordResetCommand` | No content | Public; API token delivered by email body |
 | Auth | `POST /account/reset-password` | `ResetPasswordCommand` | No content | Public; user/token binding and one-use |
-| Users | `GET /api/users` | `GetUsersPagedQuery` | `PageResult<UserListDto>` | `Administrador`; excludes `Comercio`; max page size 20 |
-| Users | `GET /api/users/commerce` | `GetCommerceUsersPagedQuery` | `PageResult<UserListDto>` | `Administrador`; only `Comercio` |
+| Users | `GET /api/users` | `GetUsersPagedQuery` | `PageResult<UserListResponse>` | `Administrador`; excludes `Comercio`; max page size 20 |
+| Users | `GET /api/users/commerce` | `GetCommerceUsersPagedQuery` | `PageResult<CommerceUserListResponse>` | `Administrador`; only associated `Comercio`; max page size 20 |
 | Users | `POST /api/users` | `CreateUserCommand` | `CreateUserResponse` | `Administrador`; role allow-list; inactive creation |
 | Users | `POST /api/users/commerce/{commerceId}` | `CreateCommerceUserCommand` | `CreateCommerceUserResponse` | `Administrador`; ownership and one user per commerce |
 | Users | `PUT /api/users/{id}` | `UpdateUserCommand` | No content | `Administrador`; no role mutation |
 | Users | `PATCH /api/users/{id}/status` | `ChangeUserStatusCommand` | No content | `Administrador`; self-status protection |
 | Users | `GET /api/users/{id}` | `GetUserByIdQuery` | `UserDetailResponse` | `Administrador`; no secret fields |
-| Loans | `GET /api/loan` | `GetLoansPagedQuery` | `PageResult<LoanListDto>` | `Administrador`; status and identification filters |
-| Loans | `POST /api/loan` | `CreateLoanCommand` | `CreateLoanResponse` | `Administrador`; 409 high-risk confirmation |
-| Loans | `GET /api/loan/{id}` | `GetLoanDetailQuery` | `LoanDetailDto` | `Administrador`; amortization detail |
+| Loans | `GET /api/loan` | `GetLoansPagedQuery` | `PagedApiResponse<LoanApiListDto>` | `Administrador`; status and identification filters |
+| Loans | `POST /api/loan` | `CreateLoanCommand` | `CreateLoanApiResponse` | `Administrador`; 409 high-risk confirmation |
+| Loans | `GET /api/loan/{id}` | `GetLoanDetailQuery` | `LoanApiDetailDto` | `Administrador`; amortization detail |
 | Loans | `PATCH /api/loan/{id}/rate` | `UpdateLoanRateCommand` | No content | `Administrador`; future pending installments only |
 | Cards | `GET /api/credit-card` | `GetCreditCardsPagedQuery` | `PageResult<CreditCardSummaryDto>` | `Administrador`; masked card only |
 | Cards | `POST /api/credit-card` | `AssignCreditCardCommand` | `AssignCreditCardResponse` | `Administrador`; no CVC/PAN response |

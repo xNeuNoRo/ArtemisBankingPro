@@ -1,6 +1,6 @@
 using ArtemisBankingPro.Application.Common.Errors;
+using ArtemisBankingPro.Api.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
 
 namespace ArtemisBankingPro.Api.Middleware;
 
@@ -22,11 +22,23 @@ public sealed class GlobalExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken
     ) {
+        if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested) {
+            return false;
+        }
+
         ErrorResponse response = errorMapper.Map(exception);
+
+        if (httpContext.Response.HasStarted) {
+            logger.LogError(
+                "No se pudo escribir Problem Details porque la respuesta ya había comenzado "
+                    + "(TraceId: {TraceId}).",
+                httpContext.TraceIdentifier
+            );
+            return false;
+        }
 
         if (response.StatusCode >= 500) {
             logger.LogError(
-                exception,
                 "Error no controlado de tipo {ExceptionType} al procesar {Method} {Path} "
                     + "(TraceId: {TraceId}).",
                 exception.GetType().FullName,
@@ -37,44 +49,18 @@ public sealed class GlobalExceptionHandler(
         }
         else {
             logger.LogWarning(
-                "Solicitud rechazada ({StatusCode} {ErrorCode}) en {Method} {Path}: {Detail}",
+                "Solicitud rechazada ({StatusCode} {ErrorCode}) en {Method} {Path} "
+                    + "(TraceId: {TraceId}).",
                 response.StatusCode,
                 response.ErrorCode,
                 httpContext.Request.Method,
                 httpContext.Request.Path,
-                response.Detail
+                httpContext.TraceIdentifier
             );
         }
 
-        httpContext.Response.StatusCode = response.StatusCode;
-
-        var problemDetails = new ProblemDetails {
-            Status = response.StatusCode,
-            Title = response.Title,
-            Detail = response.Detail,
-            Type = "about:blank",
-        };
-
-        if (response.ErrorCode is not null) {
-            problemDetails.Extensions["errorCode"] = response.ErrorCode;
-        }
-
-        if (response.Category is not null) {
-            problemDetails.Extensions["category"] = response.Category;
-        }
-
-        if (response.Extensions is not null) {
-            foreach ((string key, object? value) in response.Extensions) {
-                problemDetails.Extensions[key] = value;
-            }
-        }
-
-        await httpContext.Response.WriteAsJsonAsync(
-            problemDetails,
-            options: null,
-            contentType: "application/problem+json",
-            cancellationToken
-        );
+        var problemDetails = ApiProblemDetailsFactory.Create(httpContext, response);
+        await ApiProblemDetailsFactory.WriteAsync(httpContext, problemDetails, cancellationToken);
         return true;
     }
 }

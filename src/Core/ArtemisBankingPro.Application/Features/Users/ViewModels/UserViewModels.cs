@@ -1,14 +1,41 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Common.ViewModels;
 
 namespace ArtemisBankingPro.Application.Features.Users.ViewModels;
 
 public sealed class UserListViewModel : BaseViewModel {
+    public string? LoadErrorMessage { get; init; }
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
     [StringLength(50, ErrorMessage = "El rol no debe exceder 50 caracteres.")]
     public string? Role { get; set; }
     public IReadOnlyList<SelectOptionViewModel> RoleOptions { get; init; } = [];
     public IReadOnlyList<UserListItemViewModel> Users { get; init; } = [];
     public PaginationViewModel Pagination { get; init; } = new();
+
+    public static IReadOnlyList<SelectOptionViewModel> BuildRoleOptions(string? selectedRole) => [
+        new() {
+            Value = string.Empty,
+            Text = "Todos",
+            IsSelected = string.IsNullOrWhiteSpace(selectedRole),
+        },
+        new() {
+            Value = "Administrador",
+            Text = "Administrador",
+            IsSelected = string.Equals(selectedRole, "Administrador", StringComparison.OrdinalIgnoreCase),
+        },
+        new() {
+            Value = "Cajero",
+            Text = "Cajero",
+            IsSelected = string.Equals(selectedRole, "Cajero", StringComparison.OrdinalIgnoreCase),
+        },
+        new() {
+            Value = "Cliente",
+            Text = "Cliente",
+            IsSelected = string.Equals(selectedRole, "Cliente", StringComparison.OrdinalIgnoreCase),
+        },
+    ];
 }
 
 public sealed class UserListItemViewModel {
@@ -43,7 +70,7 @@ public sealed class UserMainAccountViewModel {
     public string Status { get; init; } = string.Empty;
 }
 
-public sealed class CreateUserViewModel : IValidatableObject {
+public sealed class CreateUserViewModel : BaseViewModel, IValidatableObject {
     [Required(ErrorMessage = "El nombre es requerido.")]
     [StringLength(100, ErrorMessage = "El nombre no debe exceder 100 caracteres.")]
     public string FirstName { get; set; } = string.Empty;
@@ -53,7 +80,10 @@ public sealed class CreateUserViewModel : IValidatableObject {
     public string LastName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La cédula es requerida.")]
-    [StringLength(20, ErrorMessage = "La cédula no debe exceder 20 caracteres.")]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string Identification { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo electrónico es requerido.")]
@@ -112,7 +142,10 @@ public sealed class CreateCommerceUserViewModel : IValidatableObject {
     public string LastName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La cédula es requerida.")]
-    [StringLength(20)]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string Identification { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo electrónico es requerido.")]
@@ -146,7 +179,7 @@ public sealed class CreateCommerceUserViewModel : IValidatableObject {
     }
 }
 
-public sealed class UpdateUserViewModel : IValidatableObject {
+public sealed class UpdateUserViewModel : BaseViewModel, IValidatableObject {
     [Required(ErrorMessage = "El nombre es requerido.")]
     [StringLength(100)]
     public string FirstName { get; set; } = string.Empty;
@@ -156,7 +189,10 @@ public sealed class UpdateUserViewModel : IValidatableObject {
     public string LastName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La cédula es requerida.")]
-    [StringLength(20)]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string Identification { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo electrónico es requerido.")]
@@ -201,4 +237,26 @@ public sealed class ChangeUserStatusViewModel {
     [StringLength(450, ErrorMessage = "El identificador del usuario no es válido.")]
     public string UserId { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+}
+
+/// <summary>Contexto de lectura y formulario de edición de un usuario.</summary>
+public sealed class EditUserPageViewModel : BaseViewModel {
+    public UserDetailViewModel User { get; init; } = new();
+    public UpdateUserViewModel Form { get; init; } = new();
+    public string SubmissionToken { get; init; } = string.Empty;
+}
+
+/// <summary>Confirmación server-issued para activar o inactivar un usuario.</summary>
+public sealed class UserStatusConfirmationViewModel : ConfirmationViewModel {
+    public string UserId { get; init; } = string.Empty;
+    public string UserName { get; init; } = string.Empty;
+    public string FullName { get; init; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
+    public bool CurrentIsActive { get; init; }
+    public bool TargetIsActive { get; init; }
+}
+
+/// <summary>Resultado MVC de una creación, sin ampliar el contrato JSON de la API.</summary>
+public sealed class UserCreationOutcomeViewModel {
+    public bool ActivationEmailSent { get; init; }
 }

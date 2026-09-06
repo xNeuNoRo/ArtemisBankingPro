@@ -13,6 +13,10 @@ public sealed class CardConsumptionConfiguration : IEntityTypeConfiguration<Card
             "CardConsumptions",
             table => {
                 table.HasCheckConstraint("CK_CardConsumptions_Amount_Positive", "[Amount] > 0");
+                table.HasCheckConstraint(
+                    "CK_CardConsumptions_Type_Valid",
+                    "[Type] IN (1, 2)"
+                );
             }
         );
         builder.HasKey(consumption => consumption.Id);

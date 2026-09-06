@@ -34,11 +34,23 @@ public sealed class RequestPasswordResetCommandHandlerTests {
         return service;
     }
 
-    private static Mock<IAccountTokenService> TokenService(string rawToken = "raw-token") {
+    private static Mock<IAccountTokenService> TokenService(
+        string rawToken = "raw-token",
+        Result<PasswordResetTokenResult>? generationResult = null
+    ) {
         var service = new Mock<IAccountTokenService>();
         service
-            .Setup(s => s.GenerateAsync("user-1", AccountTokenType.PasswordReset, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(rawToken);
+            .Setup(s => s.GeneratePasswordResetAsync(
+                "user-1",
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()
+            ))
+            .ReturnsAsync(
+                generationResult
+                ?? Result.Success(
+                    new PasswordResetTokenResult(rawToken, UserInfo.Email, UserInfo.FullName)
+                )
+            );
         return service;
     }
 
@@ -55,7 +67,7 @@ public sealed class RequestPasswordResetCommandHandlerTests {
         );
 
     [Fact]
-    public async Task Handle_UnknownUser_ReturnsNotFound() {
+    public async Task Handle_UnknownUser_ReturnsBadRequest() {
         var handler = CreateHandler(userService: UserService(info: null));
 
         var result = await handler.Handle(
@@ -64,8 +76,8 @@ public sealed class RequestPasswordResetCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.UserNotFound");
-        result.Error.Category.Should().Be(ErrorCategory.NotFound);
+        result.Error!.Code.Should().Be("Account.ResetUserNotFound");
+        result.Error.Category.Should().Be(ErrorCategory.Validation);
     }
 
     [Fact]
@@ -79,7 +91,7 @@ public sealed class RequestPasswordResetCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Auth.NoEmail");
+        result.Error!.Code.Should().Be("Account.ResetEmailMissing");
     }
 
     [Fact]
@@ -97,11 +109,15 @@ public sealed class RequestPasswordResetCommandHandlerTests {
 
         result.IsSuccess.Should().BeTrue();
         userService.Verify(
-            s => s.SetActiveAsync("user-1", false, It.IsAny<CancellationToken>()),
-            Times.Once
+            s => s.SetActiveAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Never
         );
         tokenService.Verify(
-            s => s.GenerateAsync("user-1", AccountTokenType.PasswordReset, It.IsAny<CancellationToken>()),
+            s => s.GeneratePasswordResetAsync(
+                "user-1",
+                It.Is<IReadOnlyCollection<string>>(roles => roles.SequenceEqual(MvcRoles)),
+                It.IsAny<CancellationToken>()
+            ),
             Times.Once
         );
         emailService.Verify(
@@ -143,13 +159,50 @@ public sealed class RequestPasswordResetCommandHandlerTests {
     }
 
     [Fact]
-    public async Task Handle_DeactivationFailure_ReturnsErrorWithoutGeneratingToken() {
-        var userService = UserService(
-            info: UserInfo,
-            setActiveResult: Result.Failure(DomainError.Conflict("User.StatusUpdateFailed", "fallo"))
+    public async Task Handle_UsesRecipientSnapshotReturnedByProtectedTokenGeneration() {
+        var emailService = new Mock<IEmailService>();
+        var tokenService = TokenService(
+            generationResult: Result.Success(
+                new PasswordResetTokenResult(
+                    "current-token",
+                    "current@artemis.com",
+                    "Nombre Actual"
+                )
+            )
         );
-        var tokenService = TokenService();
-        var handler = CreateHandler(userService, tokenService);
+        var handler = CreateHandler(
+            userService: UserService(info: UserInfo),
+            tokenService: tokenService,
+            emailService: emailService
+        );
+
+        var result = await handler.Handle(
+            new RequestPasswordResetCommand("admin", MvcRoles),
+            CancellationToken.None
+        );
+
+        result.IsSuccess.Should().BeTrue();
+        emailService.Verify(
+            service => service.SendAsync(
+                "current@artemis.com",
+                It.Is<PasswordResetTokenModel>(model =>
+                    model.Token == "current-token" && model.CustomerName == "Nombre Actual"
+                ),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task Handle_TokenGenerationFailure_ReturnsErrorWithoutSendingEmail() {
+        var tokenService = TokenService(
+            generationResult: Result.Failure<PasswordResetTokenResult>(
+                DomainError.Conflict("Auth.ResetCooldown", "cooldown")
+            )
+        );
+        var emailService = new Mock<IEmailService>();
+        var handler = CreateHandler(UserService(info: UserInfo), tokenService, emailService);
 
         var result = await handler.Handle(
             new RequestPasswordResetCommand("admin", MvcRoles),
@@ -157,8 +210,13 @@ public sealed class RequestPasswordResetCommandHandlerTests {
         );
 
         result.IsFailure.Should().BeTrue();
-        tokenService.Verify(
-            s => s.GenerateAsync(It.IsAny<string>(), AccountTokenType.PasswordReset, It.IsAny<CancellationToken>()),
+        result.Error!.Code.Should().Be("Auth.ResetCooldown");
+        emailService.Verify(
+            s => s.SendAsync(
+                It.IsAny<string>(),
+                It.IsAny<IEmailModel>(),
+                It.IsAny<CancellationToken>()
+            ),
             Times.Never
         );
     }

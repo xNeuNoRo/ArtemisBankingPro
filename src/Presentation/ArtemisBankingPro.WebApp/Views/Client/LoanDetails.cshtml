@@ -1,0 +1,56 @@
+@model MyLoanDetailViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="client-loan-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cliente / Préstamo</p>
+        <h1 id="client-loan-title" class="page-header__title">Préstamo @Model.LoanNumber</h1>
+        <p class="page-header__description">Consulte la tabla de amortización y el estado actualizado de sus cuotas.</p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--secondary" asp-controller="Home" asp-action="Client">Volver al Home</a>
+        <a class="ui-button ui-button--primary" asp-controller="Client" asp-action="LoanPayment">Realizar pago de préstamo</a>
+    </div>
+</section>
+
+<section class="client-detail__metrics" aria-label="Resumen del préstamo">
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Capital aprobado</span><strong class="ui-data-card__value">@Money(Model.ApprovedPrincipal)</strong></article>
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Monto pendiente</span><strong class="ui-data-card__value">@Money(Model.OutstandingAmount)</strong></article>
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Tasa anual</span><strong class="ui-data-card__value">@Model.AnnualRate.ToString("N2", CultureInfo.InvariantCulture)%</strong><p class="ui-card__description">Porcentaje anual usado para calcular la cuota mensual.</p></article>
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Plazo</span><strong class="ui-data-card__value">@Model.TermMonths meses</strong></article>
+    <article class="ui-data-card ui-card"><span class="ui-data-card__label">Cuotas pagadas</span><strong class="ui-data-card__value">@Model.PaidInstallments / @Model.TotalInstallments</strong></article>
+</section>
+
+<section class="client-list" aria-labelledby="amortization-title">
+    <div class="client-list__heading">
+        <div><p class="ui-section-label">Seguimiento de deuda</p><h2 id="amortization-title" class="ui-card__title">Tabla de amortización</h2></div>
+        <span class="ui-badge ui-badge--@(Model.IsDelinquent ? "rejected" : "active")" aria-label="Estado del préstamo: @(Model.IsDelinquent ? "en mora" : "al día")">@(Model.IsDelinquent ? "En mora" : "Al día")</span>
+    </div>
+    @if (Model.Amortization.Count == 0) {
+        ViewData["EmptyTitle"] = "No hay cuotas para mostrar.";
+        ViewData["EmptyDescription"] = "La tabla de amortización aparecerá cuando el préstamo tenga cuotas registradas.";
+        <partial name="_EmptyState" />
+    } else {
+        <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de amortización del préstamo">
+            <table class="ui-table client-table">
+                <caption class="ui-visually-hidden">Amortización del préstamo @Model.LoanNumber</caption>
+                <thead><tr><th scope="col">Cuota</th><th scope="col">Vencimiento</th><th scope="col">Valor de cuota</th><th scope="col">Monto pagado</th><th scope="col">Estado de pago</th><th scope="col">Atraso</th></tr></thead>
+                <tbody>
+                    @foreach (MyLoanInstallmentViewModel installment in Model.Amortization) {
+                        <tr>
+                            <td class="ui-table__primary">@installment.InstallmentNumber</td>
+                            <td>@installment.DueDate.ToString("dd/MM/yyyy")</td>
+                            <td class="ui-table__numeric">@Money(installment.ScheduledAmount)</td>
+                            <td class="ui-table__numeric">@Money(installment.PaidAmount)</td>
+                            <td><partial name="_StatusBadge" model="installment.Status" /></td>
+                            <td><span class="ui-badge ui-badge--@(installment.IsOverdue ? "rejected" : "neutral")">@(installment.IsOverdue ? "Atrasada" : "Al día")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

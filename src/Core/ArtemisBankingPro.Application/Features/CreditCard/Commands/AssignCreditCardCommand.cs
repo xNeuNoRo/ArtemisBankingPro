@@ -3,6 +3,7 @@ using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Enums;
 using Mediator;
+using System.Globalization;
 
 namespace ArtemisBankingPro.Application.Features.CreditCard.Commands;
 
@@ -21,5 +22,9 @@ public sealed record AssignCreditCardCommand(
 
     public string IdempotencyKey { get; init; } = string.Empty;
 
-    public string RequestFingerprint => $"{CustomerUserId}|{CreditLimit}";
+    public string RequestFingerprint => string.Join(
+        '|',
+        CustomerUserId,
+        CreditLimit.ToString(CultureInfo.InvariantCulture)
+    );
 }

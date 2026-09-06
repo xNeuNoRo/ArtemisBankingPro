@@ -7,7 +7,8 @@ on:
         branches: [main]
 
 env:
-    DOTNET_VERSION: "9.0.x"
+    DOTNET_VERSION: "9.0.119"
+    BUN_VERSION: "1.3.14"
     SOLUTION: ArtemisBankingPro.sln
     CONFIGURATION: Release
 
@@ -24,11 +25,40 @@ jobs:
               with:
                   dotnet-version: ${{ env.DOTNET_VERSION }}
 
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
+
+            - name: Install frontend dependencies
+              working-directory: src/Presentation/ArtemisBankingPro.WebApp
+              run: bun install --frozen-lockfile
+
+            - name: Verify frontend build and checks
+              working-directory: src/Presentation/ArtemisBankingPro.WebApp
+              run: bun run check
+
+            - name: Audit frontend dependencies
+              working-directory: src/Presentation/ArtemisBankingPro.WebApp
+              run: bun run audit
+
             - name: Restore
               run: dotnet restore ${{ env.SOLUTION }}
 
             - name: Build
               run: dotnet build ${{ env.SOLUTION }} --no-restore --configuration ${{ env.CONFIGURATION }}
+
+            - name: Restore local tools
+              run: dotnet tool restore
+
+            - name: Verify formatting
+              run: dotnet format ${{ env.SOLUTION }} --verify-no-changes
+
+            - name: Verify diff whitespace
+              run: git diff --check
+
+            - name: Check vulnerable packages
+              run: dotnet list ${{ env.SOLUTION }} package --vulnerable --include-transitive
 
             - name: Run Unit Tests
               run: dotnet test tests/ArtemisBankingPro.UnitTests/ --no-build --configuration ${{ env.CONFIGURATION }} --logger "trx;LogFileName=unit-tests.trx"
@@ -45,21 +75,6 @@ jobs:
         name: Integration Tests (SQL Server)
         runs-on: ubuntu-latest
         needs: build
-        services:
-            sqlserver:
-                image: mcr.microsoft.com/mssql/server:2022-latest
-                env:
-                    ACCEPT_EULA: Y
-                    SA_PASSWORD: "Strong!Passw0rd"
-                    MSSQL_PID: Developer
-                ports:
-                    - 1433:1433
-                options: >-
-                    --health-cmd="/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P 'Strong!Passw0rd' -Q 'SELECT 1' -C -N"
-                    --health-interval=15s
-                    --health-timeout=10s
-                    --health-retries=20
-                    --health-start-period=60s
         steps:
             - name: Checkout
               uses: actions/checkout@v7
@@ -75,10 +90,18 @@ jobs:
             - name: Build
               run: dotnet build ${{ env.SOLUTION }} --no-restore --configuration ${{ env.CONFIGURATION }}
 
+            - name: Restore local tools
+              run: dotnet tool restore
+
             - name: Run Integration Tests
               run: dotnet test tests/ArtemisBankingPro.IntegrationTests/ --no-build --configuration ${{ env.CONFIGURATION }} --logger "trx;LogFileName=integration-tests.trx"
+
+            - name: Verify migration model state
+              run: |
+                  dotnet ef migrations has-pending-model-changes --project src/Infrastructure/ArtemisBankingPro.Infrastructure.Persistence/ArtemisBankingPro.Infrastructure.Persistence.csproj --configuration ${{ env.CONFIGURATION }}
+                  dotnet ef migrations has-pending-model-changes --project src/Infrastructure/ArtemisBankingPro.Infrastructure.Identity/ArtemisBankingPro.Infrastructure.Identity.csproj --configuration ${{ env.CONFIGURATION }}
               env:
-                  ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=ArtemisBankingPro_Tests;User=SA;Password=Strong!Passw0rd;TrustServerCertificate=True;Encrypt=False"
+                  ARTEMIS_CONNECTION_STRING: "Server=localhost;Database=ArtemisMigrationDesign;User Id=sa;Password=REPLACE_WITH_LOCAL_PASSWORD;TrustServerCertificate=True"
 
             - name: Upload Integration Test Results
               if: always()

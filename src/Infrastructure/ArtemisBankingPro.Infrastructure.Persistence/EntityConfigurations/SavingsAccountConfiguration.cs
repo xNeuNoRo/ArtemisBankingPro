@@ -18,6 +18,11 @@ public sealed class SavingsAccountConfiguration : IEntityTypeConfiguration<Savin
                     "CK_SavingsAccounts_Number_NineDigits",
                     "LEN([Number]) = 9 AND [Number] NOT LIKE '%[^0-9]%'"
                 );
+                table.HasCheckConstraint(
+                    "CK_SavingsAccounts_Status_Valid",
+                    "[Status] IN (1, 2)"
+                );
+                table.HasCheckConstraint("CK_SavingsAccounts_Type_Valid", "[Type] IN (1, 2)");
             }
         );
         builder.HasKey(account => account.Id);

@@ -100,7 +100,8 @@ public sealed class CancelSecondarySavingsAccountCommandHandler
                         Money.Zero,
                         _currentUser.UserId!,
                         cancelledAt,
-                        []
+                        [],
+                        savingsAccountId: secondary.Id
                     );
                     if (operationResult.IsFailure) {
                         return Result.Failure(operationResult.Error!);
@@ -124,7 +125,8 @@ public sealed class CancelSecondarySavingsAccountCommandHandler
                         Money.Zero,
                         _currentUser.UserId!,
                         cancelledAt,
-                        transfer.Transactions
+                        transfer.Transactions,
+                        savingsAccountId: secondary.Id
                     );
                     if (operationResult.IsFailure) {
                         return Result.Failure(operationResult.Error!);

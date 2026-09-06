@@ -1,0 +1,58 @@
+@{
+    string title = ViewData["Title"] as string ?? "Artemis Banking";
+}
+<!doctype html>
+<html lang="es" data-theme="light" data-js="false">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10232d" />
+    <meta name="description" content="Artemis Banking Pro" />
+    <title>@title | Artemis Banking Pro</title>
+    <link rel="icon" type="image/svg+xml" href="~/favicon.svg" asp-append-version="true" />
+    <script src="~/js/theme-bootstrap.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script type="module" src="~/js/theme.js" asp-append-version="true"></script>
+</head>
+<body class="auth-shell">
+    <a class="ui-skip-link" href="#main-content">Saltar al contenido principal</a>
+    <div class="auth-particles" aria-hidden="true"></div>
+
+    <main id="main-content" class="auth-main" tabindex="-1">
+        <header class="auth-header">
+            <partial name="_Brand" />
+            <partial name="_ThemeToggle" />
+        </header>
+
+        <div class="auth-grid">
+            <aside class="auth-showcase" aria-labelledby="auth-showcase-title">
+                <p class="auth-showcase__eyebrow">Artemis Banking Pro</p>
+                <h1 id="auth-showcase-title" class="auth-showcase__title">
+                    Control financiero con claridad.
+                </h1>
+                <p class="auth-showcase__description">
+                    Una experiencia bancaria sobria, segura y enfocada en las decisiones que importan.
+                </p>
+                <ul class="auth-showcase__facts">
+                    <li><span aria-hidden="true">01</span><span>Sesiones protegidas y controladas en el servidor.</span></li>
+                    <li><span aria-hidden="true">02</span><span>Operaciones sensibles confirmadas en el servidor.</span></li>
+                    <li><span aria-hidden="true">03</span><span>Historial financiero trazable.</span></li>
+                </ul>
+            </aside>
+
+            <section class="auth-panel" aria-label="Contenido de autenticación">
+                <partial name="_FlashMessages" />
+                @RenderBody()
+            </section>
+        </div>
+    </main>
+
+    <script type="module" src="~/js/site.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/auth.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/feedback.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/dialogs.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/forms.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/user-form.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

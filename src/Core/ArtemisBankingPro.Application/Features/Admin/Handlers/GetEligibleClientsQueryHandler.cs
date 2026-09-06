@@ -37,6 +37,15 @@ public sealed class GetEligibleClientsQueryHandler
             .Where(pair => IsEligible(message.Product, pair.Value))
             .Select(pair => pair.Key)
             .ToArray();
+        if (!string.IsNullOrWhiteSpace(message.SelectedClientId)) {
+            eligibleClientIds = eligibleClientIds
+                .Where(clientId => string.Equals(
+                    clientId,
+                    message.SelectedClientId,
+                    StringComparison.Ordinal
+                ))
+                .ToArray();
+        }
         PageResult<UserListDto> users = await _userRepository.GetActiveClientsPagedAsync(
             eligibleClientIds,
             message.Identification,

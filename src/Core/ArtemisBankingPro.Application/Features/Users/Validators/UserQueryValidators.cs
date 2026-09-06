@@ -5,7 +5,7 @@ using FluentValidation;
 namespace ArtemisBankingPro.Application.Features.Users.Validators;
 
 public sealed class GetUsersPagedQueryValidator : AbstractValidator<GetUsersPagedQuery> {
-    private static readonly string[] AllowedRoles = ["Administrador", "Cajero", "Cliente"];
+    private static readonly string[] AllowedRoles = ["administrador", "cajero", "cliente"];
 
     public GetUsersPagedQueryValidator() {
         RuleFor(x => x.Page)
@@ -18,8 +18,8 @@ public sealed class GetUsersPagedQueryValidator : AbstractValidator<GetUsersPage
 
         When(x => x.Role is not null, () => {
             RuleFor(x => x.Role)
-                .Must(role => AllowedRoles.Contains(role!))
-                .WithMessage("El rol debe ser Administrador, Cajero o Cliente.");
+                .Must(role => AllowedRoles.Contains(role!, StringComparer.OrdinalIgnoreCase))
+                .WithMessage("El rol debe ser administrador, cajero o cliente.");
         });
     }
 }

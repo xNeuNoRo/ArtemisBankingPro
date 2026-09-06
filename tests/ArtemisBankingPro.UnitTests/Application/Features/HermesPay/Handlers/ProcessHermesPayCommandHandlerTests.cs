@@ -549,7 +549,9 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.InvalidCvc");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Card.InvalidCvc");
     }
 
     [Fact]
@@ -571,7 +573,9 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.Expired");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Card.Expired");
     }
 
     [Fact]
@@ -593,7 +597,9 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.NotActive");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Card.NotActive");
     }
 
     [Fact]
@@ -638,7 +644,7 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         FinancialOperation operation = addedOperation()!;
         operation.Kind.Should().Be(FinancialOperationKind.HermesPayment);
         operation.Status.Should().Be(FinancialOperationStatus.Rejected);
-        operation.RejectionCode.Should().Be("InsufficientCredit");
+        operation.RejectionCode.Should().Be("Card.InsufficientCredit");
         operation.RequestedAmount.Amount.Should().Be(689.25m);
         operation.AppliedAmount.Amount.Should().Be(0m);
         operation.AccountTransactions.Should().BeEmpty();
@@ -692,18 +698,24 @@ public sealed class ProcessHermesPayCommandHandlerTests {
     }
 
     [Fact]
-    public void Command_CarriesCallerSuppliedKeyAndHashedFingerprintWithoutRawCardData() {
+    public void Command_FingerprintExcludesSensitiveCardMaterial() {
         var command = Command();
 
         string key = command.IdempotencyKey;
         string fingerprint = command.RequestFingerprint;
-
         key.Should().Be("test-key");
         key.Should().NotContain(Pan);
         key.Should().NotContain("859");
-        fingerprint.Should().MatchRegex(@"^[0-9a-f]{64}$");
         fingerprint.Should().NotContain(Pan);
         fingerprint.Should().NotContain("859");
+    }
+
+    [Fact]
+    public void Command_FingerprintIncludesEffectiveCommerce() {
+        ProcessHermesPayCommand first = Command() with { CommerceId = 1 };
+        ProcessHermesPayCommand second = Command() with { CommerceId = 2 };
+
+        first.RequestFingerprint.Should().NotBe(second.RequestFingerprint);
     }
 
     [Fact]
@@ -728,7 +740,9 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.Expired");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Card.Expired");
     }
 
     [Fact]
@@ -753,7 +767,9 @@ public sealed class ProcessHermesPayCommandHandlerTests {
         var error = result.Error!;
         error.Code.Should().Be("Card.Expired");
         error.Message.Should().Be("Los datos de la tarjeta no son válidos.");
-        Assert.Null(addedOperation());
+        FinancialOperation operation = addedOperation()!;
+        operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+        operation.RejectionCode.Should().Be("Card.Expired");
     }
 
     [Fact]

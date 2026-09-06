@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application;
+using ArtemisBankingPro.Application.Common.Errors;
 using ArtemisBankingPro.Application.Common.Exceptions;
 using ArtemisBankingPro.Application.Features.Merchants.Commands;
 using ArtemisBankingPro.Application.Interfaces.Email;
@@ -83,6 +84,18 @@ public sealed class ApplicationCompositionTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public void AddApplication_RegistersErrorMapperAsSingleton() {
+        using var provider = BuildApplicationProvider();
+        IErrorResponseMapper rootMapper = provider.GetRequiredService<IErrorResponseMapper>();
+
+        using IServiceScope scope = provider.CreateScope();
+        IErrorResponseMapper scopedMapper = scope.ServiceProvider
+            .GetRequiredService<IErrorResponseMapper>();
+
+        Assert.Same(rootMapper, scopedMapper);
+    }
+
+    [Fact]
     public async Task Mediator_ExecutesRealBehaviors_ValidationAuthorizationAndIdempotency() {
         using var provider = BuildApplicationProvider();
         using var scope = provider.CreateAsyncScope();
@@ -96,17 +109,17 @@ public sealed class ApplicationCompositionTests(SqlServerFixture fixture)
             "101000333"
         ) { IdempotencyKey = "composition-key-1" };
 
-        // 1. Behaviors reales: autorización (Administrador) + validación +
+        // Behaviors reales: autorización (Administrador) + validación +
         // idempotencia + handler con repositorios reales.
         var first = await mediator.Send(command, CancellationToken.None);
         first.IsSuccess.Should().BeTrue();
 
-        // 2. Replay con la misma clave y actor → conflicto idempotente
+        // Replay con la misma clave y actor → conflicto idempotente
         // determinista (el efecto no se re-aplica).
         Func<Task> replay = () => mediator.Send(command, CancellationToken.None).AsTask();
         await replay.Should().ThrowAsync<IdempotencyConflictException>();
 
-        // 3. Rol sin permiso → el AuthorizationBehavior deniega antes del
+        // Rol sin permiso → el AuthorizationBehavior deniega antes del
         // handler.
         using var clientProvider = BuildApplicationProvider(role: nameof(Roles.Cliente));
         using var clientScope = clientProvider.CreateAsyncScope();
@@ -122,7 +135,7 @@ public sealed class ApplicationCompositionTests(SqlServerFixture fixture)
             clientMediator.Send(forbidden, CancellationToken.None).AsTask();
         await forbiddenSend.Should().ThrowAsync<ForbiddenAccessException>();
 
-        // 4. El único comercio creado es el autorizado.
+        // El único comercio creado es el autorizado.
         await WithContextAsync(async context => {
             int stored = await context.Merchants.CountAsync(item =>
                 item.Rnc == "101000333" || item.Rnc == "101000444");

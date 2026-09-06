@@ -1,6 +1,7 @@
 using ArtemisBankingPro.Application.Features.Users.Commands;
 using ArtemisBankingPro.Application.Features.Users.DTOs;
 using ArtemisBankingPro.Application.Features.Users.Queries;
+using ArtemisBankingPro.Application.Features.Users.Requests;
 using ArtemisBankingPro.Application.Features.Users.ViewModels;
 using ArtemisBankingPro.Application.Common.ViewModels;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
@@ -13,8 +14,12 @@ namespace ArtemisBankingPro.Application.Features.Users.Mapping;
 public sealed class UsersMappingRegister : IRegister {
     public void Register(TypeAdapterConfig config) {
         config.NewConfig<UserListDto, UserListItemViewModel>();
+        config.NewConfig<UserListResponse, UserListItemViewModel>()
+            .Map(destination => destination.UserId, source => source.Id)
+            .Ignore(destination => destination.CreatedAt);
         config.NewConfig<UserMainAccountResponse, UserMainAccountViewModel>();
-        config.NewConfig<UserDetailResponse, UserDetailViewModel>();
+        config.NewConfig<UserDetailResponse, UserDetailViewModel>()
+            .Map(destination => destination.UserId, source => source.Id);
         config.NewConfig<CreateUserViewModel, CreateUserCommand>()
             .MapWith(source => new CreateUserCommand(
                 source.FirstName,
@@ -106,6 +111,61 @@ public sealed class UsersMappingRegister : IRegister {
         UserId = userId,
         IdempotencyKey = idempotencyKey,
     };
+
+    public static CreateUserCommand ToCreateApiCommand(
+        CreateUserApiRequest source,
+        string idempotencyKey
+    ) => new(
+        source.FirstName ?? string.Empty,
+        source.LastName ?? string.Empty,
+        source.Identification ?? string.Empty,
+        source.Email ?? string.Empty,
+        source.UserName ?? string.Empty,
+        source.Password ?? string.Empty,
+        source.ConfirmPassword ?? string.Empty,
+        source.Role ?? string.Empty,
+        source.InitialAmount,
+        null
+    ) { IdempotencyKey = idempotencyKey };
+
+    public static CreateCommerceUserCommand ToCreateCommerceApiCommand(
+        CreateCommerceUserApiRequest source,
+        int commerceId,
+        string idempotencyKey
+    ) => new(
+        commerceId,
+        source.FirstName ?? string.Empty,
+        source.LastName ?? string.Empty,
+        source.Identification ?? string.Empty,
+        source.Email ?? string.Empty,
+        source.UserName ?? string.Empty,
+        source.Password ?? string.Empty,
+        source.ConfirmPassword ?? string.Empty,
+        source.InitialAmount,
+        null
+    ) { IdempotencyKey = idempotencyKey };
+
+    public static UpdateUserCommand ToUpdateApiCommand(
+        UpdateUserApiRequest source,
+        string userId,
+        string idempotencyKey
+    ) => new(
+        userId,
+        source.FirstName ?? string.Empty,
+        source.LastName ?? string.Empty,
+        source.Identification ?? string.Empty,
+        source.Email ?? string.Empty,
+        source.UserName ?? string.Empty,
+        source.Password,
+        source.ConfirmPassword,
+        source.AdditionalAmount
+    ) { IdempotencyKey = idempotencyKey };
+
+    public static ChangeUserStatusCommand ToChangeStatusApiCommand(
+        ChangeUserStatusApiRequest source,
+        string userId,
+        string idempotencyKey
+    ) => new(userId, source.Status ?? false) { IdempotencyKey = idempotencyKey };
 
     public static GetUsersPagedQuery ToListQuery(
         UserListViewModel source,

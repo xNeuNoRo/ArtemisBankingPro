@@ -70,78 +70,92 @@ public sealed class CreateUserCommandHandler
         CreateUserCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. Unicidad (validada aquí y reforzada por constraints de BD)
-        if (await _userRepository.ExistsByUserNameAsync(message.UserName, cancellationToken)) {
-            return Result.Failure<CreateUserResponse>(
-                DomainError.Conflict(
-                    "User.UserNameExists",
-                    "Ya existe un usuario registrado con este nombre de usuario."
-                )
-            );
-        }
-
-        if (await _userRepository.ExistsByEmailAsync(message.Email, cancellationToken)) {
-            return Result.Failure<CreateUserResponse>(
-                DomainError.Conflict(
-                    "User.EmailExists",
-                    "Ya existe un usuario registrado con este correo electrónico."
-                )
-            );
-        }
-
-        if (
-            await _userRepository.ExistsByIdentityDocumentAsync(
-                message.Identification,
-                cancellationToken
-            )
-        ) {
-            return Result.Failure<CreateUserResponse>(
-                DomainError.Conflict(
-                    "User.IdentificationExists",
-                    "Ya existe un usuario registrado con esta cédula."
-                )
-            );
-        }
-
-        // 2. Crear usuario (inactivo). Este es el único commit en Identity.
-        var createdUser = await _userAccountService.CreateUserAsync(
-            message.FirstName,
-            message.LastName,
-            message.Identification,
-            message.Email,
-            message.UserName,
-            message.Password,
-            message.Role,
-            cancellationToken
-        );
-        if (createdUser.IsFailure) {
-            return Result.Failure<CreateUserResponse>(createdUser.Error!);
-        }
-
-        var user = createdUser.Value;
-
+        CreatedUserInfo? createdUser = null;
         string? mainAccountNumber = null;
 
-        // 3. Cuenta principal + financiamiento inicial (solo Cliente).
-        if (message.Role == nameof(Roles.Cliente)) {
-            var accountResult = await CreatePrincipalAccountAsync(
-                user.UserId,
-                message.InitialAmount ?? 0m,
-                message.Role,
-                cancellationToken
-            );
+        Result<string> transactionResult = await _unitOfWork.ExecuteInTransactionAsync(
+            async ct => {
+                // Estas lecturas son ayudas para mensajes deterministas. Las
+                // constraints de Identity siguen siendo la protección final.
+                if (await _userRepository.ExistsByUserNameAsync(message.UserName, ct)) {
+                    return Result.Failure<string>(
+                        DomainError.Conflict(
+                            "User.UserNameExists",
+                            "Ya existe un usuario registrado con este nombre de usuario."
+                        )
+                    );
+                }
 
-            if (accountResult.IsFailure) {
-                // Compensación: el usuario no debe quedar creado sin su cuenta.
-                await _userAccountService.DeleteUserAsync(user.UserId, cancellationToken);
-                return Result.Failure<CreateUserResponse>(accountResult.Error!);
-            }
+                if (await _userRepository.ExistsByEmailAsync(message.Email, ct)) {
+                    return Result.Failure<string>(
+                        DomainError.Conflict(
+                            "User.EmailExists",
+                            "Ya existe un usuario registrado con este correo electrónico."
+                        )
+                    );
+                }
 
-            mainAccountNumber = accountResult.Value;
+                if (await _userRepository.ExistsByIdentityDocumentAsync(message.Identification, ct)) {
+                    return Result.Failure<string>(
+                        DomainError.Conflict(
+                            "User.IdentificationExists",
+                            "Ya existe un usuario registrado con esta cédula."
+                        )
+                    );
+                }
+
+                Result<CreatedUserInfo> createResult = await _userAccountService.CreateUserAsync(
+                    message.FirstName,
+                    message.LastName,
+                    message.Identification,
+                    message.Email,
+                    message.UserName,
+                    message.Password,
+                    message.Role,
+                    ct
+                );
+                if (createResult.IsFailure) {
+                    return Result.Failure<string>(createResult.Error!);
+                }
+
+                createdUser = createResult.Value;
+
+                if (message.Role == nameof(Roles.Cliente)) {
+                    Result<string> accountResult = await CreatePrincipalAccountAsync(
+                        createdUser.UserId,
+                        message.InitialAmount ?? 0m,
+                        message.Role,
+                        ct
+                    );
+                    if (accountResult.IsFailure) {
+                        return Result.Failure<string>(accountResult.Error!);
+                    }
+
+                    mainAccountNumber = accountResult.Value;
+                }
+
+                return Result.Success(mainAccountNumber ?? string.Empty);
+            },
+            ct: cancellationToken
+        );
+
+        if (transactionResult.IsFailure) {
+            return Result.Failure<CreateUserResponse>(transactionResult.Error!);
         }
 
-        // 4. Correo de activación (post-commit; el fallo no revierte la creación).
-        await SendActivationEmailAsync(user, message.CallbackUrl, cancellationToken);
+        CreatedUserInfo user = createdUser
+            ?? throw new InvalidOperationException("La creación terminó sin usuario Identity.");
+        mainAccountNumber = string.IsNullOrEmpty(transactionResult.Value)
+            ? null
+            : transactionResult.Value;
+
+        // Post-commit: una falla de correo no revierte Identity, cuenta ni
+        // historial financiero.
+        bool activationEmailSent = await SendActivationEmailAsync(
+            user,
+            message.CallbackUrl,
+            CancellationToken.None
+        );
 
         return Result.Success(
             new CreateUserResponse(
@@ -150,7 +164,7 @@ public sealed class CreateUserCommandHandler
                 user.Email,
                 user.Role,
                 user.IsActive,
-                mainAccountNumber
+                activationEmailSent
             )
         );
     }
@@ -187,43 +201,38 @@ public sealed class CreateUserCommandHandler
 
         var account = openResult.Value;
 
-        return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                await _savingsAccountRepository.AddAsync(account, ct);
+        await _savingsAccountRepository.AddAsync(account, cancellationToken);
 
-                if (initialAmount > 0m) {
-                    var operationResult = FinancialOperation.Approve(
-                        Guid.NewGuid(),
-                        FinancialOperationKind.InitialFunding,
+        if (initialAmount > 0m) {
+            var operationResult = FinancialOperation.Approve(
+                Guid.NewGuid(),
+                FinancialOperationKind.InitialFunding,
+                balanceResult.Value,
+                balanceResult.Value,
+                Money.Zero,
+                _currentUser.UserId!,
+                openedAt,
+                [
+                    new AccountTransactionDetails(
+                        numberResult.Value,
+                        TransactionDirection.Credit,
                         balanceResult.Value,
-                        balanceResult.Value,
-                        Money.Zero,
-                        _currentUser.UserId!,
-                        openedAt,
-                        [
-                            new AccountTransactionDetails(
-                                numberResult.Value,
-                                TransactionDirection.Credit,
-                                balanceResult.Value,
-                                $"APERTURA_CUENTA_{role.ToUpperInvariant()}",
-                                numberResult.Value.Value
-                            ),
-                        ]
-                    );
-                    if (operationResult.IsFailure) {
-                        return Result.Failure<string>(operationResult.Error!);
-                    }
+                        $"APERTURA_CUENTA_{role.ToUpperInvariant()}",
+                        numberResult.Value.Value
+                    ),
+                ]
+            );
+            if (operationResult.IsFailure) {
+                return Result.Failure<string>(operationResult.Error!);
+            }
 
-                    await _financialOperationRepository.AddAsync(operationResult.Value, ct);
-                }
+            await _financialOperationRepository.AddAsync(operationResult.Value, cancellationToken);
+        }
 
-                return Result.Success(numberResult.Value.Value);
-            },
-            ct: cancellationToken
-        );
+        return Result.Success(numberResult.Value.Value);
     }
 
-    private async Task SendActivationEmailAsync(
+    private async Task<bool> SendActivationEmailAsync(
         CreatedUserInfo user,
         string? callbackUrl,
         CancellationToken cancellationToken
@@ -258,6 +267,9 @@ public sealed class CreateUserCommandHandler
                 "No se pudo enviar el correo de activación para el usuario {UserId}.",
                 user.UserId
             );
+            return false;
         }
+
+        return true;
     }
 }

@@ -1,0 +1,46 @@
+@model HighRiskLoanConfirmationViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}
+
+<section class="page-header" aria-labelledby="loan-risk-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Préstamos</p>
+        <h1 id="loan-risk-title" class="page-header__title">@Model.Title</h1>
+        <p class="page-header__description">La confirmación solo autoriza esta solicitud; el sistema volverá a calcular el estado financiero.</p>
+    </div>
+</section>
+
+<section class="ui-card admin-product__confirmation" aria-labelledby="loan-risk-card-title">
+    <div class="ui-card__body">
+        <partial name="_ValidationSummary" />
+        <div class="ui-confirmation-panel">
+            <div>
+                <p class="ui-section-label">Acción financiera protegida</p>
+                <h2 id="loan-risk-card-title" class="ui-confirmation-panel__title">@Model.Message</h2>
+                <p class="ui-card__description">Cliente: <strong>@Model.CustomerFullName</strong> · Cédula: @Model.CustomerIdentification</p>
+            </div>
+            <div class="admin-product__metric-grid">
+                <div class="admin-product__metric"><span class="admin-product__metric-label">Deuda actual</span><strong class="admin-product__metric-value">@Money(Model.CurrentDebt)</strong></div>
+                <div class="admin-product__metric"><span class="admin-product__metric-label">Deuda proyectada</span><strong class="admin-product__metric-value">@Money(Model.ProjectedDebt)</strong></div>
+                <div class="admin-product__metric"><span class="admin-product__metric-label">Promedio activo</span><strong class="admin-product__metric-value">@Money(Model.AverageDebt)</strong></div>
+                <div class="admin-product__metric"><span class="admin-product__metric-label">Capital solicitado</span><strong class="admin-product__metric-value">@Money(Model.CapitalAmount)</strong></div>
+            </div>
+        </div>
+
+        <p id="loan-risk-help" class="ui-field-description">Al confirmar, el sistema volverá a validar el cliente, la deuda y el token antes de crear el préstamo.</p>
+        <form method="post" asp-action="ConfirmHighRisk" class="page-actions" data-submit-lock data-autofocus-error aria-describedby="loan-risk-help">
+            <input asp-for="ConfirmationToken" type="hidden" />
+            <input asp-for="CustomerUserId" type="hidden" />
+            <input asp-for="CustomerIdentification" type="hidden" />
+            <input asp-for="CapitalAmount" type="hidden" />
+            <input asp-for="TermMonths" type="hidden" />
+            <input asp-for="AnnualInterestRate" type="hidden" />
+            <button class="ui-button ui-button--primary" type="submit" data-submitting-label="Asignando…">
+                <span data-submit-label>@Model.ConfirmButtonText</span>
+            </button>
+            <a class="ui-button ui-button--secondary" asp-action="Index">@Model.CancelButtonText</a>
+        </form>
+    </div>
+</section>

@@ -10,7 +10,8 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Seeds;
 public static class DefaultRoles {
     public static async Task SeedAsync(
         RoleManager<IdentityRole> roleManager,
-        ILogger? logger = null
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default
     ) {
         foreach (string roleName in RoleSets.All) {
             if (!await roleManager.RoleExistsAsync(roleName)) {
@@ -23,6 +24,8 @@ public static class DefaultRoles {
 
                 logger?.LogInformation("Rol {RoleName} creado por seeding.", roleName);
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 }

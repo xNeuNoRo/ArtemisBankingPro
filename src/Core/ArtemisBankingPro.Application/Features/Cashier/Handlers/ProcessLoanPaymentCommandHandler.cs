@@ -103,7 +103,7 @@ public sealed class ProcessLoanPaymentCommandHandler
             account,
             outcome.AppliedAmount,
             outcome.OccurredAt,
-            cancellationToken
+            CancellationToken.None
         );
 
         return Result.Success(
@@ -186,9 +186,9 @@ public sealed class ProcessLoanPaymentCommandHandler
         catch (EmailSendException ex) {
             _logger.LogWarning(
                 ex,
-                "No se pudo enviar el correo {Template} tras el pago al préstamo {LoanNumber}.",
+                "No se pudo enviar el correo {Template} tras el pago al préstamo terminado en {LoanLastFour}.",
                 model.TemplateName,
-                loanNumber
+                loanNumber[^4..]
             );
             return false;
         }

@@ -108,8 +108,29 @@ public sealed class IdempotencyBehaviorIntegrationTests(SqlServerFixture fixture
         int merchantCount = await context.Merchants.CountAsync();
         merchantCount.Should().Be(1);
 
-        // El registro quedó en estado terminal.
-        int recordCount = await context.Set<IdempotencyRecord>().CountAsync();
-        recordCount.Should().Be(1);
+        IdempotencyRecord record = await context.Set<IdempotencyRecord>().SingleAsync();
+        record.Status.Should().Be(IdempotencyStatus.Completed);
     }
+
+    [Fact]
+    public async Task HandlerException_LeavesRecordInProgressForUnknownOutcome() {
+        await using var provider = Fixture.BuildProvider(configure: services =>
+            services.AddScoped<ICurrentUserService>(_ => new FixedCurrentUser()));
+        await using var scope = provider.CreateAsyncScope();
+        var behavior = CreateBehavior(scope.ServiceProvider);
+
+        Func<Task> act = () => behavior.Handle(
+            new TestCommand("exception-key", Fingerprint),
+            (_, _) => throw new InvalidOperationException("commit outcome unknown"),
+            CancellationToken.None
+        ).AsTask();
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+
+        await using var verificationScope = provider.CreateAsyncScope();
+        var context = verificationScope.ServiceProvider.GetRequiredService<BankingDbContext>();
+        var record = await context.Set<IdempotencyRecord>().SingleAsync();
+        record.Status.Should().Be(IdempotencyStatus.InProgress);
+    }
+
 }

@@ -44,7 +44,15 @@ public sealed class TransferProcessor : ITransferProcessor {
         CancellationToken ct = default
     ) {
         if (source.Status != AccountStatus.Active || destination.Status != AccountStatus.Active) {
-            return Result.Failure<FinancialOperationOutcome>(AccountErrors.NotActive);
+            return await RejectAsync(
+                source,
+                destination,
+                amount,
+                flow,
+                AccountErrors.NotActive,
+                initiatedByUserId,
+                ct
+            );
         }
 
         Result canDebit = source.CanDebit(amount);
@@ -67,7 +75,15 @@ public sealed class TransferProcessor : ITransferProcessor {
 
         Result canCredit = destination.CanCredit(amount);
         if (canCredit.IsFailure) {
-            return Result.Failure<FinancialOperationOutcome>(canCredit.Error!);
+            return await RejectAsync(
+                source,
+                destination,
+                amount,
+                flow,
+                canCredit.Error!,
+                initiatedByUserId,
+                ct
+            );
         }
 
         FinancialOperationKind kind = KindFor(flow);
@@ -125,7 +141,7 @@ public sealed class TransferProcessor : ITransferProcessor {
 
                 FinancialOperation operation = operationResult.Value;
                 if (flow == TransferFlow.CashierThirdParty) {
-                    operation.RecordThirdPartyTransferProcessed(
+                    Result eventResult = operation.RecordThirdPartyTransferProcessed(
                         source.Number.Value,
                         destination.Number.Value,
                         amount,
@@ -133,6 +149,9 @@ public sealed class TransferProcessor : ITransferProcessor {
                         destination.OwnerUserId,
                         initiatedByUserId
                     );
+                    if (eventResult.IsFailure) {
+                        return eventResult;
+                    }
                 }
 
                 await _financialOperationRepository.AddAsync(operation, token);
@@ -203,4 +222,27 @@ public sealed class TransferProcessor : ITransferProcessor {
             TransferFlow.Express => FinancialOperationKind.ExpressTransfer,
             _ => throw new ArgumentOutOfRangeException(nameof(flow), flow, null),
         };
+
+    private async Task<Result<FinancialOperationOutcome>> RejectAsync(
+        SavingsAccount source,
+        SavingsAccount destination,
+        Money amount,
+        TransferFlow flow,
+        DomainError error,
+        string initiatedByUserId,
+        CancellationToken ct
+    ) {
+        Result rejection = await PersistRejectionAsync(
+            source,
+            destination,
+            amount,
+            flow,
+            error,
+            initiatedByUserId,
+            ct
+        );
+        return rejection.IsFailure
+            ? Result.Failure<FinancialOperationOutcome>(rejection.Error!)
+            : Result.Failure<FinancialOperationOutcome>(error);
+    }
 }

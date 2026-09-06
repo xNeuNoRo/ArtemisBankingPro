@@ -1,0 +1,26 @@
+{
+  "name": "artemisbankingpro.webapp",
+  "type": "module",
+  "private": true,
+  "packageManager": "bun@1.3.14",
+  "scripts": {
+    "css:build": "bunx --no-install @tailwindcss/cli -i ./Styles/app.css -o ./wwwroot/css/site.css --minify && node ./scripts/verify-css.mjs",
+    "css:watch": "bunx --no-install @tailwindcss/cli -i ./Styles/app.css -o ./wwwroot/css/site.css --watch",
+    "js:syntax": "node ./scripts/verify-js.mjs",
+    "dev": "concurrently -n css,dotnet -c cyan,magenta \"bun css:watch\" \"dotnet watch --project ArtemisBankingPro.WebApp.csproj\"",
+    "dev:backend": "dotnet watch --project ArtemisBankingPro.WebApp.csproj",
+    "dev:css": "bun css:watch",
+    "typecheck": "bunx --no-install tsc --noEmit",
+    "lint": "bun run js:syntax && bun run typecheck",
+    "audit": "bun audit --audit-level=high",
+    "check": "bun run css:build && bun run lint",
+    "build": "bun run check && dotnet publish ArtemisBankingPro.WebApp.csproj -c Release -o ../../publish"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
+    "@types/bun": "1.3.14",
+    "concurrently": "9.2.4",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
+  }
+}

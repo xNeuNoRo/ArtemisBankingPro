@@ -49,101 +49,92 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
         UpdateUserCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. El usuario debe existir (para conocer su rol y valores actuales).
-        var user = await _userRepository.GetByIdAsync(message.UserId, cancellationToken);
-        if (user is null) {
-            return Result.Failure<Unit>(
-                DomainError.NotFound(
-                    "User.NotFound",
-                    "El usuario seleccionado no existe."
-                )
-            );
-        }
+        Result transactionResult = await _unitOfWork.ExecuteInTransactionAsync(
+            async ct => {
+                UserListDto? user = await _userRepository.GetByIdAsync(message.UserId, ct);
+                if (user is null) {
+                    return Result.Failure(
+                        DomainError.NotFound("User.NotFound", "El usuario seleccionado no existe.")
+                    );
+                }
 
-        // 2. Unicidad excluyendo al propio usuario.
-        if (
-            await _userRepository.ExistsByUserNameAsync(message.UserName, cancellationToken)
-            && !string.Equals(message.UserName, user.UserName, StringComparison.OrdinalIgnoreCase)
-        ) {
-            return Result.Failure<Unit>(
-                DomainError.Conflict(
-                    "User.UserNameExists",
-                    "Ya existe otro usuario registrado con este nombre de usuario."
-                )
-            );
-        }
+                if (
+                    await _userRepository.ExistsByUserNameAsync(message.UserName, ct)
+                    && !string.Equals(message.UserName, user.UserName, StringComparison.OrdinalIgnoreCase)
+                ) {
+                    return Result.Failure(
+                        DomainError.Conflict(
+                            "User.UserNameExists",
+                            "Ya existe otro usuario registrado con este nombre de usuario."
+                        )
+                    );
+                }
 
-        if (
-            await _userRepository.ExistsByEmailAsync(message.Email, cancellationToken)
-            && !string.Equals(message.Email, user.Email, StringComparison.OrdinalIgnoreCase)
-        ) {
-            return Result.Failure<Unit>(
-                DomainError.Conflict(
-                    "User.EmailExists",
-                    "Ya existe otro usuario registrado con este correo electrónico."
-                )
-            );
-        }
+                if (
+                    await _userRepository.ExistsByEmailAsync(message.Email, ct)
+                    && !string.Equals(message.Email, user.Email, StringComparison.OrdinalIgnoreCase)
+                ) {
+                    return Result.Failure(
+                        DomainError.Conflict(
+                            "User.EmailExists",
+                            "Ya existe otro usuario registrado con este correo electrónico."
+                        )
+                    );
+                }
 
-        if (
-            await _userRepository.ExistsByIdentityDocumentAsync(
-                message.Identification,
-                cancellationToken
-            )
-            && !string.Equals(
-                message.Identification,
-                user.Identification,
-                StringComparison.Ordinal
-            )
-        ) {
-            return Result.Failure<Unit>(
-                DomainError.Conflict(
-                    "User.IdentificationExists",
-                    "Ya existe otro usuario registrado con esta cédula."
-                )
-            );
-        }
+                if (
+                    await _userRepository.ExistsByIdentityDocumentAsync(message.Identification, ct)
+                    && !string.Equals(message.Identification, user.Identification, StringComparison.Ordinal)
+                ) {
+                    return Result.Failure(
+                        DomainError.Conflict(
+                            "User.IdentificationExists",
+                            "Ya existe otro usuario registrado con esta cédula."
+                        )
+                    );
+                }
 
-        // 3. Actualizar perfil (nunca el rol).
-        var updateResult = await _userAccountService.UpdateUserProfileAsync(
-            message.UserId,
-            message.FirstName,
-            message.LastName,
-            message.Identification,
-            message.Email,
-            message.UserName,
-            cancellationToken
+                Result updateResult = await _userAccountService.UpdateUserProfileAsync(
+                    message.UserId,
+                    message.FirstName,
+                    message.LastName,
+                    message.Identification,
+                    message.Email,
+                    message.UserName,
+                    ct
+                );
+                if (updateResult.IsFailure) {
+                    return updateResult;
+                }
+
+                if (!string.IsNullOrWhiteSpace(message.Password)) {
+                    Result passwordResult = await _userAccountService.ChangePasswordAsync(
+                        message.UserId,
+                        message.Password,
+                        ct
+                    );
+                    if (passwordResult.IsFailure) {
+                        return passwordResult;
+                    }
+                }
+
+                if (message.AdditionalAmount is > 0m
+                    && user.Role is nameof(Roles.Cliente) or nameof(Roles.Comercio)) {
+                    return await ApplyAdditionalFundingAsync(
+                        message.UserId,
+                        message.AdditionalAmount.Value,
+                        ct
+                    );
+                }
+
+                return Result.Success();
+            },
+            ct: cancellationToken
         );
-        if (updateResult.IsFailure) {
-            return Result.Failure<Unit>(updateResult.Error!);
-        }
 
-        // 4. Contraseña opcional: solo se modifica si se envía.
-        if (!string.IsNullOrWhiteSpace(message.Password)) {
-            var passwordResult = await _userAccountService.ChangePasswordAsync(
-                message.UserId,
-                message.Password,
-                cancellationToken
-            );
-            if (passwordResult.IsFailure) {
-                return Result.Failure<Unit>(passwordResult.Error!);
-            }
-        }
-
-        // 5. Monto adicional: solo Cliente o Comercio, acredita a la cuenta principal.
-        if (message.AdditionalAmount is > 0m
-            && user.Role is nameof(Roles.Cliente) or nameof(Roles.Comercio)) {
-            var fundingResult = await ApplyAdditionalFundingAsync(
-                message.UserId,
-                message.AdditionalAmount.Value,
-                cancellationToken
-            );
-            if (fundingResult.IsFailure) {
-                return Result.Failure<Unit>(fundingResult.Error!);
-            }
-        }
-
-        return Result.Success(Unit.Value);
+        return transactionResult.IsSuccess
+            ? Result.Success(Unit.Value)
+            : Result.Failure<Unit>(transactionResult.Error!);
     }
 
     private async Task<Result> ApplyAdditionalFundingAsync(
@@ -177,37 +168,31 @@ public sealed class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand
             return creditResult;
         }
 
-        return await _unitOfWork.ExecuteInTransactionAsync(
-            async ct => {
-                _savingsAccountRepository.Update(principalAccount);
+        _savingsAccountRepository.Update(principalAccount);
 
-                var operationResult = FinancialOperation.Approve(
-                    Guid.NewGuid(),
-                    FinancialOperationKind.AdministrativeFunding,
+        var operationResult = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.AdministrativeFunding,
+            amount.Value,
+            amount.Value,
+            Money.Zero,
+            _currentUser.UserId!,
+            occurredAt,
+            [
+                new AccountTransactionDetails(
+                    principalAccount.Number,
+                    TransactionDirection.Credit,
                     amount.Value,
-                    amount.Value,
-                    Money.Zero,
-                    _currentUser.UserId!,
-                    occurredAt,
-                    [
-                        new AccountTransactionDetails(
-                            principalAccount.Number,
-                            TransactionDirection.Credit,
-                            amount.Value,
-                            "FONDEO_ADMINISTRATIVO",
-                            principalAccount.Number.Value
-                        ),
-                    ]
-                );
-                if (operationResult.IsFailure) {
-                    return Result.Failure(operationResult.Error!);
-                }
-
-                await _financialOperationRepository.AddAsync(operationResult.Value, ct);
-
-                return Result.Success();
-            },
-            ct: cancellationToken
+                    "FONDEO_ADMINISTRATIVO",
+                    principalAccount.Number.Value
+                ),
+            ]
         );
+        if (operationResult.IsFailure) {
+            return Result.Failure(operationResult.Error!);
+        }
+
+        await _financialOperationRepository.AddAsync(operationResult.Value, cancellationToken);
+        return Result.Success();
     }
 }

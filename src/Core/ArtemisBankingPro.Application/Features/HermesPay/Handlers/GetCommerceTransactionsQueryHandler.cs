@@ -39,7 +39,7 @@ public sealed class GetCommerceTransactionsQueryHandler
         GetCommerceTransactionsQuery message,
         CancellationToken cancellationToken
     ) {
-        // 1. Resolver el comercio según el rol del actor autenticado.
+        // Resolvemos el comercio según el rol del actor autenticado.
         bool isCommerceRole = _currentUser.Role == nameof(Roles.Comercio);
         int? resolvedCommerceId = isCommerceRole ? _currentUser.CommerceId : message.CommerceId;
 
@@ -57,21 +57,18 @@ public sealed class GetCommerceTransactionsQueryHandler
             );
         }
 
-        // 2. El comercio debe existir.
+        // El comercio debe existir.
         var merchant = await _merchantRepository.GetByIdAsync(
             resolvedCommerceId.Value,
             cancellationToken
         );
         if (merchant is null) {
             return Result.Failure<GetCommerceTransactionsResponseDto>(
-                DomainError.NotFound(
-                    "Commerce.NotFound",
-                    "El comercio indicado no existe."
-                )
+                DomainError.NotFound("Commerce.NotFound", "El comercio indicado no existe.")
             );
         }
 
-        // 3. Un comercio inactivo no puede consultar pagos (spec §41).
+        // Un comercio inactivo no puede consultar pagos (spec §41).
         if (merchant.Status != MerchantStatus.Active) {
             return Result.Failure<GetCommerceTransactionsResponseDto>(
                 DomainError.Validation(
@@ -105,7 +102,7 @@ public sealed class GetCommerceTransactionsQueryHandler
             }
         }
 
-        // 4. Consumos del comercio, paginados y más recientes primero.
+        // Consumos del comercio, paginados y más recientes primero.
         var page = new PageRequest(message.Page, message.PageSize);
         PageResult<CommerceTransactionDto> paged =
             await _creditCardRepository.GetConsumptionsByMerchantPagedAsync(

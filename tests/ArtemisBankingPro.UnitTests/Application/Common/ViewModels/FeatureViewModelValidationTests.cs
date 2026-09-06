@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Common.ViewModels;
 using ArtemisBankingPro.Application.Features.Admin.ViewModels;
 using ArtemisBankingPro.Application.Features.Cashier.ViewModels;
@@ -30,6 +31,31 @@ public sealed class FeatureViewModelValidationTests {
             ValidationResult[] errors = Validate(model);
 
             errors.Should().Contain(error => error.MemberNames.Contains(property));
+        }
+    }
+
+    [Fact]
+    public void IdentificationViewModels_UseTheSqlColumnLimitAndContractMessage() {
+        string tooLong = new(
+            '1',
+            IdentityValidationLimits.IdentificationMaxLength + 1
+        );
+        var models = new object[] {
+            new CreateUserViewModel { Identification = tooLong },
+            new UpdateUserViewModel { Identification = tooLong },
+            new CreateCommerceUserViewModel { Identification = tooLong },
+            new AssignCommerceUserViewModel { Identification = tooLong },
+            new EligibleClientsViewModel { Identification = tooLong },
+            new LoanListViewModel { Identification = tooLong },
+            new CreditCardListViewModel { Identification = tooLong },
+            new SavingsAccountListViewModel { Identification = tooLong },
+        };
+
+        foreach (object model in models) {
+            Validate(model).Should().Contain(error =>
+                error.MemberNames.Contains("Identification")
+                && error.ErrorMessage == IdentityValidationLimits.IdentificationMaxLengthMessage
+            );
         }
     }
 
@@ -125,6 +151,26 @@ public sealed class FeatureViewModelValidationTests {
         operationErrors.Should().Contain(error =>
             error.MemberNames.Contains(nameof(CashierOperationListViewModel.DateFrom))
             && error.MemberNames.Contains(nameof(CashierOperationListViewModel.DateTo)));
+    }
+
+    [Fact]
+    public void Product_status_filters_select_all_when_searching_by_client_without_status() {
+        CreditCardListViewModel cards = new() {
+            Identification = "00100000001",
+            StatusOptions = CreditCardListViewModel.BuildStatusOptions(null, true),
+        };
+        LoanListViewModel loans = new() {
+            Identification = "00100000001",
+            StatusOptions = LoanListViewModel.BuildStatusOptions(null, true),
+        };
+        SavingsAccountListViewModel accounts = new() {
+            Identification = "00100000001",
+            StatusOptions = SavingsAccountListViewModel.BuildStatusOptions(null, true),
+        };
+
+        cards.StatusOptions.Single(option => option.Text == "Todas").IsSelected.Should().BeTrue();
+        loans.StatusOptions.Single(option => option.Text == "Todos").IsSelected.Should().BeTrue();
+        accounts.StatusOptions.Single(option => option.Text == "Todas").IsSelected.Should().BeTrue();
     }
 
     [Fact]

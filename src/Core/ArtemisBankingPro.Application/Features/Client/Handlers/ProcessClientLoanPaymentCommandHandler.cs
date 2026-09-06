@@ -120,8 +120,8 @@ public sealed class ProcessClientLoanPaymentCommandHandler
         catch (Exception ex) {
             _logger.LogWarning(
                 ex,
-                "No se pudo enviar el correo del pago al préstamo {LoanNumber}.",
-                loan.Number.Value
+                "No se pudo enviar el correo del pago al préstamo terminado en {LoanLastFour}.",
+                loan.Number.Value[^4..]
             );
         }
 

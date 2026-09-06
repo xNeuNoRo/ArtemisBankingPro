@@ -1,6 +1,6 @@
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Models.Emails;
-using ArtemisBankingPro.Domain.Settings;
+using ArtemisBankingPro.Infrastructure.Shared.Configuration;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
@@ -13,8 +13,6 @@ namespace ArtemisBankingPro.Infrastructure.Shared.Messaging;
 /// Envío de correo con MailKit y plantillas Razor.
 /// </summary>
 public sealed class MailKitEmailService : IEmailService {
-    private static readonly SemaphoreSlim SmtpSemaphore = new(1, 1);
-
     private readonly EmailSettings _options;
     private readonly IRazorRenderer _renderer;
     private readonly ILogger<MailKitEmailService> _logger;
@@ -50,42 +48,29 @@ public sealed class MailKitEmailService : IEmailService {
             );
         }
 
-        string body = await _renderer.RenderAsync(model, ct);
-        MimeMessage mailMessage = BuildMailMessage(recipient, model.Subject, body);
-
-        bool acquired = await SmtpSemaphore.WaitAsync(
-            TimeSpan.FromSeconds(_options.TimeoutSeconds),
-            ct
-        );
-        if (!acquired) {
-            throw new EmailSendException(
-                model.Subject,
-                new TimeoutException(
-                    "No se pudo obtener turno en el semáforo SMTP dentro del tiempo configurado."
-                )
-            );
-        }
-
         try {
+            string body = await _renderer.RenderAsync(model, ct);
+            MimeMessage mailMessage = BuildMailMessage(recipient, model.Subject, body);
             await SendCoreAsync(mailMessage, ct);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException) {
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+            throw;
+        }
+        catch (Exception ex) {
             _logger.LogError(
                 ex,
-                "No fue posible enviar el correo con asunto {Subject} a {Recipient}. "
-                    + "La operación financiera no se revierte.",
-                model.Subject,
-                RedactRecipient(recipient)
+                "No fue posible enviar el correo {EmailType} a {RecipientDomain}; "
+                    + "tipo de error {ExceptionType}. La operación financiera no se revierte.",
+                typeof(T).Name,
+                RedactRecipient(recipient),
+                ex.GetType().Name
             );
             throw new EmailSendException(model.Subject, ex);
         }
-        finally {
-            SmtpSemaphore.Release();
-        }
 
         _logger.LogInformation(
-            "Correo enviado con asunto {Subject} a {Recipient}.",
-            model.Subject,
+            "Correo enviado {EmailType} a {RecipientDomain}.",
+            typeof(T).Name,
             RedactRecipient(recipient)
         );
     }
@@ -102,7 +87,12 @@ public sealed class MailKitEmailService : IEmailService {
                 _fromAddress
             )
         );
-        mailMessage.To.Add(MailboxAddress.Parse(to));
+        if (!MailboxAddress.TryParse(to, out MailboxAddress? recipient)
+            || !string.Equals(recipient.Address, to, StringComparison.OrdinalIgnoreCase)) {
+            throw new FormatException("El destinatario de correo no es válido.");
+        }
+
+        mailMessage.To.Add(recipient);
         mailMessage.Subject = subject;
         mailMessage.Body = new TextPart("plain") {
             Text = body,
@@ -112,27 +102,33 @@ public sealed class MailKitEmailService : IEmailService {
     }
 
     private async Task SendCoreAsync(MimeMessage mailMessage, CancellationToken ct) {
-        using var client = new SmtpClient { Timeout = _options.TimeoutSeconds * 1000 };
+        using var client = new SmtpClient { Timeout = checked(_options.TimeoutSeconds * 1000) };
+        try {
+            SecureSocketOptions socketOptions = _options.Port == 465
+                ? SecureSocketOptions.SslOnConnect
+                : SecureSocketOptions.StartTls;
+            await client.ConnectAsync(_host, _options.Port, socketOptions, ct);
 
-        await client.ConnectAsync(
-            _host,
-            _options.Port,
-            _options.EnableSsl
-                ? SecureSocketOptions.StartTlsWhenAvailable
-                : SecureSocketOptions.None,
-            ct
-        );
+            if (!string.IsNullOrWhiteSpace(_options.UserName)) {
+                await client.AuthenticateAsync(_options.UserName, _options.Password!, ct);
+            }
 
-        if (!string.IsNullOrWhiteSpace(_options.UserName)) {
-            await client.AuthenticateAsync(
-                _options.UserName,
-                _options.Password ?? string.Empty,
-                ct
-            );
+            await client.SendAsync(mailMessage, ct);
         }
-
-        await client.SendAsync(mailMessage, ct);
-        await client.DisconnectAsync(true, ct);
+        finally {
+            if (client.IsConnected) {
+                try {
+                    await client.DisconnectAsync(true, CancellationToken.None);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException) {
+                    _logger.LogDebug(
+                        ex,
+                        "La desconexión SMTP no pudo completarse ({ExceptionType}).",
+                        ex.GetType().Name
+                    );
+                }
+            }
+        }
     }
 
     /// <summary>Reduce el destinatario a su dominio para logs seguros.</summary>

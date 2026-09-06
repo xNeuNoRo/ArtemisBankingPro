@@ -1,10 +1,15 @@
 using System.ComponentModel.DataAnnotations;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Common.ViewModels;
 
 namespace ArtemisBankingPro.Application.Features.Admin.ViewModels;
 
 /// <summary>Indicadores administrativos calculados por Application.</summary>
 public sealed class AdminDashboardViewModel : BaseViewModel {
+    public string? LoadErrorMessage { get; init; }
+
+    public bool HasLoadError => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
     public int TotalTransactionsHistorical { get; init; }
     public int TransactionsToday { get; init; }
     public int TotalPaymentsHistorical { get; init; }
@@ -29,7 +34,10 @@ public sealed class EligibleClientItemViewModel {
 
 /// <summary>Listado paginado de clientes elegibles.</summary>
 public sealed class EligibleClientsViewModel : BaseViewModel {
-    [StringLength(20, ErrorMessage = "La cédula no debe exceder 20 caracteres.")]
+    [StringLength(
+        IdentityValidationLimits.IdentificationMaxLength,
+        ErrorMessage = IdentityValidationLimits.IdentificationMaxLengthMessage
+    )]
     public string? Identification { get; set; }
 
     /// <summary>

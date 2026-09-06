@@ -21,5 +21,7 @@ public sealed class PageRequest {
 
     public int PageSize { get; }
 
-    public int Skip => (Page - 1) * PageSize;
+    // Keep the existing positive-page contract without allowing the SQL offset
+    // calculation to wrap into a negative value for very large page numbers.
+    public int Skip => (int)Math.Min((long)(Page - 1) * PageSize, int.MaxValue);
 }

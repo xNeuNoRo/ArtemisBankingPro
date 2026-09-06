@@ -60,9 +60,19 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "Type");
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
 
-                    b.ToTable("AccountTokens", "Identity");
+                    b.HasIndex("UserId", "Type")
+                        .IsUnique()
+                        .HasFilter("[UsedAtUtc] IS NULL");
+
+                    b.ToTable("AccountTokens", "Identity", t =>
+                        {
+                            t.HasCheckConstraint("CK_AccountTokens_Dates", "[ExpiresAtUtc] > [CreatedAtUtc] AND ([UsedAtUtc] IS NULL OR [UsedAtUtc] >= [CreatedAtUtc])");
+
+                            t.HasCheckConstraint("CK_AccountTokens_Type", "[Type] IN (1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("ArtemisBankingPro.Infrastructure.Identity.Entities.AppUser", b =>
@@ -72,6 +82,11 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
+
+                    b.Property<long>("AccountTokenVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.Property<bool>("Active")
                         .ValueGeneratedOnAdd()
@@ -149,7 +164,9 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Migrations
                         .HasFilter("[IdentityDocument] IS NOT NULL");
 
                     b.HasIndex("NormalizedEmail")
-                        .HasDatabaseName("EmailIndex");
+                        .IsUnique()
+                        .HasDatabaseName("EmailIndex")
+                        .HasFilter("[NormalizedEmail] IS NOT NULL");
 
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
@@ -290,6 +307,15 @@ namespace ArtemisBankingPro.Infrastructure.Identity.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("UserTokens", "Identity");
+                });
+
+            modelBuilder.Entity("ArtemisBankingPro.Infrastructure.Identity.Entities.AccountToken", b =>
+                {
+                    b.HasOne("ArtemisBankingPro.Infrastructure.Identity.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

@@ -40,7 +40,7 @@ public sealed class GetCommerceTransactionsQueryHandlerTests {
             merchant.Deactivate(CreatedAt.AddHours(1)).IsSuccess.Should().BeTrue();
         }
 
-        merchant.AssociateUser("commerce-user-1", CreatedAt.AddMinutes(1)).IsSuccess.Should().BeTrue();
+        merchant.AssociateUser("commerce-user-1", CreatedAt.AddHours(2)).IsSuccess.Should().BeTrue();
 
         return merchant;
     }

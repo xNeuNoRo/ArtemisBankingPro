@@ -103,13 +103,12 @@ public sealed class MerchantPersistenceTests(SqlServerFixture fixture)
         });
 
         await WithContextAsync(async context => {
-            // Se fuerza la violación por SQL para probar el índice único
+            // Se fuerza la violación mediante EF para probar el índice único
             // filtrado (la regla de dominio ya impide la doble asociación).
-            Func<Task> act = () =>
-                context.Database.ExecuteSqlRawAsync(
-                    "UPDATE dbo.Merchants SET AssociatedUserId = 'user-1' "
-                        + "WHERE Rnc = '101000002'"
-                );
+            Func<Task> act = () => context.Merchants
+                .Where(merchant => merchant.Rnc == "101000002")
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(merchant => merchant.AssociatedUserId, "user-1"));
 
             await act.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>();
         });

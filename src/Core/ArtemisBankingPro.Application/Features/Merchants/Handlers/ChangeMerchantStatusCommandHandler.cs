@@ -4,9 +4,8 @@ using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Application.Interfaces.Time;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
-using ArtemisBankingPro.Domain.Merchants.Entities;
+using ArtemisBankingPro.Domain.Merchants.Enums;
 using Mediator;
-using Microsoft.Extensions.Logging;
 
 namespace ArtemisBankingPro.Application.Features.Merchants.Handlers;
 
@@ -21,134 +20,87 @@ public sealed class ChangeMerchantStatusCommandHandler
     private readonly IUserAccountService _userAccountService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IBusinessClock _clock;
-    private readonly ILogger<ChangeMerchantStatusCommandHandler> _logger;
 
     public ChangeMerchantStatusCommandHandler(
         IMerchantRepository merchantRepository,
         IUserAccountService userAccountService,
         IUnitOfWork unitOfWork,
-        IBusinessClock clock,
-        ILogger<ChangeMerchantStatusCommandHandler> logger
+        IBusinessClock clock
     ) {
         _merchantRepository = merchantRepository;
         _userAccountService = userAccountService;
         _unitOfWork = unitOfWork;
         _clock = clock;
-        _logger = logger;
     }
 
     public async ValueTask<Result<Unit>> Handle(
         ChangeMerchantStatusCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. El comercio debe existir.
-        var merchant = await _merchantRepository.GetByIdAsync(
-            message.MerchantId,
-            cancellationToken
-        );
-        if (merchant is null) {
-            return Result.Failure<Unit>(
-                DomainError.NotFound(
-                    "Commerce.NotFound",
-                    "El comercio indicado no existe."
-                )
-            );
-        }
-
-        // 2. Al desactivar, el usuario asociado queda inactivo (spec §40).
-        //    Al reactivar, los usuarios asociados no se activan automáticamente.
-        //    Se captura el estado real previo del usuario para poder restaurarlo
-        //    exactamente si la operación sobre el comercio falla: nunca se
-        //    reactiva un usuario que ya estaba inactivo.
-        string? associatedUserId = merchant.AssociatedUserId;
-        bool? previousActive = null;
-        if (!message.IsActive && associatedUserId is not null) {
-            previousActive = await _userAccountService.GetActiveAsync(
-                associatedUserId,
-                cancellationToken
-            );
-            if (previousActive is null) {
-                return Result.Failure<Unit>(
-                    DomainError.NotFound(
-                        "User.NotFound",
-                        "El usuario asociado al comercio no existe."
-                    )
-                );
-            }
-
-            if (previousActive.Value) {
-                var userResult = await _userAccountService.SetActiveAsync(
-                    associatedUserId,
-                    false,
-                    cancellationToken
-                );
-                if (userResult.IsFailure) {
-                    return Result.Failure<Unit>(userResult.Error!);
+        Result transactionResult = await _unitOfWork.ExecuteInTransactionAsync(
+            async ct => {
+                var merchant = await _merchantRepository.GetByIdAsync(message.MerchantId, ct);
+                if (merchant is null) {
+                    return Result.Failure(
+                        DomainError.NotFound(
+                            "Commerce.NotFound",
+                            "El comercio indicado no existe."
+                        )
+                    );
                 }
-            }
-        }
 
-        // 3. Cambiar el estado en el agregado (rechaza no-op y fechas inválidas).
-        Result statusChange = message.IsActive
-            ? merchant.Activate(_clock.Now)
-            : merchant.Deactivate(_clock.Now);
-        if (statusChange.IsFailure) {
-            if (previousActive == true) {
-                await CompensateUserStatusAsync(
-                    associatedUserId!,
-                    previousActive.Value,
-                    merchant,
-                    cancellationToken
-                );
-            }
+                if (
+                    (message.IsActive && merchant.Status == MerchantStatus.Active)
+                    || (!message.IsActive && merchant.Status == MerchantStatus.Inactive)
+                ) {
+                    Result unchanged = message.IsActive
+                        ? merchant.Activate(_clock.Now)
+                        : merchant.Deactivate(_clock.Now);
+                    return Result.Failure(unchanged.Error!);
+                }
 
-            return Result.Failure<Unit>(statusChange.Error!);
-        }
+                bool? associatedUserActive = null;
+                if (!message.IsActive && merchant.AssociatedUserId is not null) {
+                    associatedUserActive = await _userAccountService.GetActiveAsync(
+                        merchant.AssociatedUserId,
+                        ct
+                    );
+                    if (associatedUserActive is null) {
+                        return Result.Failure(
+                            DomainError.NotFound(
+                                "User.NotFound",
+                                "El usuario asociado al comercio no existe."
+                            )
+                        );
+                    }
+                }
 
-        // 4. Persistir el cambio de estado atómicamente. Si la persistencia
-        //    falla tras haber inactivado el usuario, se restaura su estado previo.
-        var saveResult = await _unitOfWork.ExecuteInTransactionAsync(
-            _ => {
+                Result statusChange = message.IsActive
+                    ? merchant.Activate(_clock.Now)
+                    : merchant.Deactivate(_clock.Now);
+                if (statusChange.IsFailure) {
+                    return Result.Failure(statusChange.Error!);
+                }
+
+                if (!message.IsActive && merchant.AssociatedUserId is not null && associatedUserActive == true) {
+                    Result userResult = await _userAccountService.SetActiveAsync(
+                        merchant.AssociatedUserId,
+                        false,
+                        ct
+                    );
+                    if (userResult.IsFailure) {
+                        return Result.Failure(userResult.Error!);
+                    }
+                }
+
                 _merchantRepository.Update(merchant);
-                return Task.FromResult(Result.Success());
+                return Result.Success();
             },
             ct: cancellationToken
         );
 
-        if (saveResult.IsFailure) {
-            if (previousActive == true) {
-                await CompensateUserStatusAsync(
-                    associatedUserId!,
-                    previousActive.Value,
-                    merchant,
-                    cancellationToken
-                );
-            }
-
-            return Result.Failure<Unit>(saveResult.Error!);
-        }
-
-        return Result.Success(Unit.Value);
-    }
-
-    private async Task CompensateUserStatusAsync(
-        string userId,
-        bool previousActive,
-        Merchant merchant,
-        CancellationToken cancellationToken
-    ) {
-        var compensation = await _userAccountService.SetActiveAsync(
-            userId,
-            previousActive,
-            cancellationToken
-        );
-        if (compensation.IsFailure) {
-            _logger.LogWarning(
-                "No se pudo reactivar el usuario {UserId} tras fallar la "
-                    + "operación sobre el comercio {MerchantId}.",
-                userId,
-                merchant.Id
-            );
-        }
+        return transactionResult.IsSuccess
+            ? Result.Success(Unit.Value)
+            : Result.Failure<Unit>(transactionResult.Error!);
     }
 }

@@ -23,6 +23,14 @@ public sealed class FinancialOperationConfiguration : IEntityTypeConfiguration<F
                     "CK_FinancialOperations_Interest_NonNegative",
                     "[InterestAmount] >= 0"
                 );
+                table.HasCheckConstraint(
+                    "CK_FinancialOperations_Kind_Valid",
+                    "[Kind] BETWEEN 1 AND 18"
+                );
+                table.HasCheckConstraint(
+                    "CK_FinancialOperations_Status_Valid",
+                    "[Status] IN (1, 2)"
+                );
             }
         );
         builder.HasKey(operation => operation.Id);
@@ -57,6 +65,7 @@ public sealed class FinancialOperationConfiguration : IEntityTypeConfiguration<F
             )
             .HasMaxLength(9);
         builder.Property(operation => operation.MerchantId);
+        builder.Property(operation => operation.SavingsAccountId);
 
         builder
             .Navigation(operation => operation.AccountTransactions)

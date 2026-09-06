@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using ArtemisBankingPro.Application.Common.Interfaces;
 using ArtemisBankingPro.Application.Features.HermesPay.DTOs;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
@@ -29,18 +27,12 @@ public sealed record ProcessHermesPayCommand(
     string IdempotencyKey
 ) : IRequest<Result<ProcessHermesPayResponse>>, IIdempotentCommand {
     /// <summary>
-    /// Huella SHA-256 del payload canónico: el payload contiene PAN y CVC, por
-    /// lo que nunca se persiste en texto plano (columna de 64 caracteres).
-    /// La clave de idempotencia la suministra el caller (header Idempotency-Key);
-    /// no deriva del PAN ni del reloj.
+    /// Huella canónica no sensible de la operación. La clave de idempotencia la
+    /// suministra el caller y no deriva del payload ni del reloj.
+    /// PAN y CVC se excluyen deliberadamente. La clave de idempotencia es un
+    /// identificador opaco del intento, no una huella de datos de autenticación.
     /// </summary>
     public string RequestFingerprint =>
-        ComputeSha256Hex(
-            $"{CardNumber}|{MonthExpirationCard}/{YearExpirationCard}|{Cvc}|{TransactionAmount.ToString("0.00", CultureInfo.InvariantCulture)}"
-        );
+        $"{CommerceId?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{MonthExpirationCard}/{YearExpirationCard}|{TransactionAmount.ToString("0.00", CultureInfo.InvariantCulture)}";
 
-    private static string ComputeSha256Hex(string value) {
-        byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes(value));
-        return Convert.ToHexString(digest).ToLowerInvariant();
-    }
 }

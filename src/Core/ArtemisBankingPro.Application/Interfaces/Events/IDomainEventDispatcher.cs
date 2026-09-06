@@ -3,7 +3,7 @@ using ArtemisBankingPro.Domain.Common.Events;
 namespace ArtemisBankingPro.Application.Interfaces.Events;
 
 /// <summary>
-/// Despacha eventos de dominio en proceso, después de persistir.
+/// Despacha eventos de dominio en proceso, después de confirmar la persistencia.
 /// Los handlers se registran como <see cref="IEventHandler{TEvent}"/>.
 /// </summary>
 public interface IDomainEventDispatcher {

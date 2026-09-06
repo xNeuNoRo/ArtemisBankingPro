@@ -72,19 +72,49 @@ public sealed class SeedTests(SqlServerFixture fixture) : SqlServerTestBase(fixt
     }
 
     [Fact]
-    public async Task SeedAsync_MissingConfigurationForRole_WarnsAndSkips() {
-        await using var provider = BuildProvider(extraConfiguration: SeedConfiguration);
-
-        // Sin la sección de usuario comercio: solo se crean los demás.
+    public async Task SeedAsync_MissingConfigurationForRole_FailsClosed() {
         await using var partialProvider = BuildProvider(
             extraConfiguration: SeedConfiguration.Where(pair => !pair.Key.Contains("Commerce"))
                 .ToDictionary(pair => pair.Key, pair => pair.Value)
         );
 
-        await partialProvider.RunIdentitySeedAsync();
+        Func<Task> act = () => partialProvider.RunIdentitySeedAsync();
 
-        await using var scope = partialProvider.CreateAsyncScope();
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Security:DefaultUsers:Comercio*");
+    }
+
+    [Fact]
+    public async Task SeedAsync_ExistingBootstrapUserWithWrongRole_FailsClosed() {
+        await using var provider = BuildProvider(extraConfiguration: SeedConfiguration);
+        await provider.RunIdentitySeedAsync();
+
+        await using (var scope = provider.CreateAsyncScope()) {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var user = await userManager.FindByNameAsync("admin");
+            Assert.NotNull(user);
+            (await userManager.RemoveFromRoleAsync(user, nameof(Roles.Administrador))).Succeeded
+                .Should().BeTrue();
+            (await userManager.AddToRoleAsync(user, nameof(Roles.Cliente))).Succeeded
+                .Should().BeTrue();
+        }
+
+        Func<Task> act = () => provider.RunIdentitySeedAsync();
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*admin*Administrador*");
+    }
+
+    [Fact]
+    public async Task SeedAsync_ConcurrentHostsRemainIdempotent() {
+        await using var first = BuildProvider(extraConfiguration: SeedConfiguration);
+        await using var second = BuildProvider(extraConfiguration: SeedConfiguration);
+
+        await Task.WhenAll(first.RunIdentitySeedAsync(), second.RunIdentitySeedAsync());
+
+        await using var scope = first.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<IdentityContext>();
-        (await context.Users.CountAsync()).Should().Be(3);
+        (await context.Users.CountAsync()).Should().Be(4);
+        (await context.Roles.CountAsync()).Should().Be(RoleSets.All.Count);
     }
 }

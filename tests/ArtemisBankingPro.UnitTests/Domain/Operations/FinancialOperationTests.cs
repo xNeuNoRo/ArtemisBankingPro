@@ -137,6 +137,31 @@ public sealed class FinancialOperationTests {
     }
 
     [Fact]
+    public void Approve_CashAdvance_WithInjectedInterest_ReturnsFailure() {
+        Money principal = Money.Create(100m).Value;
+
+        Result<FinancialOperation> result = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.CashAdvance,
+            principal,
+            principal,
+            Money.Create(5m).Value,
+            "client",
+            Now,
+            [Credit(Destination, principal)],
+            new CardConsumptionDetails(
+                1,
+                null,
+                "AVANCE",
+                ConsumptionType.CashAdvance,
+                Money.Create(105m).Value
+            ),
+            creditCardId: 1);
+
+        Assert.Equal(OperationErrors.InvalidAmountEquation, result.Error);
+    }
+
+    [Fact]
     public void Approve_HermesPayment_WithMismatchedMerchant_ReturnsFailure() {
         Money amount = Money.Create(100m).Value;
         CardConsumptionDetails consumption = new(
@@ -200,6 +225,30 @@ public sealed class FinancialOperationTests {
             [Debit(Source, amount)]).Value;
 
         operation.DomainEvents.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RecordDepositProcessed_InvalidPayload_ReturnsFailureWithoutEvent() {
+        FinancialOperation operation = FinancialOperation.Approve(
+            Guid.NewGuid(),
+            FinancialOperationKind.Deposit,
+            Money.Create(100m).Value,
+            Money.Create(100m).Value,
+            Money.Zero,
+            "cashier",
+            Now,
+            [Credit(Destination, Money.Create(100m).Value)]
+        ).Value;
+
+        Result result = operation.RecordDepositProcessed(
+            "",
+            Money.Zero,
+            "",
+            ""
+        );
+
+        result.IsFailure.Should().BeTrue();
+        operation.DomainEvents.Should().ContainSingle();
     }
 
     [Fact]

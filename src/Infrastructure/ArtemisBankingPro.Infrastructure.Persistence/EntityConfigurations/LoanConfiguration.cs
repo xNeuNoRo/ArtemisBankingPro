@@ -19,6 +19,11 @@ public sealed class LoanConfiguration : IEntityTypeConfiguration<Loan> {
                     "CK_Loans_Number_NineDigits",
                     "LEN([Number]) = 9 AND [Number] NOT LIKE '%[^0-9]%'"
                 );
+                table.HasCheckConstraint("CK_Loans_Status_Valid", "[Status] IN (1, 2)");
+                table.HasCheckConstraint(
+                    "CK_Loans_AnnualInterestRate_NonNegative",
+                    "[AnnualInterestRate] >= 0"
+                );
             }
         );
         builder.HasKey(loan => loan.Id);

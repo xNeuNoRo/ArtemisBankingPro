@@ -1,4 +1,6 @@
 using ArtemisBankingPro.Application.Features.CreditCard.Commands;
+using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -8,9 +10,9 @@ using ArtemisBankingPro.Application.Models.Emails;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
-using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 using Mediator;
 using Microsoft.Extensions.Logging;
+using CreditCardEntity = ArtemisBankingPro.Domain.Cards.Entities.CreditCard;
 
 namespace ArtemisBankingPro.Application.Features.CreditCard.Handlers;
 
@@ -21,7 +23,7 @@ namespace ArtemisBankingPro.Application.Features.CreditCard.Handlers;
 /// revierte el cambio.
 /// </summary>
 public sealed class UpdateCardLimitCommandHandler
-    : IRequestHandler<UpdateCardLimitCommand, Result<Unit>> {
+    : IRequestHandler<UpdateCardLimitCommand, Result<CreditCardMutationResponse>> {
     private readonly ICreditCardRepository _creditCardRepository;
     private readonly IFinancialOperationRepository _financialOperationRepository;
     private readonly IUserRepository _userRepository;
@@ -51,17 +53,17 @@ public sealed class UpdateCardLimitCommandHandler
         _logger = logger;
     }
 
-    public async ValueTask<Result<Unit>> Handle(
+    public async ValueTask<Result<CreditCardMutationResponse>> Handle(
         UpdateCardLimitCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. La tarjeta debe existir.
+        // Primero, la tarjeta debe existir.
         CreditCardEntity? card = await _creditCardRepository.GetByIdAsync(
             message.CardId,
             cancellationToken
         );
         if (card is null) {
-            return Result.Failure<Unit>(
+            return Result.Failure<CreditCardMutationResponse>(
                 DomainError.NotFound(
                     "Card.NotFound",
                     "La tarjeta de crédito seleccionada no existe."
@@ -69,19 +71,19 @@ public sealed class UpdateCardLimitCommandHandler
             );
         }
 
-        // 2. Nuevo límite válido como importe.
+        // Nuevo límite válido como importe.
         Result<Money> moneyResult = Money.Create(message.NewLimit);
         if (moneyResult.IsFailure) {
-            return Result.Failure<Unit>(moneyResult.Error!);
+            return Result.Failure<CreditCardMutationResponse>(moneyResult.Error!);
         }
 
-        // 3. Dominio valida estado, límite positivo y deuda actual.
+        // Dominio valida estado, límite positivo y deuda actual.
         Result changeResult = card.ChangeCreditLimit(moneyResult.Value);
         if (changeResult.IsFailure) {
-            return Result.Failure<Unit>(changeResult.Error!);
+            return Result.Failure<CreditCardMutationResponse>(changeResult.Error!);
         }
 
-        // 4. Persistir tarjeta y operación de historial atómicamente.
+        // Persistimos la tarjeta y operación de historial atómicamente.
         var persistResult = await _unitOfWork.ExecuteInTransactionAsync(
             async ct => {
                 _creditCardRepository.Update(card);
@@ -107,27 +109,29 @@ public sealed class UpdateCardLimitCommandHandler
             ct: cancellationToken
         );
         if (persistResult.IsFailure) {
-            return Result.Failure<Unit>(persistResult.Error!);
+            return Result.Failure<CreditCardMutationResponse>(persistResult.Error!);
         }
 
-        // 5. Correo post-commit (fallo no revierte el cambio).
-        await SendLimitChangedEmailAsync(card, moneyResult.Value, _clock.Now, cancellationToken);
+        // Enviamos el correo post-commit (fallo no revierte el cambio).
+        string? notificationWarning = await SendLimitChangedEmailAsync(
+            card,
+            moneyResult.Value,
+            _clock.Now,
+            CancellationToken.None
+        );
 
-        return Result.Success(Unit.Value);
+        return Result.Success(new CreditCardMutationResponse(notificationWarning));
     }
 
-    private async Task SendLimitChangedEmailAsync(
+    private async Task<string?> SendLimitChangedEmailAsync(
         CreditCardEntity card,
         Money newLimit,
         DateTimeOffset modifiedAt,
         CancellationToken cancellationToken
     ) {
-        var customer = await _userRepository.GetByIdAsync(
-            card.CustomerUserId,
-            cancellationToken
-        );
+        var customer = await _userRepository.GetByIdAsync(card.CustomerUserId, cancellationToken);
         if (customer is null) {
-            return;
+            return null;
         }
 
         try {
@@ -142,6 +146,7 @@ public sealed class UpdateCardLimitCommandHandler
                 ),
                 cancellationToken
             );
+            return null;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
@@ -149,6 +154,7 @@ public sealed class UpdateCardLimitCommandHandler
                 "No se pudo enviar el correo de cambio de límite para la tarjeta con terminación {LastFour}.",
                 card.LastFour
             );
+            return NotificationMessages.EmailFailed;
         }
     }
 }

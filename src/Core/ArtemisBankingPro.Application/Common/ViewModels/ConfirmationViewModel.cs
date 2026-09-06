@@ -11,7 +11,7 @@ namespace ArtemisBankingPro.Application.Common.ViewModels;
 /// ownership, fingerprint e idempotencia; los textos y valores mostrados no
 /// autorizan ni calculan una operación financiera.
 /// </remarks>
-public class ConfirmationViewModel {
+public class ConfirmationViewModel : BaseViewModel {
     /// <summary>
     /// Nonce de confirmación emitido por el servidor y devuelto por el POST.
     /// </summary>

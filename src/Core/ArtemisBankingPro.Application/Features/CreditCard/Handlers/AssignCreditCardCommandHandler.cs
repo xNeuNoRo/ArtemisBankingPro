@@ -1,5 +1,6 @@
 using ArtemisBankingPro.Application.Features.CreditCard.Commands;
 using ArtemisBankingPro.Application.Features.CreditCard.DTOs;
+using ArtemisBankingPro.Application.Common;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Application.Interfaces.Identity;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
@@ -73,7 +74,7 @@ public sealed class AssignCreditCardCommandHandler
         AssignCreditCardCommand message,
         CancellationToken cancellationToken
     ) {
-        // 1. El cliente debe existir, estar activo y pertenecer al rol Cliente.
+        // El cliente debe existir, estar activo y pertenecer al rol Cliente.
         var customer = await _userRepository.GetByIdAsync(
             message.CustomerUserId,
             cancellationToken
@@ -109,7 +110,7 @@ public sealed class AssignCreditCardCommandHandler
             );
         }
 
-        // 2. El cliente debe tener una cuenta principal activa.
+        // El cliente debe tener una cuenta principal activa.
         var principalAccount = await _savingsAccountRepository.GetPrincipalByOwnerAsync(
             message.CustomerUserId,
             cancellationToken
@@ -123,18 +124,18 @@ public sealed class AssignCreditCardCommandHandler
             );
         }
 
-        // 3. Límite válido e importes de la operación.
+        // Límite válido e importes de la operación.
         var limitResult = Money.Create(message.CreditLimit);
         if (limitResult.IsFailure) {
             return Result.Failure<AssignCreditCardResponse>(limitResult.Error!);
         }
 
-        // 4. Número único de 16 dígitos (BIN propio + secuencia + Luhn) y huella.
+        // Número único de 16 dígitos (BIN propio + secuencia + Luhn) y huella.
         string pan = await _numberGenerator.NextCardNumberAsync(cancellationToken);
         string lastFour = pan[^4..];
         string panFingerprint = _cardSecurityService.ComputePanFingerprint(pan);
 
-        // 5. CVC aleatorio de 3 dígitos; solo se persiste su digest.
+        // CVC aleatorio de 3 dígitos; solo se persiste su digest.
         string cvc = RandomNumberGenerator.GetInt32(0, 1000).ToString(
             "D3",
             CultureInfo.InvariantCulture
@@ -149,7 +150,7 @@ public sealed class AssignCreditCardCommandHandler
         var issuedAt = _clock.Now;
         var businessDate = _clock.Today;
 
-        // 6. El dominio valida titular, montos y fecha de emisión.
+        // El dominio valida titular, montos y fecha de emisión.
         var cardResult = CreditCardEntity.Issue(
             customer.Id,
             lastFour,
@@ -166,7 +167,7 @@ public sealed class AssignCreditCardCommandHandler
 
         var card = cardResult.Value;
 
-        // 7. Persistir tarjeta y operación de historial atómicamente.
+        // Persistir tarjeta y operación de historial atómicamente.
         // La tarjeta aún no tiene identidad persistida, por lo que la operación
         // de asignación no referencia CreditCardId (decisión registrada).
         var persistResult = await _unitOfWork.ExecuteInTransactionAsync(
@@ -196,8 +197,12 @@ public sealed class AssignCreditCardCommandHandler
             return Result.Failure<AssignCreditCardResponse>(persistResult.Error!);
         }
 
-        // 8. Correo post-commit (fallo no revierte la asignación).
-        await SendAssignedEmailAsync(customer, card, cancellationToken);
+        // Enviar correo post-commit (fallo no revierte la asignación).
+        string? notificationWarning = await SendAssignedEmailAsync(
+            customer,
+            card,
+            CancellationToken.None
+        );
 
         return Result.Success(
             new AssignCreditCardResponse(
@@ -210,12 +215,13 @@ public sealed class AssignCreditCardCommandHandler
                 card.AvailableCredit.Amount,
                 card.Expiration.ToString(),
                 card.Status.ToString(),
-                card.IssuedAt
+                card.IssuedAt,
+                notificationWarning
             )
         );
     }
 
-    private async Task SendAssignedEmailAsync(
+    private async Task<string?> SendAssignedEmailAsync(
         UserListDto customer,
         CreditCardEntity card,
         CancellationToken cancellationToken
@@ -233,6 +239,7 @@ public sealed class AssignCreditCardCommandHandler
                     ),
                 cancellationToken
             );
+            return null;
         }
         catch (EmailSendException ex) {
             _logger.LogWarning(
@@ -240,6 +247,7 @@ public sealed class AssignCreditCardCommandHandler
                 "No se pudo enviar el correo de tarjeta asignada para la tarjeta con terminación {LastFour}.",
                 card.LastFour
             );
+            return NotificationMessages.EmailFailed;
         }
     }
 }

@@ -41,7 +41,7 @@ public sealed class AccountToken {
 
     public bool IsUsed => UsedAtUtc is not null;
 
-    public bool IsExpired(DateTimeOffset nowUtc) => nowUtc > ExpiresAtUtc;
+    public bool IsExpired(DateTimeOffset nowUtc) => nowUtc >= ExpiresAtUtc;
 
     public bool IsValid(DateTimeOffset nowUtc) => !IsUsed && !IsExpired(nowUtc);
 

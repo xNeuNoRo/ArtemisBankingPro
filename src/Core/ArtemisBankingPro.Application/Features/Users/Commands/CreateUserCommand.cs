@@ -28,5 +28,16 @@ public sealed record CreateUserCommand(
     public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
-        $"{FirstName}|{LastName}|{Identification}|{Email}|{UserName}|{Role}|{InitialAmount}";
+        string.Join(
+            '\u001F',
+            FirstName,
+            LastName,
+            Identification,
+            Email,
+            UserName,
+            "password-present",
+            Role,
+            InitialAmount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+            CallbackUrl ?? ""
+        );
 }

@@ -24,6 +24,7 @@ public sealed class CreditCardConfiguration : IEntityTypeConfiguration<CreditCar
                     "CK_CreditCards_Debt_Within_Limit",
                     "[CurrentDebt] <= [CreditLimit]"
                 );
+                table.HasCheckConstraint("CK_CreditCards_Status_Valid", "[Status] IN (1, 2)");
             }
         );
         builder.HasKey(card => card.Id);

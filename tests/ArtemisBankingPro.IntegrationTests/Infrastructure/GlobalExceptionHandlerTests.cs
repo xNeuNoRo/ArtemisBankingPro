@@ -81,6 +81,10 @@ public sealed class GlobalExceptionHandlerTests {
         );
         Assert.NotNull(problem);
         problem.Extensions.Should().ContainKey("resultReference");
+        ((System.Text.Json.JsonElement)problem.Extensions["category"]!)
+            .GetString()
+            .Should()
+            .Be("Conflict");
         ((System.Text.Json.JsonElement)problem.Extensions["resultReference"]!)
             .GetString()
             .Should()

@@ -9,7 +9,12 @@ public enum LoginStatus {
     RoleNotAllowed = 4,
 }
 
-public sealed record LoginResult(LoginStatus Status, string? UserId, string? UserName, string? Role) {
+public sealed record LoginResult(
+    LoginStatus Status,
+    string? UserId,
+    string? UserName,
+    string? Role
+) {
     public bool IsSuccess => Status == LoginStatus.Success;
 }
 
@@ -47,6 +52,18 @@ public interface IUserAccountService {
         IReadOnlyCollection<string> allowedRoles,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// Re-reads the account and role before issuing the MVC Identity cookie.
+    /// </summary>
+    Task<Result> SignInWebAppAsync(
+        string userId,
+        string expectedRole,
+        CancellationToken ct = default
+    );
+
+    /// <summary>Invalidates the current MVC Identity cookie.</summary>
+    Task<Result> SignOutWebAppAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Busca un usuario por nombre de usuario para el flujo de restablecimiento

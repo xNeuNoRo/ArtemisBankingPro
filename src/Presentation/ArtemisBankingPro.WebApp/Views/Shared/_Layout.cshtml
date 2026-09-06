@@ -1,0 +1,59 @@
+@model BaseViewModel
+@{
+    string? role = NavigationCatalog.RoleFrom(User);
+    IReadOnlyList<NavigationItem> navigationItems = NavigationCatalog.ForRole(role);
+    string? routeController = ViewContext.RouteData.Values["controller"]?.ToString();
+    string? routeAction = ViewContext.RouteData.Values["action"]?.ToString();
+    string? activeNavigationItem = Model.ActiveNavigationItem;
+    if (activeNavigationItem is null
+        && NavigationCatalog.TryGetByRoute(routeController, routeAction, out NavigationItem? routeItem)) {
+        activeNavigationItem = routeItem?.Key;
+    }
+    string title = ViewData["Title"] as string
+        ?? (string.IsNullOrWhiteSpace(Model.PageTitle) ? "Artemis Banking" : Model.PageTitle);
+    var sidebar = new SidebarViewModel(navigationItems, activeNavigationItem, role);
+}
+<!doctype html>
+<html lang="es" data-theme="light" data-js="false">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#10232d" />
+    <meta name="description" content="Artemis Banking Pro" />
+    <title>@title | Artemis Banking Pro</title>
+    <link rel="icon" type="image/svg+xml" href="~/favicon.svg" asp-append-version="true" />
+    <script src="~/js/theme-bootstrap.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script type="module" src="~/js/theme.js" asp-append-version="true"></script>
+</head>
+<body class="app-shell" data-page="@activeNavigationItem">
+    <a class="ui-skip-link" href="#main-content">Saltar al contenido principal</a>
+
+    <partial name="_Sidebar" model="sidebar" />
+    <div
+        class="app-sidebar-backdrop"
+        data-navigation-backdrop="primary"
+        hidden
+        aria-hidden="true"></div>
+
+    <div class="app-main">
+        <partial name="_Header" />
+
+        <main id="main-content" class="app-content" tabindex="-1">
+            <div class="app-content__stack">
+                <partial name="_FlashMessages" />
+                @RenderBody()
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="~/js/site.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/auth.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/feedback.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/dialogs.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/forms.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/navigation.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/user-form.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

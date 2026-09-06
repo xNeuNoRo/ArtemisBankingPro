@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using ArtemisBankingPro.Application.Interfaces.Email;
 using ArtemisBankingPro.Infrastructure.Shared;
-using ArtemisBankingPro.Infrastructure.Shared.Configuration;
 using ArtemisBankingPro.Infrastructure.Shared.Security;
 using ArtemisBankingPro.Infrastructure.Shared.Time;
 using Microsoft.Extensions.Configuration;
@@ -175,6 +174,8 @@ public sealed class CardSecurityServiceTests(SqlServerFixture fixture) : SqlServ
         service.VerifyCvc("851", digest).Should().BeFalse();
         service.VerifyCvc("", digest).Should().BeFalse();
         service.VerifyCvc("859", "").Should().BeFalse();
+        service.VerifyCvc("85", digest).Should().BeFalse();
+        service.VerifyCvc("85A", digest).Should().BeFalse();
     }
 
     [Fact]
@@ -196,25 +197,24 @@ public sealed class CardSecurityServiceTests(SqlServerFixture fixture) : SqlServ
         Action act2 = () => CreateService(cvcPepperKey: null);
         act2.Should().Throw<InvalidOperationException>().WithMessage("*CvcPepperKey*");
     }
-}
 
-[Collection("SqlServer")]
-public sealed class ConfigurationExtensionsTests(SqlServerFixture fixture)
-    : SqlServerTestBase(fixture) {
     [Fact]
-    public void GetRequiredString_MissingKey_Throws() {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
+    public void ShortKeys_AreRejectedBeforeCardOperations() {
+        string shortKey = Convert.ToBase64String(new byte[16]);
 
-        Action act = () => configuration.GetRequiredString("Missing:Key");
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Missing:Key*");
+        Action fingerprint = () => CreateService(fingerprintKey: shortKey);
+        Action cvc = () => CreateService(cvcPepperKey: shortKey);
+
+        fingerprint.Should().Throw<InvalidOperationException>().WithMessage("*32 bytes*");
+        cvc.Should().Throw<InvalidOperationException>().WithMessage("*32 bytes*");
     }
 
     [Fact]
-    public void GetRequiredString_ExistingKey_ReturnsValue() {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Some:Key"] = "value" })
-            .Build();
+    public void InvalidPan_IsRejectedInsteadOfBeingSilentlyNormalized() {
+        var service = CreateService();
 
-        configuration.GetRequiredString("Some:Key").Should().Be("value");
+        Action act = () => service.ComputePanFingerprint("4111-1111-1111-111A");
+
+        act.Should().Throw<ArgumentException>();
     }
 }

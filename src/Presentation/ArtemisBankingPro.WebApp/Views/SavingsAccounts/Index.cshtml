@@ -1,0 +1,106 @@
+@model SavingsAccountListViewModel
+@{
+    ViewData["Title"] = "Gestión de cuentas de ahorro";
+    ViewData["PaginationStatus"] = Model.Status;
+    ViewData["PaginationType"] = Model.Type;
+    ViewData["PaginationIdentification"] = Model.Identification;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    bool identificationInvalid = ViewData.ModelState[nameof(Model.Identification)]?.Errors.Count > 0;
+    bool typeInvalid = ViewData.ModelState[nameof(Model.Type)]?.Errors.Count > 0;
+    bool statusInvalid = ViewData.ModelState[nameof(Model.Status)]?.Errors.Count > 0;
+}
+
+<section class="page-header" aria-labelledby="accounts-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Administración / Productos</p>
+        <h1 id="accounts-title" class="page-header__title">Gestión de cuentas de ahorro</h1>
+        <p class="page-header__description">Consulte cuentas, balances, movimientos y cancelaciones de cuentas secundarias.</p>
+    </div>
+    <div class="page-header__actions"><a class="ui-button ui-button--primary" asp-action="Assign"><partial name="_Icon" model='@("account")' />Asignar cuenta secundaria</a></div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--error" role="alert" aria-live="assertive" aria-labelledby="accounts-load-error-title">
+        <h2 id="accounts-load-error-title" class="ui-visually-hidden">No fue posible cargar las cuentas de ahorro</h2>
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Index" asp-route-status="@Model.Status" asp-route-type="@Model.Type" asp-route-identification="@Model.Identification" asp-route-page="1" asp-route-pageSize="20" aria-label="Reintentar la carga de cuentas de ahorro">
+            Reintentar cuentas
+        </a>
+    </section>
+} else {
+    <partial name="_ValidationSummary" />
+    <section class="ui-card admin-product__filter" aria-labelledby="accounts-filter-title">
+        <div class="ui-card__body">
+            <h2 id="accounts-filter-title" class="ui-card__title">Buscar y filtrar cuentas</h2>
+            <form method="get" asp-action="Index" class="admin-filter" data-submit-lock>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Identification">Buscar por cédula</label>
+                    <input class="ui-control" asp-for="Identification" autocomplete="off" inputmode="numeric" aria-invalid="@(identificationInvalid ? "true" : "false")" aria-describedby="Identification-help Identification-error" />
+                    <p id="Identification-help" class="ui-field-description">Ingrese la cédula como texto y conserve los ceros iniciales.</p>
+                    <span class="ui-error" asp-validation-for="Identification"></span>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Type">Tipo de cuenta</label>
+                    <select class="ui-control" asp-for="Type" autocomplete="off" aria-invalid="@(typeInvalid ? "true" : "false")" aria-describedby="Type-help Type-error">
+                        @foreach (SelectOptionViewModel option in Model.TypeOptions) {<option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option>}
+                    </select>
+                    <p id="Type-help" class="ui-field-description">Puede mostrar cuentas principales, secundarias o ambas.</p>
+                    <span class="ui-error" asp-validation-for="Type"></span>
+                </div>
+                <div class="ui-field">
+                    <label class="ui-label" asp-for="Status">Estado</label>
+                    <select class="ui-control" asp-for="Status" autocomplete="off" aria-invalid="@(statusInvalid ? "true" : "false")" aria-describedby="Status-help Status-error">
+                        @foreach (SelectOptionViewModel option in Model.StatusOptions) {<option value="@option.Value" selected="@(option.IsSelected ? "selected" : null)">@option.Text</option>}
+                    </select>
+                    <p id="Status-help" class="ui-field-description">Por defecto muestra cuentas activas. Puede revisar canceladas o todas.</p>
+                    <span class="ui-error" asp-validation-for="Status"></span>
+                </div>
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="pageSize" value="20" />
+                <button class="ui-button ui-button--secondary" type="submit" data-submitting-label="Filtrando…"><span data-submit-label>Aplicar filtros</span></button>
+            </form>
+        </div>
+    </section>
+    @if (ViewData.ModelState.IsValid && Model.Accounts.Count == 0) {
+        ViewData["EmptyTitle"] = string.IsNullOrWhiteSpace(Model.Identification) ? "No hay cuentas para mostrar" : "Este cliente no tiene cuentas de ahorro registradas.";
+        ViewData["EmptyDescription"] = "Pruebe con otra cédula o cambie los filtros.";
+        <partial name="_EmptyState" />
+    } else if (ViewData.ModelState.IsValid && Model.Accounts.Count > 0) {
+        <section class="admin-product__list" aria-labelledby="accounts-list-title">
+            <div class="admin-users__list-heading">
+                <div><p class="ui-section-label">Cartera administrada</p><h2 id="accounts-list-title" class="ui-card__title">Cuentas registradas</h2></div>
+                <span class="ui-badge ui-badge--neutral">@Model.Pagination.TotalItems registros</span>
+            </div>
+            <div class="ui-table-wrap" tabindex="0" role="region" aria-label="Tabla de cuentas de ahorro">
+                <table class="ui-table admin-product__table admin-product__table--wide">
+                    <caption class="ui-visually-hidden">Cuentas de ahorro registradas</caption>
+                    <thead><tr><th scope="col">Cuenta</th><th scope="col">Cliente</th><th scope="col">Tipo</th><th scope="col">Balance</th><th scope="col">Estado</th><th scope="col"><span class="ui-visually-hidden">Acciones</span></th></tr></thead>
+                    <tbody>
+                        @foreach (SavingsAccountSummaryViewModel account in Model.Accounts) {
+                            bool isSecondary = account.Type.Equals("Secondary", StringComparison.OrdinalIgnoreCase)
+                                || account.Type.Equals("Secundaria", StringComparison.OrdinalIgnoreCase);
+                            bool isActive = account.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
+                                || account.Status.Equals("Activa", StringComparison.OrdinalIgnoreCase);
+                            <tr>
+                                <td class="ui-table__primary">@account.AccountNumber</td>
+                                <td><span class="admin-product__person"><strong>@account.ClientFullName</strong><span>@account.Identification</span></span></td>
+                                <td><span class="ui-badge ui-badge--info">@account.Type</span></td>
+                                <td class="ui-table__numeric">@Money(account.Balance)</td>
+                                <td><partial name="_StatusBadge" model="account.Status" /></td>
+                                <td>
+                                    <div class="admin-product__actions" aria-label="Acciones para la cuenta @account.AccountNumber">
+                                        <a class="ui-button ui-button--secondary ui-button--small" asp-action="Details" asp-route-accountNumber="@account.AccountNumber">Ver detalles</a>
+                                        @if (isSecondary && isActive) {
+                                            <a class="ui-button ui-button--danger ui-button--small" asp-action="ConfirmCancel" asp-route-accountNumber="@account.AccountNumber">Cancelar cuenta</a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <partial name="_Pagination" model="Model.Pagination" />
+        </section>
+    }
+}

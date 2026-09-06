@@ -5,12 +5,12 @@ using Microsoft.Extensions.Logging;
 namespace ArtemisBankingPro.Application.Features.Operations.Handlers;
 
 /// <summary>
-/// Consumidor de <see cref="FinancialOperationApprovedEvent"/> (ADR-012):
+/// Consumidor de <see cref="FinancialOperationApprovedEvent"/>:
 /// registra en Serilog, después del commit, la aprobación de una operación
 /// financiera para trazabilidad de auditoría.
 /// </summary>
 /// <remarks>
-/// El despacho ocurre post-commit en <c>BankingDbContext</c> (nunca dentro de
+/// El despacho ocurre post-commit desde la unidad de trabajo (nunca dentro de
 /// la transacción), por lo que este handler nunca participa en la atomicidad
 /// financiera. Solo transporta datos seguros: <c>OperationId</c> y
 /// <c>Kind</c>; nunca montos, identificadores personales ni datos de tarjeta.

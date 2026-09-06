@@ -1,19 +1,18 @@
-using System.Data.Common;
-using System.Globalization;
 using ArtemisBankingPro.Application.Interfaces.Services;
+using System.Globalization;
+using System.Security.Cryptography;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
-using Microsoft.EntityFrameworkCore;
+using ArtemisBankingPro.Infrastructure.Persistence.Entities;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Services;
 
 /// <summary>
 /// Genera identificadores numéricos usando la secuencia compartida
 /// <c>dbo.BankingNumberSequence</c>.
-/// Las cuentas y préstamos comparten el espacio de 9 dígitos; las tarjetas usan
-/// el mismo contador con BIN propio y dígito verificador Luhn.
+/// Las cuentas y préstamos comparten el espacio de 9 dígitos. Las tarjetas usan
+/// un número aleatorio criptográficamente seguro con BIN propio y Luhn.
 /// </summary>
 public sealed class NumberGenerator : INumberGenerator {
-    private const string NextSequenceValueSql = "SELECT NEXT VALUE FOR dbo.BankingNumberSequence";
     private const string CardBin = "900000";
 
     private readonly BankingDbContext _context;
@@ -23,35 +22,28 @@ public sealed class NumberGenerator : INumberGenerator {
     }
 
     public Task<string> NextAccountNumberAsync(CancellationToken ct = default) =>
-        NextNineDigitAsync(ct);
+        ReserveNextNineDigitAsync(BankingNumberResourceType.SavingsAccount, ct);
 
     public Task<string> NextLoanNumberAsync(CancellationToken ct = default) =>
-        NextNineDigitAsync(ct);
+        ReserveNextNineDigitAsync(BankingNumberResourceType.Loan, ct);
 
-    public async Task<string> NextCardNumberAsync(CancellationToken ct = default) {
-        long next = await NextRawAsync(ct);
-        string body = CardBin + next.ToString("D9", CultureInfo.InvariantCulture);
-        return body + LuhnCheckDigit(body);
+    public Task<string> NextCardNumberAsync(CancellationToken ct = default) {
+        ct.ThrowIfCancellationRequested();
+        string body = CardBin
+            + RandomNumberGenerator
+                .GetInt32(0, 1_000_000_000)
+                .ToString("D9", CultureInfo.InvariantCulture);
+        return Task.FromResult(body + LuhnCheckDigit(body));
     }
 
-    private async Task<string> NextNineDigitAsync(CancellationToken ct) {
-        long next = await NextRawAsync(ct);
-        return next.ToString("D9", CultureInfo.InvariantCulture);
-    }
-
-    private async Task<long> NextRawAsync(CancellationToken ct) {
-        // ADO.NET directo ya que EF Core compone SqlQuery en subconsultas y
-        // NEXT VALUE FOR no se permite en subconsultas/derived tables.
-        await _context.Database.OpenConnectionAsync(ct);
-        try {
-            await using DbCommand command = _context.Database.GetDbConnection().CreateCommand();
-            command.CommandText = NextSequenceValueSql;
-            object? value = await command.ExecuteScalarAsync(ct);
-            return Convert.ToInt64(value, CultureInfo.InvariantCulture);
-        }
-        finally {
-            await _context.Database.CloseConnectionAsync();
-        }
+    private async Task<string> ReserveNextNineDigitAsync(
+        BankingNumberResourceType resourceType,
+        CancellationToken ct
+    ) {
+        var reservation = new BankingNumberReservation(resourceType);
+        await _context.BankingNumberReservations.AddAsync(reservation, ct);
+        await _context.SaveChangesAsync(ct);
+        return reservation.Number;
     }
 
     private static char LuhnCheckDigit(string number) {

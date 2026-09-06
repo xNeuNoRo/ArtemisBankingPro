@@ -71,12 +71,19 @@ public sealed class ErrorResponseMapper : IErrorResponseMapper {
                 "Auth.Forbidden",
                 "Forbidden"
             ),
+            MissingIdempotencyKeyException ex => new ErrorResponse(
+                400,
+                BadRequestTitle,
+                ex.Message,
+                "Idempotency.MissingKey",
+                "Validation"
+            ),
             IdempotencyConflictException ex => new ErrorResponse(
                 409,
                 ConflictTitle,
                 ex.Message,
                 "Idempotency.Conflict",
-                null,
+                "Conflict",
                 ex.ResultReference is null
                     ? null
                     : new Dictionary<string, object?> {
@@ -84,7 +91,13 @@ public sealed class ErrorResponseMapper : IErrorResponseMapper {
                     }
             ),
             ValidationException ex => MapValidationException(ex),
-            _ => new ErrorResponse(500, InternalErrorTitle, InternalErrorDetail),
+            _ => new ErrorResponse(
+                500,
+                InternalErrorTitle,
+                InternalErrorDetail,
+                "Internal.Unexpected",
+                "Internal"
+            ),
         };
 
     private static ErrorResponse MapValidationException(ValidationException ex) {

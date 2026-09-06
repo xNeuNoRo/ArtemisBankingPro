@@ -119,7 +119,7 @@ public sealed class ProcessThirdPartyTransferCommandHandler
             destination,
             outcome.AppliedAmount,
             outcome.OccurredAt,
-            cancellationToken
+            CancellationToken.None
         );
 
         return Result.Success(

@@ -60,7 +60,7 @@ public sealed class ErrorResponseMapperTests {
     public void MapDomainError_PreservesStructuredExtensions() {
         var response = _mapper.Map(
             new DomainError(
-                "Loan.HighRisk",
+                "Loan.HighRiskConfirmationRequired",
                 "Cliente de alto riesgo.",
                 ErrorCategory.Conflict,
                 new Dictionary<string, object?> {
@@ -110,6 +110,15 @@ public sealed class ErrorResponseMapperTests {
     }
 
     [Fact]
+    public void MapMissingIdempotencyKeyException_ReturnsStable400Contract() {
+        var response = _mapper.Map(new MissingIdempotencyKeyException());
+
+        response.StatusCode.Should().Be(400);
+        response.ErrorCode.Should().Be("Idempotency.MissingKey");
+        response.Category.Should().Be("Validation");
+    }
+
+    [Fact]
     public void MapFluentValidationException_Returns400WithErrors() {
         var validationException = new ValidationException(
             [
@@ -131,6 +140,7 @@ public sealed class ErrorResponseMapperTests {
 
         response.StatusCode.Should().Be(500);
         response.Title.Should().Be("Error interno del servidor");
+        response.ErrorCode.Should().Be("Internal.Unexpected");
         response.Detail.Should().NotContain("detalle interno secreto");
     }
 }

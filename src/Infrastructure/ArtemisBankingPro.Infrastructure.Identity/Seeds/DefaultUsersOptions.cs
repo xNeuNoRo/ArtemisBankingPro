@@ -15,16 +15,16 @@ public sealed class DefaultUsersOptions {
     public UserSeedOptions? Commerce { get; set; }
 
     public sealed class UserSeedOptions {
-        public string? UserName { get; set; }
+        public string UserName { get; set; } = null!;
 
-        public string? Password { get; set; }
+        public string Password { get; set; } = null!;
 
-        public string? FirstName { get; set; }
+        public string FirstName { get; set; } = null!;
 
-        public string? LastName { get; set; }
+        public string LastName { get; set; } = null!;
 
-        public string? Email { get; set; }
+        public string Email { get; set; } = null!;
 
-        public string? IdentityDocument { get; set; }
+        public string IdentityDocument { get; set; } = null!;
     }
 }

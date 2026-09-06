@@ -155,8 +155,7 @@ public sealed class LoginCommandHandlerTests {
         result.Error!.Category.Should().Be(ErrorCategory.Unauthorized);
         result.Error.Code.Should().Be("Auth.Inactive");
         result.Error.Message.Should().Be(
-            "Su cuenta se encuentra inactiva. Debe activar su cuenta mediante el enlace "
-                + "enviado a su correo electrónico registrado para poder acceder al sistema."
+            "Su cuenta se encuentra inactiva. Debe activar su cuenta antes de iniciar sesión."
         );
     }
 

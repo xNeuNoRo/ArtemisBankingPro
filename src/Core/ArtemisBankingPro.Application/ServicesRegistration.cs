@@ -20,6 +20,10 @@ public static class ServicesRegistration {
     public static IServiceCollection AddApplication(this IServiceCollection services) {
         services.AddMediator(options => {
             options.Assemblies = [typeof(ServicesRegistration).Assembly];
+            // Handlers depend on scoped DbContexts and identity services. The
+            // package default is Singleton, which would retain a DbContext
+            // across concurrent HTTP requests.
+            options.ServiceLifetime = ServiceLifetime.Scoped;
             options.PipelineBehaviors =
             [
                 typeof(ValidationBehavior<,>),
@@ -35,6 +39,15 @@ public static class ServicesRegistration {
         services.AddScoped<ITransferProcessor, TransferProcessor>();
         services.AddScoped<ICashAdvanceProcessor, CashAdvanceProcessor>();
         services.AddScoped<IWithdrawalProcessor, WithdrawalProcessor>();
+        services.AddScoped(typeof(IGenericService<>), typeof(GenericService<>));
+
+        services.AddScoped<Features.Auth.Services.IAuthWebService, Features.Auth.Services.AuthWebService>();
+        services.AddScoped<Features.Admin.Services.IAdminUserService, Features.Admin.Services.AdminUserService>();
+        services.AddScoped<Features.Loans.Services.ILoanManagementService, Features.Loans.Services.LoanManagementService>();
+        services.AddScoped<Features.CreditCard.Services.ICreditCardManagementService, Features.CreditCard.Services.CreditCardManagementService>();
+        services.AddScoped<Features.SavingsAccounts.Services.ISavingsAccountManagementService, Features.SavingsAccounts.Services.SavingsAccountManagementService>();
+        services.AddScoped<Features.Cashier.Services.ICashierOperationsService, Features.Cashier.Services.CashierOperationsService>();
+        services.AddScoped<Features.Client.Services.IClientOperationsService, Features.Client.Services.ClientOperationsService>();
 
         // Mapeo de datos (requerimiento del documento funcional, ADR-011):
         // Mapster compone los mappings explícitos de DTOs y ViewModels por
@@ -43,7 +56,7 @@ public static class ServicesRegistration {
         services.AddSingleton(MapsterConfig.Create());
         services.AddScoped<IMapper, ServiceMapper>();
 
-        // Consumidor de eventos de dominio (ADR-012): registro de auditoría
+        // Consumidor de eventos de dominio: registro de auditoría operacional
         // post-commit de operaciones financieras aprobadas.
         services.AddScoped<
             IEventHandler<FinancialOperationApprovedEvent>,
@@ -52,11 +65,14 @@ public static class ServicesRegistration {
 
         // Mapeo centralizado de errores a códigos HTTP (consumido por la capa
         // de presentación para generar Problem Details RFC 7807).
-        services.AddScoped<IErrorResponseMapper, ErrorResponseMapper>();
+        // ErrorResponseMapper is pure and is also consumed by the API's
+        // singleton exception handler.
+        services.AddSingleton<IErrorResponseMapper, ErrorResponseMapper>();
 
         // Emisión y validación de nonces de confirmación single-use para los
         // flujos de confirmación de la WebApp (combinados con IdempotencyBehavior).
         services.AddScoped<IConfirmationTokenService, ConfirmationTokenService>();
+        services.AddScoped<ConfirmationGuard>();
 
         return services;
     }

@@ -17,7 +17,8 @@ public sealed class AdminMappingRegister : IRegister {
                 ClientAssignmentProduct.Loan,
                 PageRequest.DefaultPage,
                 PageRequest.DefaultPageSize,
-                source.Identification
+                source.Identification,
+                source.SelectedClientId
             ));
     }
 
@@ -35,8 +36,12 @@ public sealed class AdminMappingRegister : IRegister {
 
     public static EligibleClientsViewModel ToViewModel(
         EligibleClientsResponse source,
-        IMapper mapper
+        IMapper mapper,
+        string? identification = null,
+        string? selectedClientId = null
     ) => new() {
+        Identification = identification,
+        SelectedClientId = selectedClientId,
         AverageDebt = source.AverageDebt,
         Clients = source.Clients.Items.Select(mapper.Map<EligibleClientItemViewModel>).ToArray(),
         Pagination = new PaginationViewModel {

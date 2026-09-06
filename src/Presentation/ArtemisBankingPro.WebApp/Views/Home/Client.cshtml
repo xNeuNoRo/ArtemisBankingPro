@@ -1,0 +1,154 @@
+@model ClientDashboardViewModel
+@{
+    ViewData["Title"] = Model.PageTitle;
+    string Money(decimal amount) => $"RD$ {amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    string CardClass(int index) => $"visual-card--{((index % 5) switch { 0 => "visa", 1 => "mastercard", 2 => "artemis", 3 => "premium", _ => "gold" })}";
+    string Brand(int index) => (index % 5) switch { 0 => "Visa", 1 => "Mastercard", 2 => "Artemis", 3 => "Premium", _ => "Gold" };
+}
+
+<section class="page-header client-dashboard__header" aria-labelledby="client-dashboard-title">
+    <div class="page-header__content">
+        <p class="page-header__eyebrow">Cliente</p>
+        <h1 id="client-dashboard-title" class="page-header__title">Centro financiero personal</h1>
+        <p class="page-header__description">
+            Consulte sus productos activos y gestione sus operaciones desde un mismo espacio.
+        </p>
+    </div>
+    <div class="page-header__actions">
+        <a class="ui-button ui-button--primary" asp-controller="Client" asp-action="Transactions">
+            <partial name="_Icon" model='@("transfer")' />
+            Ver transacciones
+        </a>
+    </div>
+</section>
+
+@if (Model.HasLoadError) {
+    <section class="ui-alert ui-alert--danger" role="alert" aria-live="assertive">
+        <p class="ui-alert__content">@Model.LoadErrorMessage</p>
+        <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Home" asp-action="Client">Reintentar</a>
+    </section>
+} else if (Model.HasNoActiveProducts) {
+    ViewData["EmptyTitle"] = "No posee productos financieros activos.";
+    ViewData["EmptyDescription"] = "Cuando se le asigne un producto activo, aparecerá en este panel.";
+    <partial name="_EmptyState" />
+} else {
+    @if (Model.Products.Accounts.Count > 0) {
+        <section class="client-dashboard__section" aria-labelledby="client-accounts-title">
+            <div class="client-dashboard__section-heading">
+                <div>
+                    <p class="ui-section-label">Fondos disponibles</p>
+                    <h2 id="client-accounts-title" class="ui-card__title">Cuentas de ahorro activas</h2>
+                </div>
+                <span class="ui-badge ui-badge--active">@Model.Products.Accounts.Count cuentas</span>
+            </div>
+            <div class="app-grid client-dashboard__product-grid">
+                @foreach (MyAccountViewModel account in Model.Products.Accounts) {
+                    <article class="ui-product-card">
+                        <div class="ui-product-card__header">
+                            <div>
+                                <p class="ui-section-label">Cuenta @account.Type</p>
+                                <h3 class="ui-product-card__title">@account.AccountNumber</h3>
+                            </div>
+                            <span class="ui-badge ui-badge--active" aria-label="Estado: activa">Activa</span>
+                        </div>
+                        <strong class="ui-product-card__value">@Money(account.Balance)</strong>
+                        <p class="ui-product-card__meta">Balance disponible para sus operaciones.</p>
+                        <div class="ui-product-card__footer">
+                            <a
+                                class="ui-button ui-button--secondary ui-button--small"
+                                asp-controller="Client"
+                                asp-action="Transactions"
+                                asp-route-accountNumber="@account.AccountNumber">
+                                Ver detalles
+                            </a>
+                            <a
+                                class="ui-button ui-button--primary ui-button--small"
+                                asp-controller="Client"
+                                asp-action="ExpressTransfer">
+                                Realizar transferencia
+                            </a>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    @if (Model.Products.Loans.Count > 0) {
+        <section class="client-dashboard__section" aria-labelledby="client-loans-title">
+            <div class="client-dashboard__section-heading">
+                <div>
+                    <p class="ui-section-label">Obligaciones vigentes</p>
+                    <h2 id="client-loans-title" class="ui-card__title">Préstamos activos</h2>
+                </div>
+            </div>
+            <div class="app-grid client-dashboard__product-grid">
+                @foreach (MyLoanViewModel loan in Model.Products.Loans) {
+                    <article class="ui-product-card">
+                        <div class="ui-product-card__header">
+                            <div>
+                                <p class="ui-section-label">Préstamo</p>
+                                <h3 class="ui-product-card__title">@loan.LoanNumber</h3>
+                            </div>
+                            <span class="ui-badge ui-badge--@(loan.IsDelinquent ? "rejected" : "active")" aria-label="Estado del préstamo: @(loan.IsDelinquent ? "en mora" : "al día")">
+                                @(loan.IsDelinquent ? "En mora" : "Al día")
+                            </span>
+                        </div>
+                        <strong class="ui-product-card__value">@Money(loan.OutstandingAmount)</strong>
+                        <p class="ui-product-card__meta">
+                            @loan.PaidInstallments de @loan.TotalInstallments cuotas pagadas · @loan.AnnualRate.ToString("N2", CultureInfo.InvariantCulture)% anual · plazo @loan.TermMonths meses
+                        </p>
+                        <div class="ui-product-card__footer">
+                            <a
+                                class="ui-button ui-button--secondary ui-button--small"
+                                asp-controller="Client"
+                                asp-action="LoanDetails"
+                                asp-route-id="@loan.LoanId">
+                                Ver detalles
+                            </a>
+                            <a
+                                class="ui-button ui-button--primary ui-button--small"
+                                asp-controller="Client"
+                                asp-action="LoanPayment">
+                                Realizar pago de préstamo
+                            </a>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    @if (Model.Products.Cards.Count > 0) {
+        <section class="client-dashboard__section" aria-labelledby="client-cards-title">
+            <div class="client-dashboard__section-heading">
+                <div>
+                    <p class="ui-section-label">Crédito disponible</p>
+                    <h2 id="client-cards-title" class="ui-card__title">Tarjetas activas</h2>
+                </div>
+            </div>
+            <div class="visual-card-grid" role="list" aria-label="Tarjetas de crédito activas">
+                @for (int i = 0; i < Model.Products.Cards.Count; i++) {
+                    MyCardViewModel card = Model.Products.Cards[i];
+                    string fakeBin = ((i % 2 == 0 ? 400000 : 520000) + card.CardId % 10000).ToString(CultureInfo.InvariantCulture);
+                    <article class="credit-card-item" role="listitem">
+                        <div class="visual-card @CardClass(i)">
+                            <div class="visual-card__top"><span class="visual-card__chip" aria-hidden="true"></span><span class="visual-card__network-name">@Brand(i)</span></div>
+                            <div class="visual-card__number">•••• •••• •••• @card.LastFour</div>
+                            <div class="visual-card__footer"><div><span class="visual-card__label">Producto</span><strong class="visual-card__value">Artemis Credit</strong></div><div><span class="visual-card__label">Expira</span><strong class="visual-card__value">@card.Expiration</strong></div></div>
+                            <div class="visual-card__bottom"><span class="visual-card__type-badge">Crédito</span><span class="visual-card__bin">BIN @fakeBin</span><span class="visual-card__contactless" aria-hidden="true"></span></div>
+                        </div>
+                        <div class="credit-card-item__body">
+                            <div class="credit-card-metrics"><div><span>Límite</span><strong>@Money(card.CreditLimit)</strong></div><div><span>Deuda</span><strong>@Money(card.CurrentDebt)</strong></div><div><span>Disponible</span><strong>@Money(card.AvailableCredit)</strong></div></div>
+                            <div class="credit-card-item__status"><span>Estado de la tarjeta</span><span class="ui-badge ui-badge--active" aria-label="Estado: activa">Activa</span></div>
+                            <div class="credit-card-item__actions">
+                                <a class="ui-button ui-button--secondary ui-button--small" asp-controller="Client" asp-action="CardDetails" asp-route-id="@card.CardId">Ver detalles</a>
+                                <a class="ui-button ui-button--primary ui-button--small" asp-controller="Client" asp-action="CardPayment">Realizar pago</a>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+}

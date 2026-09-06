@@ -37,6 +37,26 @@ public sealed class LoanTests {
     }
 
     [Fact]
+    public void ApplyPayment_UsesDueDateThenNumberAsDeterministicOrder() {
+        Loan loan = CreateLoan();
+        Installment first = loan.Installments.Single(item => item.Number == 1);
+        Installment second = loan.Installments.Single(item => item.Number == 2);
+        typeof(Installment).GetProperty(nameof(Installment.DueDate))!.SetValue(
+            first,
+            second.DueDate.AddMonths(1)
+        );
+        typeof(Installment).GetProperty(nameof(Installment.DueDate))!.SetValue(
+            second,
+            first.DueDate.AddMonths(-1)
+        );
+
+        loan.ApplyPayment(Money.Create(100m).Value, IssuedAt.AddDays(1));
+
+        second.PaidAmount.Amount.Should().Be(100m);
+        first.PaidAmount.Should().Be(Money.Zero);
+    }
+
+    [Fact]
     public void ApplyPayment_AmountAboveDebt_ClampsAndCompletesLoan() {
         Loan loan = CreateLoan();
         Money requested = Money.Create(loan.OutstandingAmount.Amount + 1_000m).Value;

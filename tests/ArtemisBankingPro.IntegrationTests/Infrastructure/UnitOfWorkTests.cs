@@ -1,13 +1,38 @@
+using ArtemisBankingPro.Application.Interfaces.Events;
 using ArtemisBankingPro.Application.Interfaces.Persistence;
 using ArtemisBankingPro.Domain.Accounts.Entities;
 using ArtemisBankingPro.Domain.Accounts.ValueObjects;
 using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Domain.Operations.Entities;
 using ArtemisBankingPro.Domain.Operations.Enums;
+using ArtemisBankingPro.Domain.Merchants.Entities;
+using ArtemisBankingPro.Domain.Merchants.Events;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
+
+public sealed class TransactionStateRecordingHandler : IEventHandler<MerchantUserAssociatedEvent> {
+    private static bool _sawCommittedTransaction;
+
+    public static bool SawCommittedTransaction => _sawCommittedTransaction;
+
+    public static void Reset() => _sawCommittedTransaction = false;
+
+    private readonly BankingDbContext _context;
+
+    public TransactionStateRecordingHandler(BankingDbContext context) {
+        _context = context;
+    }
+
+    public Task HandleAsync(
+        MerchantUserAssociatedEvent domainEvent,
+        CancellationToken ct = default
+    ) {
+        _sawCommittedTransaction = _context.Database.CurrentTransaction is null;
+        return Task.CompletedTask;
+    }
+}
 
 [Collection("SqlServer")]
 public sealed class UnitOfWorkTests(SqlServerFixture fixture) : SqlServerTestBase(fixture) {
@@ -211,6 +236,38 @@ public sealed class UnitOfWorkTests(SqlServerFixture fixture) : SqlServerTestBas
     }
 
     [Fact]
+    public async Task ExecuteInTransactionAsync_DispatchesDomainEventsAfterCommit() {
+        TransactionStateRecordingHandler.Reset();
+        await using var provider = BuildProvider(services =>
+            services.AddScoped<
+                IEventHandler<MerchantUserAssociatedEvent>,
+                TransactionStateRecordingHandler
+            >()
+        );
+        await using var scope = provider.CreateAsyncScope();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var context = scope.ServiceProvider.GetRequiredService<BankingDbContext>();
+
+        Result result = await unitOfWork.ExecuteInTransactionAsync(async ct => {
+            Merchant merchant = Merchant.Create(
+                "Evento Seguro",
+                null,
+                "event@example.com",
+                "809-555-1111",
+                "123456789",
+                "admin",
+                OccurredAt
+            ).Value;
+            merchant.AssociateUser("commerce-user", OccurredAt).IsSuccess.Should().BeTrue();
+            await context.Merchants.AddAsync(merchant, ct);
+            return Result.Success();
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        TransactionStateRecordingHandler.SawCommittedTransaction.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task ExecuteInTransactionAsync_UniqueConstraintViolation_ReturnsConflict() {
         await WithContextAsync(async context => {
             context.Set<IdempotencyRecord>().Add(
@@ -232,6 +289,6 @@ public sealed class UnitOfWorkTests(SqlServerFixture fixture) : SqlServerTestBas
         });
 
         result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Concurrency.Conflict");
+        result.Error!.Code.Should().Be("Persistence.UniqueConflict");
     }
 }

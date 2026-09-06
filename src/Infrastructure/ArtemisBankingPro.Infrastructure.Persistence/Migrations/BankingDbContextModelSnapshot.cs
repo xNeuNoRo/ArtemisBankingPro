@@ -51,8 +51,8 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("OperationType")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("RequestFingerprint")
                         .IsRequired()
@@ -132,7 +132,10 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                     b.HasIndex("IdempotencyKey", "ActorId")
                         .IsUnique();
 
-                    b.ToTable("IdempotencyRecords", "dbo");
+                    b.ToTable("IdempotencyRecords", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_IdempotencyRecords_Status_Valid", "[Status] IN (1, 2, 3)");
+                        });
                 });
 
             modelBuilder.Entity("ArtemisBankingPro.Domain.Accounts.Beneficiaries.Entities.Beneficiary", b =>
@@ -213,6 +216,8 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                     b.ToTable("AccountTransactions", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_AccountTransactions_Amount_Positive", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_AccountTransactions_Direction_Valid", "[Direction] IN (1, 2)");
                         });
                 });
 
@@ -284,6 +289,10 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_SavingsAccounts_Balance_NonNegative", "[Balance] >= 0");
 
                             t.HasCheckConstraint("CK_SavingsAccounts_Number_NineDigits", "LEN([Number]) = 9 AND [Number] NOT LIKE '%[^0-9]%'");
+
+                            t.HasCheckConstraint("CK_SavingsAccounts_Status_Valid", "[Status] IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_SavingsAccounts_Type_Valid", "[Type] IN (1, 2)");
                         });
                 });
 
@@ -333,6 +342,8 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                     b.ToTable("CardConsumptions", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_CardConsumptions_Amount_Positive", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_CardConsumptions_Type_Valid", "[Type] IN (1, 2)");
                         });
                 });
 
@@ -417,6 +428,8 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_CreditCards_LastFour_Digits", "[LastFour] LIKE '[0-9][0-9][0-9][0-9]'");
 
                             t.HasCheckConstraint("CK_CreditCards_Limit_Positive", "[CreditLimit] > 0");
+
+                            t.HasCheckConstraint("CK_CreditCards_Status_Valid", "[Status] IN (1, 2)");
                         });
                 });
 
@@ -478,9 +491,17 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Installments", "dbo", t =>
                         {
+                            t.HasCheckConstraint("CK_Installments_Interest_NonNegative", "[InterestAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_Installments_Number_Positive", "[Number] > 0");
+
                             t.HasCheckConstraint("CK_Installments_Paid_NonNegative", "[PaidAmount] >= 0");
 
                             t.HasCheckConstraint("CK_Installments_Paid_Within_Scheduled", "[PaidAmount] <= [ScheduledAmount]");
+
+                            t.HasCheckConstraint("CK_Installments_Principal_NonNegative", "[PrincipalAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_Installments_Scheduled_Equals_Breakdown", "[ScheduledAmount] = [InterestAmount] + [PrincipalAmount]");
 
                             t.HasCheckConstraint("CK_Installments_Scheduled_NonNegative", "[ScheduledAmount] >= 0");
                         });
@@ -553,9 +574,13 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Loans", "dbo", t =>
                         {
+                            t.HasCheckConstraint("CK_Loans_AnnualInterestRate_NonNegative", "[AnnualInterestRate] >= 0");
+
                             t.HasCheckConstraint("CK_Loans_Number_NineDigits", "LEN([Number]) = 9 AND [Number] NOT LIKE '%[^0-9]%'");
 
                             t.HasCheckConstraint("CK_Loans_Principal_Positive", "[ApprovedPrincipal] > 0");
+
+                            t.HasCheckConstraint("CK_Loans_Status_Valid", "[Status] IN (1, 2)");
 
                             t.HasCheckConstraint("CK_Loans_Term_Allowed", "[TermMonths] IN (6, 12, 18, 24, 30, 36, 42, 48, 54, 60)");
                         });
@@ -628,7 +653,10 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                     b.HasIndex("Rnc")
                         .IsUnique();
 
-                    b.ToTable("Merchants", "dbo");
+                    b.ToTable("Merchants", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_Merchants_Status_Valid", "[Status] IN (1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("ArtemisBankingPro.Domain.Operations.Entities.FinancialOperation", b =>
@@ -678,6 +706,9 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("SavingsAccountId")
+                        .HasColumnType("int");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -701,7 +732,37 @@ namespace ArtemisBankingPro.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_FinancialOperations_Interest_NonNegative", "[InterestAmount] >= 0");
 
+                            t.HasCheckConstraint("CK_FinancialOperations_Kind_Valid", "[Kind] BETWEEN 1 AND 18");
+
                             t.HasCheckConstraint("CK_FinancialOperations_Requested_Positive", "([RequestedAmount] > 0 AND [Kind] NOT IN (15, 16, 17, 18)) OR ([Kind] IN (15, 16, 17, 18) AND [RequestedAmount] = 0)");
+
+                            t.HasCheckConstraint("CK_FinancialOperations_Status_Valid", "[Status] IN (1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("ArtemisBankingPro.Infrastructure.Persistence.Entities.BankingNumberReservation", b =>
+                {
+                    b.Property<string>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(9)
+                        .HasColumnType("nvarchar(9)")
+                        .HasDefaultValueSql("RIGHT(REPLICATE('0', 9) + CONVERT(varchar(9), NEXT VALUE FOR dbo.BankingNumberSequence), 9)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetimeoffset")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int>("ResourceType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Number");
+
+                    b.ToTable("BankingNumberReservations", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_BankingNumberReservations_Number_NineDigits", "LEN([Number]) = 9 AND [Number] NOT LIKE '%[^0-9]%'");
+
+                            t.HasCheckConstraint("CK_BankingNumberReservations_ResourceType_Valid", "[ResourceType] IN (1, 2)");
                         });
                 });
 

@@ -11,5 +11,6 @@ public sealed record AssignCreditCardResponse(
     decimal AvailableCredit,
     string Expiration,
     string Status,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    string? NotificationWarning = null
 );

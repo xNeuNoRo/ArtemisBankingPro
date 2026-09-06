@@ -29,8 +29,17 @@ public sealed record UpdateUserCommand(
     public string IdempotencyKey { get; init; } = string.Empty;
 
     public string RequestFingerprint =>
-        $"{FirstName}|{LastName}|{Identification}|{Email}|{UserName}|{AdditionalAmount}";
-
+        string.Join(
+            '\u001F',
+            UserId,
+            FirstName,
+            LastName,
+            Identification,
+            Email,
+            UserName,
+            Password is null ? "password-absent" : "password-present",
+            AdditionalAmount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? ""
+        );
     public Task VerifyOwnershipAsync(ICurrentUserService currentUser, CancellationToken ct) {
         if (currentUser.UserId == UserId) {
             throw new ForbiddenAccessException(

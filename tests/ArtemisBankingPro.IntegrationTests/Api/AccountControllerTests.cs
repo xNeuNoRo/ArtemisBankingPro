@@ -1,11 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace ArtemisBankingPro.IntegrationTests.Api;
 
+[Collection("Api")]
 public sealed class AccountControllerTests : IClassFixture<ApiFactory> {
     private readonly HttpClient _client;
 
@@ -44,22 +43,5 @@ public sealed class AccountControllerTests : IClassFixture<ApiFactory> {
         HttpResponseMessage response = await _client.GetAsync("/api/users");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-}
-
-public sealed class ApiFactory : WebApplicationFactory<Program> {
-    protected override void ConfigureWebHost(IWebHostBuilder builder) {
-        builder.UseEnvironment("Testing");
-        builder.UseSetting(
-            "ConnectionStrings:ArtemisDb",
-            "Server=localhost,1433;Database=ArtemisBankingTests;TrustServerCertificate=True"
-        );
-        builder.UseSetting("Security:Jwt:SecretKey", Convert.ToBase64String(new byte[32]));
-        builder.UseSetting("Security:Jwt:Issuer", "ArtemisBanking.Tests");
-        builder.UseSetting("Security:Jwt:Audience", "ArtemisBanking.Tests.Api");
-        builder.UseSetting("Security:Jwt:ExpirationMinutes", "15");
-        builder.UseSetting("Security:AccountTokens:PepperKey", Convert.ToBase64String(new byte[32]));
-        builder.UseSetting("Security:Card:FingerprintKey", Convert.ToBase64String(new byte[32]));
-        builder.UseSetting("Security:Card:CvcPepperKey", Convert.ToBase64String(new byte[32]));
     }
 }

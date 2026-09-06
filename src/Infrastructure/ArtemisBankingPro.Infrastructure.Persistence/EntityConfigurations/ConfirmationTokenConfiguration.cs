@@ -12,7 +12,7 @@ public sealed class ConfirmationTokenConfiguration : IEntityTypeConfiguration<Co
 
         builder.Property(token => token.TokenHash).HasMaxLength(64).IsRequired();
         builder.Property(token => token.ActorId).HasMaxLength(450).IsRequired();
-        builder.Property(token => token.OperationType).HasMaxLength(50).IsRequired();
+        builder.Property(token => token.OperationType).HasMaxLength(128).IsRequired();
         builder.Property(token => token.RequestFingerprint).HasMaxLength(64).IsRequired();
         builder.Property(token => token.ExpiresAtUtc).IsRequired();
         builder.Property(token => token.CreatedAtUtc).IsRequired();

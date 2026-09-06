@@ -4,5 +4,7 @@ public sealed record OverdueProcessingResult(
     int TotalProcessed,
     int NewDelinquent,
     decimal TotalDelinquentAmount,
-    int FailedCount
+    int FailedCount,
+    int EmailFailedCount,
+    bool HasMore
 );

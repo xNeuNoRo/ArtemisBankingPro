@@ -302,7 +302,9 @@ public sealed class CashierThirdPartyTransferIntegrationTests(SqlServerFixture f
             Assert.NotNull(source);
             source.Balance.Amount.Should().Be(1000m);
 
-            (await context.FinancialOperations.CountAsync()).Should().Be(0);
+            var operation = await context.FinancialOperations.SingleAsync();
+            operation.Status.Should().Be(FinancialOperationStatus.Rejected);
+            operation.RejectionCode.Should().Be("Account.NotActive");
         });
     }
 

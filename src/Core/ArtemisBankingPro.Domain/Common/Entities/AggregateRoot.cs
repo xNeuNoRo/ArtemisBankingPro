@@ -13,7 +13,7 @@ public interface IAggregateRoot {
 
 /// <summary>
 /// AggregateRoot: basicamente una entidad que puede desencadenar eventos de dominio en proceso.
-/// Los eventos se despachan después de persistir, nunca dentro de la transacción.
+/// Los eventos se despachan después de confirmar la transacción de persistencia.
 /// </summary>
 public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot
     where TId : notnull {

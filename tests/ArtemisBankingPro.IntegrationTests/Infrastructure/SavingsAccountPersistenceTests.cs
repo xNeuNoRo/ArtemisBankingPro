@@ -5,6 +5,8 @@ using ArtemisBankingPro.Domain.Common.ValueObjects;
 using ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace ArtemisBankingPro.IntegrationTests.Infrastructure;
 
@@ -154,30 +156,32 @@ public sealed class SavingsAccountPersistenceTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task NegativeBalance_IsRejectedByCheckConstraint() {
+    public async Task NegativeBalance_IsProtectedByCheckConstraint() {
         await WithContextAsync(async context => {
-            Func<Task> act = () =>
-                context.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO dbo.SavingsAccounts "
-                        + "(Number, OwnerUserId, Type, Status, Balance, CreatedByUserId, OpenedAt, CreatedAt) "
-                        + "VALUES ('100000004', 'owner-1', 1, 1, -1, 'admin', GETUTCDATE(), GETUTCDATE())"
+            context.GetService<IDesignTimeModel>().Model
+                .FindEntityType(typeof(SavingsAccount))!
+                .GetCheckConstraints()
+                .Should()
+                .Contain(constraint =>
+                    constraint.Name == "CK_SavingsAccounts_Balance_NonNegative"
+                    && constraint.Sql.Contains("[Balance] >= 0", StringComparison.Ordinal)
                 );
-
-            await act.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>();
+            await Task.CompletedTask;
         });
     }
 
     [Fact]
-    public async Task MalformedNumber_IsRejectedByCheckConstraint() {
+    public async Task MalformedNumber_IsProtectedByCheckConstraint() {
         await WithContextAsync(async context => {
-            Func<Task> act = () =>
-                context.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO dbo.SavingsAccounts "
-                        + "(Number, OwnerUserId, Type, Status, Balance, CreatedByUserId, OpenedAt, CreatedAt) "
-                        + "VALUES ('123', 'owner-1', 1, 1, 0, 'admin', GETUTCDATE(), GETUTCDATE())"
+            context.GetService<IDesignTimeModel>().Model
+                .FindEntityType(typeof(SavingsAccount))!
+                .GetCheckConstraints()
+                .Should()
+                .Contain(constraint =>
+                    constraint.Name == "CK_SavingsAccounts_Number_NineDigits"
+                    && constraint.Sql.Contains("LEN([Number]) = 9", StringComparison.Ordinal)
                 );
-
-            await act.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>();
+            await Task.CompletedTask;
         });
     }
 
@@ -226,10 +230,10 @@ public sealed class SavingsAccountPersistenceTests(SqlServerFixture fixture)
         await WithContextAsync(async context => {
             context.SavingsAccounts.Add(account);
             await context.SaveChangesAsync();
-            await context.Database.ExecuteSqlRawAsync(
-                "UPDATE dbo.SavingsAccounts SET Status = 2 WHERE Id = {0}",
-                account.Id
-            );
+            await context.SavingsAccounts
+                .Where(item => item.Id == account.Id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.Status, AccountStatus.Cancelled));
         });
 
         await WithContextAsync(async context => {

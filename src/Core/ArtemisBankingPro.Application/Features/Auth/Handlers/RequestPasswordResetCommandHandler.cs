@@ -48,8 +48,8 @@ public sealed class RequestPasswordResetCommandHandler
 
         if (userInfo is null) {
             return Result.Failure<Unit>(
-                DomainError.NotFound(
-                    "Auth.UserNotFound",
+                DomainError.Validation(
+                    "Account.ResetUserNotFound",
                     "No existe un usuario registrado con este nombre de usuario."
                 )
             );
@@ -58,43 +58,41 @@ public sealed class RequestPasswordResetCommandHandler
         if (string.IsNullOrWhiteSpace(userInfo.Email)) {
             return Result.Failure<Unit>(
                 DomainError.Validation(
-                    "Auth.NoEmail",
+                    "Account.ResetEmailMissing",
                     "Este usuario no tiene un correo electrónico registrado. "
                         + "No es posible enviar la solicitud de restablecimiento."
                 )
             );
         }
 
-        // El documento funcional exige desactivar temporalmente la cuenta
-        // como parte de la solicitud de restablecimiento.
-        var deactivateResult = await _userAccountService.SetActiveAsync(
+        Result<PasswordResetTokenResult> tokenResult = await _tokenService.GeneratePasswordResetAsync(
             userInfo.UserId,
-            isActive: false,
+            message.AllowedRoles,
             cancellationToken
         );
-        if (deactivateResult.IsFailure) {
-            return Result.Failure<Unit>(deactivateResult.Error!);
+        if (tokenResult.IsFailure) {
+            return Result.Failure<Unit>(tokenResult.Error!);
         }
 
-        string rawToken = await _tokenService.GenerateAsync(
-            userInfo.UserId,
-            AccountTokenType.PasswordReset,
-            cancellationToken
-        );
+        PasswordResetTokenResult delivery = tokenResult.Value;
 
         try {
             if (message.CallbackUrl is null) {
                 await _emailService.SendAsync(
-                    userInfo.Email,
-                    new PasswordResetTokenModel(userInfo.FullName, rawToken),
+                    delivery.Email,
+                    new PasswordResetTokenModel(delivery.FullName, delivery.RawToken),
                     cancellationToken
                 );
             }
             else {
-                string resetLink = BuildResetLink(message.CallbackUrl, userInfo.UserId, rawToken);
+                string resetLink = BuildResetLink(
+                    message.CallbackUrl,
+                    userInfo.UserId,
+                    delivery.RawToken
+                );
                 await _emailService.SendAsync(
-                    userInfo.Email,
-                    new PasswordResetModel(userInfo.FullName, resetLink),
+                    delivery.Email,
+                    new PasswordResetModel(delivery.FullName, resetLink),
                     cancellationToken
                 );
             }

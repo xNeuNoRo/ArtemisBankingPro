@@ -3,6 +3,7 @@ using ArtemisBankingPro.Application.Interfaces.Persistence.Repositories;
 using ArtemisBankingPro.Domain.Common.Entities;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace ArtemisBankingPro.Infrastructure.Persistence.Repositories;
 
@@ -18,6 +19,9 @@ public class GenericRepository<T> : IGenericRepository<T>
 
     public virtual Task<T?> GetByIdAsync(int id, CancellationToken ct = default) =>
         DbSet.FirstOrDefaultAsync(entity => entity.Id == id, ct);
+
+    public virtual Task ReloadAsync(T entity, CancellationToken ct = default) =>
+        Context.Entry(entity).ReloadAsync(ct);
 
     public virtual Task<bool> ExistsAsync(
         Expression<Func<T, bool>> predicate,
@@ -37,5 +41,13 @@ public class GenericRepository<T> : IGenericRepository<T>
     public virtual Task AddRangeAsync(IEnumerable<T> entities, CancellationToken ct = default) =>
         DbSet.AddRangeAsync(entities, ct);
 
-    public virtual void Update(T entity) => DbSet.Update(entity);
+    public virtual void Update(T entity) {
+        EntityEntry<T> entry = Context.Entry(entity);
+        if (entry.State == EntityState.Detached) {
+            throw new InvalidOperationException(
+                "GenericRepository.Update requiere una entidad tracked; "
+                    + "no admite grafos desconectados."
+            );
+        }
+    }
 }

@@ -62,7 +62,7 @@ public sealed class GetCreditCardsPagedQueryHandlerTests {
     }
 
     [Fact]
-    public async Task Handle_UnknownIdentification_ReturnsNotFound() {
+    public async Task Handle_UnknownIdentification_ReturnsEmptyPage() {
         var userRepository = new Mock<IUserRepository>();
         userRepository
             .Setup(r => r.GetByIdentityDocumentAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -76,8 +76,8 @@ public sealed class GetCreditCardsPagedQueryHandlerTests {
             CancellationToken.None
         );
 
-        result.IsFailure.Should().BeTrue();
-        result.Error!.Code.Should().Be("Card.CustomerNotFound");
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Items.Should().BeEmpty();
         cardRepository.Verify(
             r => r.GetPagedAsync(It.IsAny<string?>(), It.IsAny<CreditCardStatus?>(), It.IsAny<PageRequest>(), It.IsAny<CancellationToken>()),
             Times.Never
@@ -192,7 +192,7 @@ public sealed class GetCreditCardsPagedStatusMappingTests {
     [InlineData("cancelada", CreditCardStatus.Cancelled)]
     [InlineData("ACTIVA", CreditCardStatus.Active)]
     [InlineData("todas", null)]
-    [InlineData(null, null)]
+    [InlineData(null, CreditCardStatus.Active)]
     public async Task Handle_StatusFilter_MapsToRepositoryStatus(string? status, CreditCardStatus? expected) {
         var cardRepository = new Mock<ICreditCardRepository>();
         cardRepository

@@ -1,4 +1,5 @@
 using ArtemisBankingPro.Application.Features.Users.Commands;
+using ArtemisBankingPro.Application.Common.Validation;
 using ArtemisBankingPro.Application.Features.Users.Queries;
 using ArtemisBankingPro.Application.Features.Users.Validators;
 
@@ -41,6 +42,19 @@ public sealed class CreateUserCommandValidatorTests {
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == "Email");
+    }
+
+    [Fact]
+    public async Task Validate_IdentificationLongerThanSqlColumn_Fails() {
+        var result = await _validator.ValidateAsync(
+            ValidClient() with { Identification = "123456789012" }
+        );
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e =>
+            e.PropertyName == "Identification"
+            && e.ErrorMessage == IdentityValidationLimits.IdentificationMaxLengthMessage
+        );
     }
 
     [Fact]
@@ -232,6 +246,25 @@ public sealed class CreateCommerceUserCommandValidatorTests {
                 "123P@$$word!",
                 "123P@$$word!",
                 -1m
+            )
+        );
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "InitialAmount");
+    }
+
+    [Fact]
+    public async Task Validate_MissingInitialAmount_Fails() {
+        var result = await _validator.ValidateAsync(
+            new CreateCommerceUserCommand(
+                5,
+                "Comercio",
+                "Demo",
+                "10199999999",
+                "comercio@demo.com",
+                "comercio01",
+                "123P@$$word!",
+                "123P@$$word!"
             )
         );
 

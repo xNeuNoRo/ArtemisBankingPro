@@ -14,6 +14,11 @@ public interface IMerchantRepository : IGenericRepository<Merchant> {
 
     Task<Merchant?> GetByAssociatedUserIdAsync(string userId, CancellationToken ct = default);
 
+    Task<IReadOnlyList<MerchantUserAssociationDto>> GetUserAssociationsAsync(
+        IReadOnlyCollection<string> userIds,
+        CancellationToken ct = default
+    );
+
     /// <summary>
     /// Listado paginado de comercios, del más reciente al más antiguo.
     /// Un <paramref name="status"/> nulo devuelve comercios de todos los

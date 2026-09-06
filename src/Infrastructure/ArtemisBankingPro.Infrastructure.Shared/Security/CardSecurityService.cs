@@ -13,44 +13,33 @@ namespace ArtemisBankingPro.Infrastructure.Shared.Security;
 /// (el espacio de 3 dígitos es trivial de enumerar).
 /// </summary>
 public sealed class CardSecurityService : ICardSecurityService, ICvcVerifier {
-    private readonly CardSecurityOptions _options;
+    private readonly byte[] _fingerprintKey;
+    private readonly byte[] _cvcPepperKey;
 
     public CardSecurityService(IOptions<CardSecurityOptions> options) {
-        _options = options.Value;
-
-        if (string.IsNullOrWhiteSpace(_options.FingerprintKey)) {
-            throw new InvalidOperationException(
-                "Security:Card:FingerprintKey no está configurada. "
-                    + "Provea una clave HMAC de 32 bytes en base64."
-            );
-        }
-
-        if (string.IsNullOrWhiteSpace(_options.CvcPepperKey)) {
-            throw new InvalidOperationException(
-                "Security:Card:CvcPepperKey no está configurada. "
-                    + "Provea una clave HMAC de 32 bytes en base64."
-            );
-        }
+        CardSecurityOptions configured = options.Value;
+        _fingerprintKey = GetKey(configured.FingerprintKey, nameof(configured.FingerprintKey));
+        _cvcPepperKey = GetKey(configured.CvcPepperKey, nameof(configured.CvcPepperKey));
     }
 
     public string ComputePanFingerprint(string pan) {
         ArgumentException.ThrowIfNullOrWhiteSpace(pan);
 
-        byte[] key = GetKey(_options.FingerprintKey);
-        byte[] digest = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(NormalizeDigits(pan)));
+        byte[] digest = HMACSHA256.HashData(_fingerprintKey, Encoding.UTF8.GetBytes(NormalizePan(pan)));
         return Convert.ToHexString(digest).ToLowerInvariant();
     }
 
     public string ComputeCvcDigest(string cvc) {
-        ArgumentException.ThrowIfNullOrWhiteSpace(cvc);
+        if (!IsValidCvc(cvc)) {
+            throw new ArgumentException("El CVC debe contener exactamente tres dígitos.", nameof(cvc));
+        }
 
-        byte[] key = GetKey(_options.CvcPepperKey);
-        byte[] digest = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(cvc.Trim()));
+        byte[] digest = HMACSHA256.HashData(_cvcPepperKey, Encoding.UTF8.GetBytes(cvc));
         return Convert.ToHexString(digest).ToLowerInvariant();
     }
 
     public bool VerifyCvc(string cvc, string storedDigest) {
-        if (string.IsNullOrWhiteSpace(cvc) || string.IsNullOrWhiteSpace(storedDigest)) {
+        if (!IsValidCvc(cvc) || string.IsNullOrWhiteSpace(storedDigest)) {
             return false;
         }
 
@@ -63,18 +52,49 @@ public sealed class CardSecurityService : ICardSecurityService, ICvcVerifier {
 
     public bool Verify(string cvc, string storedDigest) => VerifyCvc(cvc, storedDigest);
 
-    private static byte[] GetKey(string? key) {
+    private static byte[] GetKey(string? key, string keyName) {
+        if (string.IsNullOrWhiteSpace(key)) {
+            throw new InvalidOperationException(
+                $"Security:Card:{keyName} no está configurada. Provea una clave HMAC de 32 bytes en base64."
+            );
+        }
+
         try {
-            return Convert.FromBase64String(key!);
+            byte[] decoded = Convert.FromBase64String(key);
+            if (decoded.Length < 32) {
+                throw new InvalidOperationException(
+                    $"Security:Card:{keyName} debe contener al menos 32 bytes."
+                );
+            }
+
+            return decoded;
         }
         catch (FormatException ex) {
             throw new InvalidOperationException(
-                "Las claves de seguridad de tarjeta deben estar en base64.",
+                $"Security:Card:{keyName} debe estar en base64.",
                 ex
             );
         }
     }
 
-    private static string NormalizeDigits(string pan) =>
-        string.Concat(pan.Where(char.IsAsciiDigit));
+    private static string NormalizePan(string pan) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pan);
+
+        if (pan.Any(character =>
+                !char.IsAsciiDigit(character)
+                && character is not ' '
+                && character is not '-')) {
+            throw new ArgumentException("El número de tarjeta contiene caracteres inválidos.", nameof(pan));
+        }
+
+        string digits = string.Concat(pan.Where(char.IsAsciiDigit));
+        if (digits.Length != 16) {
+            throw new ArgumentException("El número de tarjeta debe contener 16 dígitos.", nameof(pan));
+        }
+
+        return digits;
+    }
+
+    private static bool IsValidCvc(string? cvc) =>
+        cvc is { Length: 3 } && cvc.All(char.IsAsciiDigit);
 }

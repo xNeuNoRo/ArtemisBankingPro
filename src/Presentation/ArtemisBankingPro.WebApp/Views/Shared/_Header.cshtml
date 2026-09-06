@@ -1,0 +1,26 @@
+@{
+    string? role = NavigationCatalog.RoleFrom(User);
+}
+<header class="app-header">
+    <div class="app-header__inner">
+        <button
+            type="button"
+            class="ui-button ui-button--icon ui-button--quiet app-menu-toggle"
+            data-navigation-toggle="primary"
+            aria-controls="primary-navigation"
+            aria-expanded="false"
+            aria-label="Abrir navegación">
+            <partial name="_Icon" model='@("menu")' />
+        </button>
+
+        <div class="app-header__context">
+            <span class="app-header__eyebrow">Centro de control</span>
+            <strong>@NavigationCatalog.RoleLabel(role)</strong>
+        </div>
+
+        <div class="app-header__actions">
+            <partial name="_ThemeToggle" />
+            <partial name="_UserMenu" />
+        </div>
+    </div>
+</header>

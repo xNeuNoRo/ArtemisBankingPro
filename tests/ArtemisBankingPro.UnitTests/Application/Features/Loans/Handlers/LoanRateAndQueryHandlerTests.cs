@@ -180,6 +180,15 @@ public sealed class GetLoansPagedQueryHandlerTests {
         result.Value.Items[0].CustomerFullName.Should().Be("María Gómez");
         result.Value.Items[0].LoanNumber.Should().Be("111111111");
         result.Value.Items[0].Status.Should().Be("Active");
+        loanRepository.Verify(
+            r => r.GetPagedAsync(
+                null,
+                LoanStatus.Active,
+                It.Is<PageRequest>(page => page.Page == 1 && page.PageSize == 20),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
     }
 
     [Fact]

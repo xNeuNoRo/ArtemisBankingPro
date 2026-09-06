@@ -3,6 +3,7 @@ using ArtemisBankingPro.Infrastructure.Identity.Contexts;
 using ArtemisBankingPro.Infrastructure.Persistence;
 using ArtemisBankingPro.Infrastructure.Persistence.Contexts;
 using ArtemisBankingPro.Infrastructure.Shared;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -78,43 +79,29 @@ public sealed class SqlServerFixture : IAsyncLifetime {
     public async Task ResetAsync() {
         await using var scope = Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<BankingDbContext>();
+        var identityContext = scope.ServiceProvider.GetRequiredService<IdentityContext>();
 
-        string[] dboTables =
-        [
-            "ConfirmationTokens",
-            "IdempotencyRecords",
-            "AccountTransactions",
-            "CardConsumptions",
-            "FinancialOperations",
-            "Beneficiaries",
-            "Installments",
-            "Loans",
-            "CreditCards",
-            "Merchants",
-            "SavingsAccounts",
-        ];
+        await identityContext.AccountTokens.ExecuteDeleteAsync();
+        await identityContext.Set<IdentityUserClaim<string>>().ExecuteDeleteAsync();
+        await identityContext.Set<IdentityUserLogin<string>>().ExecuteDeleteAsync();
+        await identityContext.Set<IdentityUserToken<string>>().ExecuteDeleteAsync();
+        await identityContext.Set<IdentityRoleClaim<string>>().ExecuteDeleteAsync();
+        await identityContext.Set<IdentityUserRole<string>>().ExecuteDeleteAsync();
+        await identityContext.Users.ExecuteDeleteAsync();
+        await identityContext.Roles.ExecuteDeleteAsync();
 
-        string[] identityTables =
-        [
-            "AccountTokens",
-            "UserClaims",
-            "UserLogins",
-            "UserTokens",
-            "RoleClaims",
-            "UserRoles",
-            "Users",
-            "Roles",
-        ];
-
-        foreach (string table in identityTables) {
-#pragma warning disable EF1002 // Nombres de tabla de una lista constante, sin entrada de usuario.
-            await context.Database.ExecuteSqlRawAsync($"DELETE FROM [Identity].[{table}]");
-        }
-
-        foreach (string table in dboTables) {
-            await context.Database.ExecuteSqlRawAsync($"DELETE FROM dbo.[{table}]");
-#pragma warning restore EF1002
-        }
+        await context.ConfirmationTokens.ExecuteDeleteAsync();
+        await context.IdempotencyRecords.ExecuteDeleteAsync();
+        await context.AccountTransactions.ExecuteDeleteAsync();
+        await context.CardConsumptions.ExecuteDeleteAsync();
+        await context.FinancialOperations.ExecuteDeleteAsync();
+        await context.Beneficiaries.ExecuteDeleteAsync();
+        await context.Installments.ExecuteDeleteAsync();
+        await context.Loans.ExecuteDeleteAsync();
+        await context.CreditCards.ExecuteDeleteAsync();
+        await context.Merchants.ExecuteDeleteAsync();
+        await context.SavingsAccounts.ExecuteDeleteAsync();
+        await context.BankingNumberReservations.ExecuteDeleteAsync();
     }
 
     public async Task DisposeAsync() {

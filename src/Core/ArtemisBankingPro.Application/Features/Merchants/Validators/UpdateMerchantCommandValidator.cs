@@ -44,5 +44,9 @@ public sealed class UpdateMerchantCommandValidator : AbstractValidator<UpdateMer
             .WithMessage("El RNC es obligatorio.")
             .Length(9)
             .WithMessage("El RNC debe tener 9 caracteres.");
+
+        RuleFor(x => x.Rnc)
+            .Must(rnc => rnc is not null && rnc.All(char.IsDigit))
+            .WithMessage("El RNC debe contener solo dígitos.");
     }
 }
